@@ -5,6 +5,11 @@
  * Edge: "Microsoft Francisca/Thalita Online (Natural)" · Chrome: "Google português do Brasil"
  * Safari/iOS: vozes "Premium/Enhanced/Aprimorada" (Luciana etc.) · Android: vozes de rede do Google.
  */
+const FEMALE =
+  /\b(maria|francisca|thalita|luciana|fernanda|camila|vit[oó]ria|let[ií]cia|brenda|elza|manuela|yara|heloisa|helo[ií]sa|leila|giovanna|leticia|raquel|joana|catarina|female|feminin|mulher)\b/;
+const MALE =
+  /\b(daniel|ricardo|ant[oô]nio|donato|f[aá]bio|humberto|j[uú]lio|nicolau|val[eé]rio|felipe|eduardo|thiago|duarte|cristiano|jo[aã]o|male|masculin|homem)\b/;
+
 function scoreVoice(v: SpeechSynthesisVoice): number {
   const name = v.name.toLowerCase();
   const lang = v.lang.toLowerCase().replace('_', '-');
@@ -17,7 +22,9 @@ function scoreVoice(v: SpeechSynthesisVoice): number {
   if (/premium|enhanced|aprimorad|siri|wavenet|studio/.test(name)) s += 250;
   if (/francisca|thalita/.test(name)) s += 120;
   if (/google/.test(name)) s += 150;
-  if (/luciana|fernanda|camila|vit[oó]ria|let[ií]cia|brenda|elza|manuela|yara/.test(name)) s += 60;
+  // Preferência forte por vozes femininas
+  if (FEMALE.test(name)) s += 400;
+  if (MALE.test(name)) s -= 800;
   if (!v.localService) s += 40; // vozes da nuvem costumam ser bem mais humanas
   if (/compact|espeak|robot|novelty|eloquence|grandma|grandpa|rocko|shelley|flo|reed|sandy/.test(name)) s -= 500;
   if (v.default) s += 5;
@@ -64,8 +71,10 @@ export async function speak(text: string) {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = voice?.lang || 'pt-BR';
     if (voice) u.voice = voice;
-    u.rate = 0.98;
-    u.pitch = 1;
+    u.rate = voice && voice.localService ? 0.95 : 0.98;
+    // Voz local (offline) costuma soar mais robótica: um tom levemente mais alto e fala
+    // um pouco mais lenta deixam a saudação mais suave.
+    u.pitch = voice && voice.localService ? 1.1 : 1.05;
     u.volume = 1;
     synth.speak(u);
   } catch {
