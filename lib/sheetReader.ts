@@ -326,9 +326,17 @@ function findHeader(rows: string[][], schema: SchemaSpec): HeaderGuess | null {
   const limit = Math.min(rows.length, 60);
   for (let r = 0; r < limit; r++) {
     const cols = new Map<number, Match>();
+    // Células mescladas (ex.: o título "ESTOQUE ATUAL" em A1:K3) chegam repetidas em
+    // todas as colunas. Cada texto só conta UMA vez, senão o título vence o cabeçalho de verdade.
+    const seenText = new Set<string>();
     rows[r].forEach((cell, c) => {
+      const key = norm(cell);
+      if (key && seenText.has(key)) return;
       const m = matchHeader(cell, schema);
-      if (m) cols.set(c, m);
+      if (m) {
+        cols.set(c, m);
+        seenText.add(key);
+      }
     });
     if (!cols.size) continue;
     const fields = new Set([...cols.values()].map((m) => m.field.key));
@@ -575,7 +583,9 @@ export const ITEM_SCHEMA: SchemaSpec = {
     {
       key: 'quantity',
       kind: 'int',
-      synonyms: ['quant', 'quantidade', 'qtd', 'qtde', 'qte', 'saldo', 'estoque atual', 'em estoque', 'estoque', 'saldo atual'],
+      // "saldo" vem primeiro: em planilhas com ENTRADA/SAÍDA/QUANT/SALDO, QUANT é só o
+      // valor inicial e o saldo real (já com entradas e saídas) está em SALDO.
+      synonyms: ['saldo', 'saldo atual', 'estoque atual', 'em estoque', 'quant', 'quantidade', 'qtd', 'qtde', 'qte', 'estoque'],
       exclude: ['valor', 'total', 'custo', 'preco', 'min', 'minimo', 'maximo', 'max'],
     },
     {

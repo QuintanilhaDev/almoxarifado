@@ -32,6 +32,8 @@ export async function PATCH(req: Request) {
       });
     if (newPassword && newPassword.length < 6)
       return fail('A nova senha precisa ter pelo menos 6 caracteres.', 400, { field: 'new_password' });
+    if (Buffer.byteLength(newPassword, 'utf8') > 72)
+      return fail('A senha pode ter no máximo 72 caracteres.', 400, { field: 'new_password' });
 
     const changingCredentials = username !== admin.username || Boolean(newPassword);
     const update: Record<string, string> = { display_name, username, updated_at: new Date().toISOString() };

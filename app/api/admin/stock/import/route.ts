@@ -4,7 +4,7 @@ import { currentAdmin, unauthorized } from '@/lib/auth';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { fetchAll, intOrNull, moneyOrNull, str } from '@/lib/stockData';
-import { ITEM_SCHEMA, SheetError, classify, itemKey, loadSheets, readSheets } from '@/lib/sheetReader';
+import { ITEM_SCHEMA, SheetError, classify, itemKey, loadSheets, norm, readSheets } from '@/lib/sheetReader';
 import { readUpload } from '@/lib/upload';
 import type { ImportPreview } from '@/lib/types';
 
@@ -16,7 +16,22 @@ async function existingKeys() {
     column: 'name_key',
     tiebreak: 'id',
   });
-  return new Set(rows.map((r) => itemKey(r.name, r.size)));
+  const keys = new Set(rows.map((r) => itemKey(r.name, r.size)));
+  // nome -> uma chave de variação com tamanho já cadastrada
+  const sized = new Map<string, string>();
+  for (const r of rows) if (norm(r.size)) sized.set(norm(r.name), itemKey(r.name, r.size));
+  return { keys, sized };
+}
+
+/**
+ * Chave de comparação de uma linha da planilha. Se o item vem SEM tamanho mas o mesmo
+ * produto já existe com tamanho, a linha é tratada como o item que já existe (e não como
+ * uma cópia nova "sem tamanho"), evitando duplicar o estoque.
+ */
+function rowKey(name: unknown, size: unknown, sized: Map<string, string>) {
+  const k = itemKey(name, size);
+  if (!norm(size)) return sized.get(norm(name)) ?? k;
+  return k;
 }
 
 /**
@@ -28,7 +43,7 @@ export async function POST(req: Request) {
   try {
     const admin = await currentAdmin();
     if (!admin) return unauthorized();
-    const existing = await existingKeys();
+    const { keys: existing, sized } = await existingKeys();
 
     if ((req.headers.get('content-type') || '').includes('multipart/form-data')) {
       const up = await readUpload(req);
@@ -48,7 +63,7 @@ export async function POST(req: Request) {
         );
       }
       const preview: ImportPreview = {
-        rows: classify(read.rows, (d) => itemKey(d.name, d.size), existing).rows,
+        rows: classify(read.rows, (d) => rowKey(d.name, d.size, sized), existing).rows,
         sheets: read.sheets,
         ignored: read.ignored,
         warnings: read.warnings,
@@ -66,7 +81,7 @@ export async function POST(req: Request) {
       const name = str(r?.name, 160);
       if (!name) continue;
       const size = str(r.size, 40);
-      const k = itemKey(name, size);
+      const k = rowKey(name, size, sized);
       if (existing.has(k) || seen.has(k)) {
         skipped++;
         continue;
