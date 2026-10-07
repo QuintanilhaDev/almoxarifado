@@ -1,6 +1,6 @@
 'use client';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Boxes, Building2, Users, Inbox as InboxIcon, ListChecks, LogOut, MailCheck, UserRound } from 'lucide-react';
+import { BarChart3, Boxes, Building2, Users, Inbox as InboxIcon, ListChecks, LogOut, MailCheck, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand } from '../Brand';
 import { ToastProvider, useToast } from '../Toasts';
@@ -16,13 +16,15 @@ import { EmailsManager } from './EmailsManager';
 import { AccountSettings } from './AccountSettings';
 import { Estoque } from './Estoque';
 import { Postos } from './Postos';
+import { Metricas } from './Metricas';
 import { UsersManager } from './UsersManager';
 
-export type Tab = 'solicitacoes' | 'estoque' | 'postos' | 'formulario' | 'emails' | 'usuarios' | 'conta';
+export type Tab = 'solicitacoes' | 'estoque' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'usuarios' | 'conta';
 const TABS: { id: Tab; label: string; short: string; icon: typeof InboxIcon }[] = [
   { id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon },
   { id: 'estoque', label: 'Estoque', short: 'Estoque', icon: Boxes },
   { id: 'postos', label: 'Postos', short: 'Postos', icon: Building2 },
+  { id: 'metricas', label: 'Métricas', short: 'Métricas', icon: BarChart3 },
   { id: 'formulario', label: 'Formulário', short: 'Formulário', icon: ListChecks },
   { id: 'emails', label: 'E-mails autorizados', short: 'E-mails', icon: MailCheck },
   { id: 'usuarios', label: 'Usuários', short: 'Usuários', icon: Users },
@@ -193,6 +195,10 @@ function Shell() {
     if (user && !user.is_master && MASTER_ONLY.includes(tab)) setTab('solicitacoes');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, tab]);
+  // no celular a barra de abas rola (usuário master tem 8): mantém a aba ativa à vista
+  useEffect(() => {
+    document.querySelector('.tabbar .tab.is-active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [tab, visibleTabs.length]);
   const lowCount = useMemo(() => (items || []).filter(isLow).length, [items]);
   const newCount = useMemo(() => (requests || []).filter((r) => r.status === 'nova').length, [requests]);
   useEffect(() => {
@@ -276,6 +282,7 @@ function Shell() {
             {tab === 'postos' && (
               <Postos postos={postos} items={items} reload={reloadStock} version={stockVersion} failed={stockFailed && postos === null} />
             )}
+            {tab === 'metricas' && <Metricas version={stockVersion + detailVersion} />}
             {tab === 'formulario' && <FormEditor version={formVersion} me={user} />}
             {tab === 'emails' && <EmailsManager emails={emails} reload={loadEmails} setEmails={setEmails} />}
             {tab === 'usuarios' && user?.is_master && <UsersManager me={user} version={adminsVersion} />}
@@ -284,7 +291,7 @@ function Shell() {
         </AnimatePresence>
       </main>
 
-      <nav className="tabbar" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+      <nav className="tabbar" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(54px, 1fr))` }}>
         {visibleTabs.map((t) => (
           <button key={t.id} className={`tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
             {tab === t.id ? (

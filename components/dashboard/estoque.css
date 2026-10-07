@@ -736,6 +736,11 @@ details.imp-cols ul {
 @media (max-width: 900px) {
   .dash .tabbar {
     grid-template-columns: repeat(6, 1fr);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .dash .tabbar::-webkit-scrollbar {
+    display: none;
   }
   .dash .tab {
     font-size: 10.5px;
