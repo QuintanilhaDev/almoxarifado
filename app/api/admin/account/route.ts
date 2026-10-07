@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/supabaseAdmin';
-import { currentAdmin, sessionCookieOptions, unauthorized } from '@/lib/auth';
+import { currentAdmin, loadAdmin, sessionCookieOptions, unauthorized } from '@/lib/auth';
 import { fail, readJson, serverError } from '@/lib/http';
 import { SESSION_COOKIE, signSession } from '@/lib/session';
 import { broadcast } from '@/lib/broadcast';
@@ -52,15 +52,16 @@ export async function PATCH(req: Request) {
       .from('admins')
       .update(update)
       .eq('id', admin.id)
-      .select('id, username, display_name')
+      .select('id')
       .single();
     if (error) {
       if ((error as { code?: string }).code === '23505') return fail('Este usuário já está em uso.', 400, { field: 'username' });
       throw error;
     }
 
-    const res = NextResponse.json({ user: data });
-    res.cookies.set(SESSION_COOKIE, await signSession({ sub: data.id, name: data.display_name }), sessionCookieOptions());
+    const user = (await loadAdmin(data.id)) ?? { id: data.id, username, display_name, is_master: admin.is_master };
+    const res = NextResponse.json({ user });
+    res.cookies.set(SESSION_COOKIE, await signSession({ sub: user.id, name: user.display_name }), sessionCookieOptions());
     await broadcast('admins:update', {});
     return res;
   } catch (e) {

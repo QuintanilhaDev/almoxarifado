@@ -159,6 +159,26 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
 ---
 
+## Responder com baixa automática e usuário master
+
+**Atualizando um site que já está no ar:** no Supabase, abra o **SQL Editor** e rode `supabase/baixa_e_usuarios.sql` (depois do `estoque.sql`; pode rodar mais de uma vez). Depois suba os arquivos no GitHub. Não há variáveis novas.
+
+**Responder (detalhe da solicitação → botão Responder)**
+- A ferramenta não consegue ler a caixa de e-mail de fora. Por isso o texto é escrito (ou colado) **dentro da própria janela do Responder**, e ela lê o que você escreveu.
+- Enquanto você escreve, aparecem à direita os **itens encontrados** com a quantidade, o saldo e um aviso do que merece atenção. Entende abreviações (`m/c`), erros de digitação, plural, tamanho (`tam 42`, `(G)`), quantidade antes ou depois do item (`2 un`, `x2`) e vários itens na mesma frase.
+- **Só vem marcado o que o texto diz que foi enviado e que a ferramenta identificou com certeza.** Itens com dúvida (nome parecido com mais de um, sem quantidade, tamanho faltando, “não temos”, “amanhã enviaremos”, devolução/troca, perguntas) aparecem **desmarcados** para você conferir, trocar o item ou ajustar a quantidade.
+- Escolha entre **Transferir para um posto** (sai do almoxarifado e entra no estoque do posto; o posto do pedido já vem escolhido se estiver cadastrado) ou **Só dar baixa**.
+- **Revisar baixa** mostra o resumo (saldo antes e depois) antes de gravar. Depois: **Só dar baixa** ou **Dar baixa e abrir e-mail**. Também há **Copiar texto** e **E-mail sem baixa**.
+- Tudo ou nada: se algum item não tiver saldo, nada é baixado. Clicar duas vezes ou perder a internet **nunca baixa em duplicidade**. Se já existe baixa na solicitação, a janela avisa e pede sua confirmação para registrar outra.
+- Em **Baixas de estoque** (no detalhe da solicitação) fica o registro de cada baixa, com o botão **Estornar** (devolve ao almoxarifado, uma única vez). Tudo aparece também no histórico do Estoque.
+
+**Usuário master e usuários do painel** (`/dashboard#usuarios`, só para o master)
+- Usuário: `master` · senha inicial: `berrythedev45`. **Troque essa senha** assim que entrar (aba Usuários → Trocar senha, ou Minha conta).
+- O master **cria usuários** (nome, usuário de login, senha) e **troca a senha de qualquer um, inclusive a dele**. As demais pessoas não veem essa aba.
+- Quem já estava logado continua logado após uma troca de senha; vale no próximo login. Não há exclusão de usuários.
+
+---
+
 ## Rodar no seu computador (opcional)
 
 Precisa do Node.js 20 ou mais novo.
@@ -184,6 +204,7 @@ middleware.ts         protege /dashboard
 supabase/schema.sql   script do banco
 supabase/estoque.sql  tabelas e funções do estoque e dos postos
 supabase/seed_estoque.sql  carga inicial do estoque (planilha)
+supabase/baixa_e_usuarios.sql  baixa pelo Responder e usuário master
 ```
 
 ## Problemas comuns
@@ -196,5 +217,6 @@ supabase/seed_estoque.sql  carga inicial do estoque (planilha)
 | Anexo não envia | Confira se a chave pública está certa. Arquivos acima de 50 MB são recusados. |
 | As coisas não aparecem na hora, só depois de alguns segundos | O tempo real está desligado: ligue **Allow public access** em *Project Settings → Realtime*. Mesmo assim, o painel se atualiza sozinho a cada 12 s. |
 | A voz não fala | Verifique o volume e o modo silencioso. Alguns navegadores (ex.: Firefox no Linux) não têm voz em português instalada. |
+| "Falta rodar o arquivo baixa_e_usuarios.sql" ao dar baixa | Rode `supabase/baixa_e_usuarios.sql` no SQL Editor. |
 | Estoque ou Postos mostram "Não foi possível carregar" | Rode `supabase/estoque.sql` no SQL Editor e recarregue a página. |
 | Esqueceram a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'neilton';`. A senha volta a ser `123456`. |

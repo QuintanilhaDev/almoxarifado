@@ -1,6 +1,6 @@
 'use client';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Boxes, Building2, Inbox as InboxIcon, ListChecks, LogOut, MailCheck, UserRound } from 'lucide-react';
+import { Boxes, Building2, Users, Inbox as InboxIcon, ListChecks, LogOut, MailCheck, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand } from '../Brand';
 import { ToastProvider, useToast } from '../Toasts';
@@ -16,16 +16,19 @@ import { EmailsManager } from './EmailsManager';
 import { AccountSettings } from './AccountSettings';
 import { Estoque } from './Estoque';
 import { Postos } from './Postos';
+import { UsersManager } from './UsersManager';
 
-export type Tab = 'solicitacoes' | 'estoque' | 'postos' | 'formulario' | 'emails' | 'conta';
+export type Tab = 'solicitacoes' | 'estoque' | 'postos' | 'formulario' | 'emails' | 'usuarios' | 'conta';
 const TABS: { id: Tab; label: string; short: string; icon: typeof InboxIcon }[] = [
   { id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon },
   { id: 'estoque', label: 'Estoque', short: 'Estoque', icon: Boxes },
   { id: 'postos', label: 'Postos', short: 'Postos', icon: Building2 },
   { id: 'formulario', label: 'Formulário', short: 'Formulário', icon: ListChecks },
   { id: 'emails', label: 'E-mails autorizados', short: 'E-mails', icon: MailCheck },
+  { id: 'usuarios', label: 'Usuários', short: 'Usuários', icon: Users },
   { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
 ];
+const MASTER_ONLY: Tab[] = ['usuarios'];
 const INTRO_FLAG = 'almox:intro';
 
 export function Dashboard() {
@@ -49,6 +52,7 @@ function Shell() {
   const [formVersion, setFormVersion] = useState({ n: 0, by: '' });
   const [detailVersion, setDetailVersion] = useState(0);
   const [intro, setIntro] = useState(false);
+  const [adminsVersion, setAdminsVersion] = useState(0);
   const knownIds = useRef<Set<string> | null>(null);
   const userRef = useRef<AdminUser | null>(null);
   userRef.current = user;
@@ -159,7 +163,10 @@ function Shell() {
       }
       if (ev === 'emails:update') loadEmails();
       if (ev === 'form:update') setFormVersion((v) => ({ n: v.n + 1, by: String(payload.by || '') }));
-      if (ev === 'admins:update') loadMe();
+      if (ev === 'admins:update') {
+        loadMe();
+        setAdminsVersion((v) => v + 1);
+      }
       if (ev === 'stock:update') {
         loadItems();
         loadPostos();
@@ -181,6 +188,11 @@ function Shell() {
     12000,
   );
 
+  const visibleTabs = useMemo(() => TABS.filter((t) => !MASTER_ONLY.includes(t.id) || user?.is_master), [user?.is_master]);
+  useEffect(() => {
+    if (user && !user.is_master && MASTER_ONLY.includes(tab)) setTab('solicitacoes');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, tab]);
   const lowCount = useMemo(() => (items || []).filter(isLow).length, [items]);
   const newCount = useMemo(() => (requests || []).filter((r) => r.status === 'nova').length, [requests]);
   useEffect(() => {
@@ -203,7 +215,7 @@ function Shell() {
       <aside className="side">
         <Brand sub="Painel da equipe" />
         <nav className="nav">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button key={t.id} className={`nav-item${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
               {tab === t.id ? (
                 <motion.span layoutId="nav-bg" className="nav-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />
@@ -266,13 +278,14 @@ function Shell() {
             )}
             {tab === 'formulario' && <FormEditor version={formVersion} me={user} />}
             {tab === 'emails' && <EmailsManager emails={emails} reload={loadEmails} setEmails={setEmails} />}
+            {tab === 'usuarios' && user?.is_master && <UsersManager me={user} version={adminsVersion} />}
             {tab === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      <nav className="tabbar">
-        {TABS.map((t) => (
+      <nav className="tabbar" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+        {visibleTabs.map((t) => (
           <button key={t.id} className={`tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
             {tab === t.id ? (
               <motion.span layoutId="tab-bg" className="nav-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />

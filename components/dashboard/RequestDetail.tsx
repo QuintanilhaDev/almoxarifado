@@ -1,13 +1,15 @@
 'use client';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Check, Copy, Download, Mail, Play, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Download, Mail, PackageMinus, Play, Trash2, Undo2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { answerToText, formatBytes, formatDateTime, initials, protocolLabel } from '@/lib/format';
-import { STATUS_SINGULAR, type AdminUser, type Attachment, type AuthorizedEmail, type RequestRow, type RequestStatus } from '@/lib/types';
+import { STATUS_SINGULAR, type StockApplication, type AdminUser, type Attachment, type AuthorizedEmail, type RequestRow, type RequestStatus } from '@/lib/types';
 import { useToast } from '../Toasts';
 import { api } from './api';
 import { ConfirmModal } from './Modal';
 import { toneFor } from './Inbox';
+import { ReplyComposer } from './ReplyComposer';
+import './reply.css';
 
 const STATUS_COLOR: Record<RequestStatus, string> = {
   nova: 'var(--lilac)',
@@ -39,6 +41,27 @@ export function RequestDetail({
   const [viewer, setViewer] = useState<Attachment | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [composer, setComposer] = useState(false);
+  const [apps, setApps] = useState<StockApplication[]>(request.stock_applications ?? []);
+  const [revert, setRevert] = useState<StockApplication | null>(null);
+  const [reverting, setReverting] = useState(false);
+  useEffect(() => {
+    setApps(request.stock_applications ?? []);
+  }, [request.id, request.stock_applications]);
+  const doRevert = async () => {
+    if (!revert) return;
+    setReverting(true);
+    try {
+      const j = await api<{ applications: StockApplication[] }>(`/api/admin/requests/${request.id}/baixa?app=${encodeURIComponent(revert.id)}`, { method: 'DELETE' });
+      setApps(j.applications ?? []);
+      toast({ kind: 'success', title: 'Baixa estornada', text: 'Os itens voltaram ao almoxarifado.' });
+      setRevert(null);
+    } catch (e) {
+      toast({ kind: 'error', title: 'Não foi possível estornar', text: (e as Error).message });
+    } finally {
+      setReverting(false);
+    }
+  };
 
   // busca links temporários dos anexos
   useEffect(() => {
@@ -111,12 +134,6 @@ export function RequestDetail({
       setDeleting(false);
     }
   };
-
-  const subject = `Solicitação ${protocolLabel(request.protocol)} - ${request.collaborator || ''}`.trim();
-  const greeting = supervisor?.supervisor_name ? `Olá, ${supervisor.supervisor_name.split(' ')[0]}!` : 'Olá!';
-  const mailto = `mailto:${request.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-    `${greeting}\n\nSobre a solicitação ${protocolLabel(request.protocol)} do colaborador ${request.collaborator || ''}:\n\n`,
-  )}`;
 
   const note =
     request.status === 'resolvida' && request.handled_by
@@ -200,9 +217,9 @@ export function RequestDetail({
             </AnimatePresence>
             {copied ? 'Copiado' : 'Copiar'}
           </button>
-          <a className="btn btn-primary btn-sm" href={mailto}>
+          <button className="btn btn-primary btn-sm" onClick={() => setComposer(true)}>
             <Mail size={16} /> Responder
-          </a>
+          </button>
         </div>
       </div>
 
@@ -286,6 +303,51 @@ export function RequestDetail({
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      {apps.length > 0 ? (
+        <div className="apps-box">
+          <h3 className="block-title" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <PackageMinus size={18} /> Baixas de estoque
+          </h3>
+          {apps.map((a) => (
+            <div key={a.id} className={`app-card${a.reverted ? ' is-reverted' : ''}`}>
+              <div className="app-top">
+                <small>
+                  {formatDateTime(a.at)} · {a.by}
+                  {a.mode === 'transferencia' && a.posto_name ? ` · para ${a.posto_name}` : ' · saída'}
+                  {a.reverted ? ` · estornada${a.reverted_by ? ' por ' + a.reverted_by : ''}` : ''}
+                </small>
+                {!a.reverted ? (
+                  <button className="btn btn-ghost btn-sm" onClick={() => setRevert(a)}>
+                    <Undo2 size={15} /> Estornar
+                  </button>
+                ) : null}
+              </div>
+              <ul>
+                {a.lines.map((l, i) => (
+                  <li key={i}>
+                    {l.quantity}× {l.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {composer ? (
+        <ReplyComposer request={request} supervisor={supervisor} applications={apps} onClose={() => setComposer(false)} onApplied={setApps} />
+      ) : null}
+      <ConfirmModal
+        open={Boolean(revert)}
+        title="Estornar esta baixa?"
+        text="Os itens voltam ao almoxarifado (e saem do posto, se houve transferência). Só dá para estornar uma vez."
+        confirmLabel="Estornar"
+        danger
+        busy={reverting}
+        onConfirm={doRevert}
+        onClose={() => setRevert(null)}
+      />
 
       <ConfirmModal
         open={confirmDelete}

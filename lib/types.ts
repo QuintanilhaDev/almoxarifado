@@ -51,6 +51,8 @@ export interface RequestRow {
   handled_by: string | null;
   created_at: string;
   updated_at: string;
+  /** baixas de estoque registradas pelo "Responder" (existe após rodar baixa_e_usuarios.sql) */
+  stock_applications?: StockApplication[];
 }
 
 export interface AuthorizedEmail {
@@ -66,6 +68,33 @@ export interface AdminUser {
   id: string;
   username: string;
   display_name: string;
+  /** usuário master: pode criar usuários e trocar senhas */
+  is_master?: boolean;
+}
+
+/** Linha da lista de usuários (só o master vê). */
+export interface AdminListItem {
+  id: string;
+  username: string;
+  display_name: string;
+  is_master: boolean;
+  created_at: string;
+}
+
+/** Uma baixa de estoque feita a partir da resposta de uma solicitação. */
+export interface StockApplication {
+  id: string;
+  at: string;
+  by: string;
+  mode: 'transferencia' | 'saida';
+  posto_id: string | null;
+  posto_name: string | null;
+  note: string | null;
+  lines: { item_id: string; name: string; quantity: number }[];
+  text: string;
+  reverted: boolean;
+  reverted_at?: string;
+  reverted_by?: string;
 }
 
 export const STATUS_LABEL: Record<RequestStatus, string> = {
