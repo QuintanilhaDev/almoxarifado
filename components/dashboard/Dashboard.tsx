@@ -1,22 +1,27 @@
 'use client';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Inbox as InboxIcon, ListChecks, LogOut, MailCheck, UserRound } from 'lucide-react';
+import { Boxes, Building2, Inbox as InboxIcon, ListChecks, LogOut, MailCheck, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand } from '../Brand';
 import { ToastProvider, useToast } from '../Toasts';
 import { useRealtime } from '@/lib/realtime';
 import { chime } from '@/lib/chime';
 import { initials, protocolLabel } from '@/lib/format';
-import type { AdminUser, AuthorizedEmail, RequestRow } from '@/lib/types';
+import type { AdminUser, AuthorizedEmail, Posto, RequestRow, StockItem } from '@/lib/types';
+import { isLow } from '@/lib/stockFormat';
 import { api } from './api';
 import { Inbox } from './Inbox';
 import { FormEditor } from './FormEditor';
 import { EmailsManager } from './EmailsManager';
 import { AccountSettings } from './AccountSettings';
+import { Estoque } from './Estoque';
+import { Postos } from './Postos';
 
-export type Tab = 'solicitacoes' | 'formulario' | 'emails' | 'conta';
+export type Tab = 'solicitacoes' | 'estoque' | 'postos' | 'formulario' | 'emails' | 'conta';
 const TABS: { id: Tab; label: string; short: string; icon: typeof InboxIcon }[] = [
   { id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon },
+  { id: 'estoque', label: 'Estoque', short: 'Estoque', icon: Boxes },
+  { id: 'postos', label: 'Postos', short: 'Postos', icon: Building2 },
   { id: 'formulario', label: 'Formulário', short: 'Formulário', icon: ListChecks },
   { id: 'emails', label: 'E-mails autorizados', short: 'E-mails', icon: MailCheck },
   { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
@@ -37,6 +42,10 @@ function Shell() {
   const [tab, setTabState] = useState<Tab>('solicitacoes');
   const [requests, setRequests] = useState<RequestRow[] | null>(null);
   const [emails, setEmails] = useState<AuthorizedEmail[] | null>(null);
+  const [items, setItems] = useState<StockItem[] | null>(null);
+  const [postos, setPostos] = useState<Posto[] | null>(null);
+  const [stockFailed, setStockFailed] = useState(false);
+  const [stockVersion, setStockVersion] = useState(0);
   const [formVersion, setFormVersion] = useState({ n: 0, by: '' });
   const [detailVersion, setDetailVersion] = useState(0);
   const [intro, setIntro] = useState(false);
@@ -96,6 +105,31 @@ function Shell() {
     }
   }, []);
 
+  const loadItems = useCallback(async () => {
+    try {
+      const j = await api<{ items: StockItem[] }>('/api/admin/stock');
+      setItems(j.items);
+      setStockFailed(false);
+    } catch {
+      setStockFailed(true);
+    }
+  }, []);
+
+  const loadPostos = useCallback(async () => {
+    try {
+      const j = await api<{ postos: Posto[] }>('/api/admin/postos');
+      setPostos(j.postos);
+    } catch {
+      setStockFailed(true);
+    }
+  }, []);
+
+  /** Recarrega estoque e postos e avisa as gavetas abertas para atualizarem também. */
+  const reloadStock = useCallback(async () => {
+    await Promise.all([loadItems(), loadPostos()]);
+    setStockVersion((v) => v + 1);
+  }, [loadItems, loadPostos]);
+
   const loadMe = useCallback(async () => {
     try {
       const j = await api<{ user: AdminUser }>('/api/auth/me');
@@ -108,7 +142,9 @@ function Shell() {
   useEffect(() => {
     loadRequests();
     loadEmails();
-  }, [loadRequests, loadEmails]);
+    loadItems();
+    loadPostos();
+  }, [loadRequests, loadEmails, loadItems, loadPostos]);
 
   useRealtime(
     (ev, payload) => {
@@ -124,14 +160,28 @@ function Shell() {
       if (ev === 'emails:update') loadEmails();
       if (ev === 'form:update') setFormVersion((v) => ({ n: v.n + 1, by: String(payload.by || '') }));
       if (ev === 'admins:update') loadMe();
+      if (ev === 'stock:update') {
+        loadItems();
+        loadPostos();
+        setStockVersion((v) => v + 1);
+        const by = String(payload.by || '');
+        if (by && by !== userRef.current?.display_name) toast({ kind: 'info', title: `${by} atualizou o estoque` });
+      }
+      if (ev === 'postos:update') {
+        loadPostos();
+        setStockVersion((v) => v + 1);
+      }
     },
     () => {
       loadRequests();
       loadEmails();
+      loadItems();
+      loadPostos();
     },
     12000,
   );
 
+  const lowCount = useMemo(() => (items || []).filter(isLow).length, [items]);
   const newCount = useMemo(() => (requests || []).filter((r) => r.status === 'nova').length, [requests]);
   useEffect(() => {
     document.title = newCount ? `(${newCount}) Painel · Almoxarifado` : 'Painel · Almoxarifado';
@@ -161,6 +211,7 @@ function Shell() {
               <t.icon size={19} />
               <span>{t.label}</span>
               {t.id === 'solicitacoes' && newCount > 0 ? <span className="nav-count">{newCount}</span> : null}
+              {t.id === 'estoque' && lowCount > 0 ? <span className="nav-count warn" title="Itens com estoque baixo">{lowCount}</span> : null}
             </button>
           ))}
         </nav>
@@ -207,6 +258,12 @@ function Shell() {
                 me={user}
               />
             )}
+            {tab === 'estoque' && (
+              <Estoque items={items} postos={postos} reload={reloadStock} version={stockVersion} failed={stockFailed && items === null} />
+            )}
+            {tab === 'postos' && (
+              <Postos postos={postos} items={items} reload={reloadStock} version={stockVersion} failed={stockFailed && postos === null} />
+            )}
             {tab === 'formulario' && <FormEditor version={formVersion} me={user} />}
             {tab === 'emails' && <EmailsManager emails={emails} reload={loadEmails} setEmails={setEmails} />}
             {tab === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
@@ -223,6 +280,7 @@ function Shell() {
             <t.icon size={20} />
             <span>{t.short}</span>
             {t.id === 'solicitacoes' && newCount > 0 ? <span className="nav-count">{newCount}</span> : null}
+            {t.id === 'estoque' && lowCount > 0 ? <span className="nav-count warn">{lowCount}</span> : null}
           </button>
         ))}
       </nav>

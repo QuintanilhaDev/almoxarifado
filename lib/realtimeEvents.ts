@@ -4,4 +4,6 @@ export type RealtimeEvent =
   | 'request:update'
   | 'form:update'
   | 'emails:update'
-  | 'admins:update';
+  | 'admins:update'
+  | 'stock:update'
+  | 'postos:update';

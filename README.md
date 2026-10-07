@@ -6,7 +6,7 @@ Site para organizar os pedidos de fardamento, calçados e EPIs que chegam ao alm
 |---|---|---|
 | `/solicitacao` | Supervisores dos postos | Formulário de pedido (só e-mails autorizados conseguem enviar) |
 | `/login` | Neilton e Juliana | Entrada no painel, com saudação por voz |
-| `/dashboard` | Neilton e Juliana | Solicitações, editor do formulário, e-mails autorizados e conta |
+| `/dashboard` | Neilton e Juliana | Solicitações, **estoque**, **postos**, editor do formulário, e-mails autorizados e conta |
 
 **Usuários iniciais:** `neilton` e `juliana`. A senha dos dois é `123456`. Troquem a senha no primeiro acesso, em **Minha conta**.
 
@@ -31,6 +31,7 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 4. Abra o arquivo `supabase/schema.sql` deste projeto, copie **todo** o conteúdo, cole no editor e clique em **Run**.
    - O resultado esperado é *Success. No rows returned*.
    - Esse script cria as tabelas, os dois usuários e o bucket privado `anexos` para fotos e vídeos.
+   - Para o **Estoque** e os **Postos**, rode também `supabase/estoque.sql` (tabelas e funções) e, depois, `supabase/seed_estoque.sql` (carga inicial com os itens da planilha). Veja a seção *Estoque e Postos* abaixo.
    - Pode rodar de novo sem problema: ele não duplica nada.
 5. Confira se deu certo: abra **Table Editor**. Devem aparecer as tabelas `admins`, `authorized_emails`, `form_config` e `requests`. Na tabela `admins` devem estar Neilton e Juliana.
 6. Agora pegue as chaves. Vá em **Project Settings** (ícone de engrenagem):
@@ -135,6 +136,29 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
 ---
 
+## Estoque e Postos
+
+**Atualizando um site que já está no ar:** no Supabase, abra o **SQL Editor** e rode, nesta ordem, `supabase/estoque.sql` e `supabase/seed_estoque.sql` (cada um pode ser rodado de novo sem duplicar nada). Depois suba os arquivos novos no GitHub: a Vercel publica sozinha. Não há variáveis novas.
+
+**Estoque** (`/dashboard#estoque`)
+- Cada item tem **saldo no almoxarifado**, quanto está **nos postos**, estoque mínimo, custo e tamanho. O total é a soma dos dois.
+- Toque em um item para: **Enviar a posto**, registrar **Entrada**, **Saída** ou **Ajustar saldo** (contagem de inventário), editar os dados, excluir, e ver onde ele está e o histórico dele.
+- **Novo item** cadastra um produto. **Transferir** envia vários itens de uma vez para um posto (tudo ou nada: se um item não tiver saldo, nada sai).
+- Cartões de resumo (itens, unidades, valor), busca sem acento, filtros (**Estoque baixo**, **Sem saldo**, **Nos postos**) e ordenação.
+- Item com saldo igual ou menor que o **estoque mínimo** ganha um aviso, e o menu mostra quantos estão assim.
+- **Histórico:** toda movimentação fica registrada (quem fez, quando, saldo depois).
+- **Exportar** baixa um `.csv` que abre direto no Excel. **Importar planilha** cadastra só os itens novos (mesmo nome + tamanho = já existe e não é mexido).
+
+**Postos** (`/dashboard#postos`)
+- Lista de postos com o que cada um tem. Toque em um posto para ver o estoque dele, **devolver** ao almoxarifado, dar **baixa** (consumido no posto), **enviar itens**, editar ou **remover**. Ao remover um posto, o que estava nele volta para o almoxarifado.
+- **Novo posto:** um só (com código, cidade, endereço, supervisor) ou vários de uma vez, um nome por linha.
+- **Importar planilha:** aceita `.xlsx` e `.csv`. O leitor acha sozinho a tabela e as colunas, mesmo com título, linhas vazias, células mescladas, totais, abas extras ou sem cabeçalho. Mostra uma **pré-visualização** antes de gravar. Postos que **já existem nunca são substituídos**: só os novos entram. Excel antigo (`.xls`) precisa ser salvo como `.xlsx`. Limite de 4 MB por arquivo.
+- Se a lista de postos do **formulário de solicitações** for diferente da daqui, aparece um aviso com o botão **Atualizar formulário**.
+
+**Observações sobre a planilha original (`Livro1.xlsx`):** as colunas ENTRADA, SAÍDA, SALDO e REF dependiam de outra planilha (links externos) e vinham com erro. A carga inicial usa a coluna **QUANT** como saldo atual. Dois pares de linhas repetidas (mesmo nome e tamanho) foram unidos.
+
+---
+
 ## Rodar no seu computador (opcional)
 
 Precisa do Node.js 20 ou mais novo.
@@ -152,12 +176,14 @@ app/
   solicitacao/        página do formulário
   login/              página de login
   dashboard/          painel
-  api/                rotas do servidor (formulário, login, painel)
+  api/                rotas do servidor (formulário, login, painel, estoque, postos)
 components/           telas e peças visuais
-  dashboard/          caixa de entrada, editor, e-mails, conta
+  dashboard/          caixa de entrada, editor, e-mails, conta, estoque, postos
 lib/                  regras (validação, sessão, voz, tempo real, banco)
 middleware.ts         protege /dashboard
 supabase/schema.sql   script do banco
+supabase/estoque.sql  tabelas e funções do estoque e dos postos
+supabase/seed_estoque.sql  carga inicial do estoque (planilha)
 ```
 
 ## Problemas comuns
@@ -170,4 +196,5 @@ supabase/schema.sql   script do banco
 | Anexo não envia | Confira se a chave pública está certa. Arquivos acima de 50 MB são recusados. |
 | As coisas não aparecem na hora, só depois de alguns segundos | O tempo real está desligado: ligue **Allow public access** em *Project Settings → Realtime*. Mesmo assim, o painel se atualiza sozinho a cada 12 s. |
 | A voz não fala | Verifique o volume e o modo silencioso. Alguns navegadores (ex.: Firefox no Linux) não têm voz em português instalada. |
+| Estoque ou Postos mostram "Não foi possível carregar" | Rode `supabase/estoque.sql` no SQL Editor e recarregue a página. |
 | Esqueceram a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'neilton';`. A senha volta a ser `123456`. |
