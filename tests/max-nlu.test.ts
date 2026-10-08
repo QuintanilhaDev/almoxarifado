@@ -153,6 +153,70 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
     await think('quantos itens saíram do estoque do almoxarifado nas últimas 15 horas', almox, { memory: mem, remote });
     check('frase curta ou com certeza não consulta a IA', calls === 0);
   }
+  // agente: alterações com confirmação, e quando ele é (ou não) chamado
+  {
+    const check = (name: string, ok: boolean, extra?: unknown) => {
+      if (!ok) {
+        fail++;
+        console.log('FALHOU agente:', name, extra ?? '');
+      }
+    };
+    const calls: string[] = [];
+    const done: { url: string; method?: string; body?: string }[] = [];
+    let apiOk = true;
+    const prevFetch = (globalThis as { fetch: unknown }).fetch;
+    (globalThis as { fetch: unknown }).fetch = async (url: string, init?: { method?: string; body?: string }) => {
+      if (!String(url).includes('/metrics')) done.push({ url: String(url), method: init?.method, body: init?.body });
+      if (String(url).includes('/metrics')) return { ok: false, json: async () => ({ error: 'sem rede no teste' }) };
+      return { ok: apiOk, json: async () => (apiOk ? { ok: true } : { error: 'Saldo insuficiente.' }) };
+    };
+    const pending = [{ method: 'POST' as const, path: '/api/almoxarifado/stock/move', body: { item_id: 'x', kind: 'saida', quantity: 5 }, what: 'saída de 5 unidades de Boné' }];
+    const agent = async (text: string) => {
+      calls.push(text);
+      if (/bon[eé]s/.test(text)) return { say: 'Vou registrar: saída de 5 unidades de Boné. Confirma?', pending, source: 'ia' };
+      if (/capital/.test(text)) return { say: 'Canberra.', source: 'ia' };
+      if (/parada/.test(text)) return { route: 'Max, métricas do último mês', source: 'ia' };
+      if (/limite/.test(text)) return { source: 'limite' };
+      return { source: 'nenhuma' };
+    };
+    const m2: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () => undefined };
+    const t = (p: string) => think(hear(p).command || p, almox, { memory: m2, agent });
+    let r = await t('Max, registre a saída de 5 bonés');
+    check('pedido de alteração vai ao agente e pede confirmação', /Confirma\?/.test(r.say) && m2.pending?.length === 1 && done.length === 0, r);
+    r = await t('sim, pode confirmar');
+    check('"sim" executa pela rota normal do sistema', r.say === 'Pronto: saída de 5 unidades de Boné.' && done.length === 1 && done[0].url === '/api/almoxarifado/stock/move' && done[0].method === 'POST' && !m2.pending, [r, done]);
+    await t('Max, registre a saída de 5 bonés');
+    r = await t('não, cancela');
+    check('"não" descarta', r.say === 'Tudo bem, não alterei nada.' && done.length === 1 && !m2.pending, r);
+    await t('Max, registre a saída de 5 bonés');
+    r = await t('Max, que horas são');
+    check('mudar de assunto descarta a alteração', /Agora são/.test(r.say) && !m2.pending && done.length === 1, r);
+    r = await t('sim');
+    check('"sim" solto depois disso não executa nada', done.length === 1, r);
+    apiOk = false;
+    await t('Max, registre a saída de 5 bonés');
+    r = await t('confirmo');
+    check('erro do sistema é dito à pessoa', /Não consegui registrar: saída de 5 unidades de Boné\. Saldo insuficiente\./.test(r.say), r);
+    apiOk = true;
+    r = await t('Max, qual é a capital da Austrália');
+    check('pergunta geral vai ao agente', r.say === 'Canberra.', r);
+    r = await t('Max, como é que tá a parada toda desse mês aí');
+    check('agente devolve um comando da tela', /No último mês|métricas/i.test(r.say), r);
+    calls.length = 0;
+    await t('Max, abrir estoque');
+    await t('Max, quanto tem de bota 42');
+    await t('Max, desative a voz');
+    await t('Max, sair');
+    await t('Max, quero trocar minha senha');
+    check('comandos claros continuam locais (sem gastar a IA)', calls.length === 0, calls);
+    await t('Max, marque a solicitação 12 como resolvida');
+    check('"marque a solicitação 12 como resolvida" vai ao agente (não só abre)', calls.length === 1, calls);
+    r = await t('Max, me explique o limite disso');
+    check('limite da IA: avisa', /limite de uso/.test(r.say), r);
+    r = await think('vai tomar no cu', almox, { memory: m2, agent });
+    check('palavrão é barrado antes de tudo', /conversa profissional/.test(r.say), r);
+    (globalThis as { fetch: unknown }).fetch = prevFetch;
+  }
   const show = async (host: MaxHost, p: string) => console.log(`\n> ${p}\n  ${(await think(hear(p).command, host, { memory: mem })).say}`);
   if (process.argv.includes('--show')) {
     await show(hub, 'Max quantos itens saíram do estoque do almoxarifado nas últimas 15 horas'); await show(almox, 'Max o que entrou no estoque ontem'); await show(almox, 'Max quantas botas saíram ontem'); await show(almox, 'Max quantas camisas saíram esta semana'); await show(almox, 'Max quantos coturnos saíram hoje'); await show(almox, 'Max métricas das últimas 15 horas'); await show(almox, 'Max o que saiu'); await show(almox, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor');

@@ -4,6 +4,7 @@ import { fail, readJson, serverError } from '@/lib/http';
 import { rateLimit } from '@/lib/rateLimit';
 import { getSector } from '@/lib/sectors';
 import { answerRemote, cleanExamples, cleanText } from '@/lib/max/server/answer';
+import { BLOCKED_REPLY, isBlocked } from '@/lib/max/moderation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   if (!text) return fail('Diga ou digite o pedido.');
   try {
     const user = await requireUser();
+    if (isBlocked(text)) return NextResponse.json({ say: BLOCKED_REPLY, source: 'ia' });
     const limit = rateLimit(`max:${user.id}`, 30, 60_000);
     if (!limit.ok) return NextResponse.json({ say: 'Muitos pedidos em sequência. Espere um instante e tente de novo.', source: 'limite' });
     const sector = getSector(typeof body?.sector === 'string' ? body.sector : null);

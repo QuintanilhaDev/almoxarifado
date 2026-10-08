@@ -210,6 +210,27 @@ try {
   await page.keyboard.press('Escape'); // 2º fecha a Max
   await page.waitForSelector('.max-panel', { state: 'detached', timeout: 3000 }).catch(() => undefined);
   ok(!(await page.locator('.max-panel').count()), 'Esc fecha a Max');
+  // agente (IA com ferramentas) — a IA do teste é simulada
+  r = await ask(page, 'Max, cadastre o item lanterna tática com 7 unidades');
+  ok(/^Vou registrar: cadastro do item Lanterna tática com 7 unidades\. Confirma\?/.test(r), 'pedido de alteração pede confirmação: ' + r.slice(0, 70));
+  let stock = await page.evaluate(async () => (await (await fetch('/api/almoxarifado/stock')).json()).items.filter((i) => i.name === 'Lanterna tática').length);
+  ok(stock === 0, 'nada é gravado antes do "sim"');
+  r = await ask(page, 'sim');
+  ok(/^Pronto: cadastro do item Lanterna tática/.test(r), 'depois do "sim": ' + r.slice(0, 60));
+  stock = await page.evaluate(async () => (await (await fetch('/api/almoxarifado/stock')).json()).items.filter((i) => i.name === 'Lanterna tática' && i.quantity === 7).length);
+  ok(stock === 1, 'item realmente cadastrado no sistema');
+  r = await ask(page, 'Max, marque a solicitação 3 como resolvida');
+  ok(/solicitação 3 \(Caio Melo\) marcada como resolvida\. Confirma\?/.test(r), 'mudar status pede confirmação');
+  r = await ask(page, 'não');
+  ok(/não alterei nada/.test(r), '"não" cancela');
+  const st = await page.evaluate(async () => (await (await fetch('/api/almoxarifado/requests')).json()).requests.find((x) => x.protocol === 3).status);
+  ok(st === 'nova', 'a solicitação continuou como estava');
+  r = await ask(page, 'Max, pesquise qual é a capital da Austrália');
+  ok(r === 'A capital da Austrália é Canberra.', 'pesquisa na web (resposta limpa para a voz): ' + r);
+  r = await ask(page, 'Max, qual o saldo de camisa social');
+  ok(/RESPOSTA: .*Camisa social manga curta G.*"saldo":40/.test(r) || /Camisa social/.test(r), 'consulta livre pelo agente ou habilidade local');
+  r = await ask(page, 'Max, vai tomar no cu');
+  ok(/conversa profissional/.test(r), 'palavrão é barrado');
   r = await ask(page, 'Max quantas botas saíram hoje');
   ok(/saíram 2 unidades de Bota de segurança 42/.test(r), 'saída de um item no período: ' + r.slice(0, 80));
   r = await ask(page, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor');

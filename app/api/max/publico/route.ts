@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { fail, readJson, serverError } from '@/lib/http';
 import { clientKey, rateLimit } from '@/lib/rateLimit';
 import { answerRemote, cleanExamples, cleanText } from '@/lib/max/server/answer';
+import { BLOCKED_REPLY, isBlocked } from '@/lib/max/moderation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
   const body = await readJson<{ text?: unknown; examples?: unknown }>(req);
   const text = cleanText(body?.text, 240);
   if (!text) return fail('Diga o pedido.');
+  if (isBlocked(text)) return NextResponse.json({ say: BLOCKED_REPLY, source: 'ia' });
   try {
     const ip = clientKey(req);
     const minute = rateLimit(`pub:m:${ip}`, 12, 60_000);

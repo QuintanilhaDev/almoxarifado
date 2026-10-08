@@ -91,11 +91,35 @@ Alguns pedidos:
 
 **Como ela pensa (tudo sem custo):**
 
-1. **Habilidades locais**, no próprio navegador: entendem variações, erros de digitação e de reconhecimento de voz. Respeitam as permissões de quem pergunta. A Max **consulta e abre telas; ela não altera dados** (entradas, baixas e cadastros continuam sendo feitos por você).
+1. **Habilidades locais**, no próprio navegador: entendem variações, erros de digitação e de reconhecimento de voz. Respeitam as permissões de quem pergunta. Sem a IA, a Max consulta e abre telas; com a IA ligada ela também **altera dados, sempre pedindo confirmação** (veja *A Max como agente*).
 2. Se nenhuma servir: **clima** (Open-Meteo), **câmbio** (AwesomeAPI/Frankfurter) e **Wikipédia**, todos gratuitos e sem chave.
 3. **IA opcional** (abaixo), para entender qualquer frase. Com ela ligada, frases longas em que a habilidade local não tem tanta certeza passam por uma **segunda opinião** da IA, que confere qual comando a pessoa quis antes de a Max responder.
 
 **Voz:** usa o reconhecimento e a fala do próprio navegador. Funciona no Chrome, Edge e Safari; no Firefox, só digitando. No Chrome o áudio captado é processado pelos servidores do Google (é assim que o reconhecimento do navegador funciona). Por regra dos navegadores, a Max só consegue **falar** depois do primeiro clique na página.
+
+### A Max como agente (com a IA ligada)
+
+Com as variáveis da IA configuradas, a Max deixa de só responder comandos e passa a **agir**: a IA recebe ferramentas e decide quais usar.
+
+| Ela pode | Exemplos |
+|---|---|
+| Consultar qualquer dado que a pessoa pode ver | “Max, qual o saldo de camisa social?” · “o que saiu nas últimas 15 horas?” · “quais solicitações do Posto 01 estão pendentes?” |
+| **Alterar** o sistema | “registre a saída de 5 bonés” · “envie 2 botas 40 para o Shopping Barra” · “marque a solicitação 12 como resolvida” · “cadastre o item lanterna com 7 unidades” · “autorize o e-mail fulano@empresa.com” |
+| Administrar usuários (master) | “passe a Juliana para o Financeiro” · “desative o acesso do Pedro” · “deixe a Juliana editar o Estoque” · “crie o usuário Rita Lopes, login rita, senha …” |
+| **Pesquisar na web** em tempo real | “Max, pesquise o valor do salário mínimo” · “quais as notícias de hoje sobre segurança privada?” |
+
+Como funciona, e por que é seguro:
+
+- **Toda alteração pede um “sim”.** A Max diz o que vai fazer (“Vou registrar: saída de 5 unidades de Boné. Confirma?”) e só grava depois da confirmação, por voz ou no botão. “Não” cancela; mudar de assunto também. Isso existe porque o reconhecimento de voz erra, e um número errado no estoque é difícil de achar depois.
+- **A IA não grava nada sozinha.** Depois do “sim”, quem executa é o navegador da pessoa, pelas **mesmas rotas dos botões da tela**. Então valem as mesmas validações e permissões: quem só visualiza o Estoque não movimenta estoque nem pela Max.
+- **Cada pessoa só recebe as ferramentas que pode usar.** Um membro do RH não enxerga nada do almoxarifado; só o master geral mexe em usuários.
+- **Filtro de linguagem.** Palavrões, ofensas e pedidos impróprios para o trabalho são barrados antes de chegar à IA, com uma resposta educada.
+- Comandos simples e claros (“abrir estoque”, “quanto tem de bota 42?”, “sair”) continuam sendo resolvidos na hora, sem IA e sem gastar cota.
+- Na **tela de login** a Max conversa, mas não tem ferramentas nem pesquisa na web (a página é pública).
+
+**Pesquisa na web:** usa a ferramenta `browser_search` dos modelos `gpt-oss` da Groq e liga sozinha com eles. Variáveis opcionais: `MAX_LLM_WEB` (`off` desliga) e `MAX_LLM_WEB_MODEL`.
+
+**Limite do plano gratuito:** a cota gratuita da Groq é contada em tokens por minuto e por dia (confira a sua em console.groq.com → Settings → Limits). Um pedido ao agente gasta bem mais do que uma pergunta simples, e uma pesquisa na web gasta ainda mais. Se o limite estourar, a Max avisa e os comandos prontos continuam funcionando; o limite volta sozinho no minuto seguinte.
 
 ### IA opcional da Max
 

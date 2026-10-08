@@ -58,7 +58,18 @@ export interface MaxHost {
   };
 }
 
+/** Alteração preparada pela IA, esperando o "sim" da pessoa. É executada pelas rotas normais do sistema. */
+export interface PendingAction {
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  path: string;
+  body?: Record<string, unknown>;
+  /** o que será feito, em uma linha ("saída de 5 unidades de Boné") */
+  what: string;
+}
+
 export interface MaxMemory {
+  /** alterações aguardando confirmação */
+  pending?: PendingAction[] | null;
   last: MaxReply | null;
   lastInput: string;
   voiceOn: boolean;

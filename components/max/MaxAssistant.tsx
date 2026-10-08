@@ -4,7 +4,7 @@ import { Keyboard, Mic, SendHorizontal, Square, Volume2, VolumeX, X } from 'luci
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { speak, stopSpeaking, loadVoices } from '@/lib/voice';
 import { capabilities } from '@/lib/max/skills-core';
-import { examplesFor, hear, think, type RemoteAnswer } from '@/lib/max/engine';
+import { examplesFor, hear, think, type AgentAnswer, type RemoteAnswer } from '@/lib/max/engine';
 import { Listener, listenSupported, type ListenState } from '@/lib/max/speech';
 
 /** quanto ela espera alguém falar: depois do clique · depois de uma resposta (para continuar a conversa) */
@@ -25,7 +25,7 @@ interface Entry {
 }
 
 const VOICE_PREF = 'maxhub:voz';
-const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipédia', clima: 'Open-Meteo', cambio: 'cotação online', ia: 'IA' };
+const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipédia', clima: 'Open-Meteo', cambio: 'cotação online', ia: 'IA', web: 'pesquisa na web' };
 
 /**
  * A Max nas ferramentas dos setores: a esfera no canto inferior direito.
@@ -107,6 +107,28 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
     }
   }, []);
 
+  /** Agente do servidor: IA com ferramentas (consulta, prepara alterações, pesquisa na web). */
+  const history = useRef<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const agent = useCallback(async (text: string, examples: string[]): Promise<AgentAnswer | null> => {
+    const h = hostRef.current;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 55000);
+    try {
+      const r = await fetch('/api/max/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: ctrl.signal,
+        body: JSON.stringify({ text, examples, scope: h.scope, sector: h.sector?.slug ?? null, history: history.current.slice(-6) }),
+      });
+      if (!r.ok) return null;
+      return (await r.json()) as AgentAnswer;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }, []);
+
   const close = useCallback(() => {
     seq.current++;
     listener.current?.stop();
@@ -134,7 +156,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       setStatus('thinking');
       let reply: MaxReply;
       try {
-        reply = await think(command, hostRef.current, { memory: memory.current, remote });
+        reply = await think(command, hostRef.current, { memory: memory.current, remote, agent });
       } catch {
         reply = { say: 'Tive um problema para responder. Tente de novo.' };
       }
@@ -142,6 +164,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       if (reply.source === 'stop') return close();
       memory.current.last = reply;
       memory.current.lastInput = shown;
+      history.current = [...history.current, { role: 'user' as const, content: shown }, { role: 'assistant' as const, content: reply.say || reply.text || '' }].filter((m) => m.content).slice(-8);
       push({ who: 'max', text: reply.text ?? reply.say, card: reply.card, chips: reply.chips, source: reply.source });
       try {
         await reply.act?.();
@@ -170,7 +193,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
         },
       });
     },
-    [close, push, remote],
+    [close, push, remote, agent],
   );
 
   const startListening = useCallback((follow = false) => {

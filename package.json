@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/max-nlu.test.ts && tsx --conditions=react-server tests/max-remote.test.ts"
+    "test": "tsx tests/max-nlu.test.ts && tsx --conditions=react-server tests/max-remote.test.ts && tsx --conditions=react-server tests/max-agent.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
