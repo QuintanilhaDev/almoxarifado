@@ -1,17 +1,6 @@
-import type { Metadata } from 'next';
-import { Dashboard } from '@/components/dashboard/Dashboard';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Painel · Almoxarifado' };
-
-// Marca a página antes de o React carregar, para a transição do login
-// continuar lilás sem "piscar" o painel.
-const introScript = `try{if(sessionStorage.getItem('almox:intro'))document.documentElement.classList.add('intro')}catch(e){}`;
-
+/** Endereço antigo do painel do almoxarifado. */
 export default function DashboardPage() {
-  return (
-    <>
-      <script dangerouslySetInnerHTML={{ __html: introScript }} />
-      <Dashboard />
-    </>
-  );
+  redirect('/setor/almoxarifado');
 }

@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Almoxarifado',
-  description: 'Central de solicitações de fardamento, calçados e EPIs.',
+  title: 'Max Hub',
+  description: 'Max Hub: todos os setores da empresa em um só lugar, com a assistente Max.',
+  robots: { index: false, follow: false },
   icons: { icon: '/favicon.svg' },
 };
 

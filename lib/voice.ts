@@ -62,22 +62,105 @@ export function pickBestVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVo
   return bestScore >= 0 ? best : null;
 }
 
-export async function speak(text: string) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+/** Quebra um texto longo em frases: o Chrome corta falas com mais de ~15 s. */
+function chunks(text: string): string[] {
+  const parts = text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .match(/[^.!?;:]+[.!?;:]*\s*/g);
+  if (!parts) return [];
+  const out: string[] = [];
+  let cur = '';
+  for (const p of parts) {
+    if (cur && (cur + p).length > 180) {
+      out.push(cur.trim());
+      cur = p;
+    } else cur += p;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+export interface SpeakHandlers {
+  onStart?: () => void;
+  /** chamado uma única vez, quando a fala termina, é cancelada ou falha */
+  onEnd?: (result: 'done' | 'blocked' | 'error' | 'cancelled') => void;
+}
+
+let speakSeq = 0;
+
+export function voiceSupported(): boolean {
+  return typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
+}
+
+/** Interrompe o que estiver sendo falado. */
+export function stopSpeaking() {
+  speakSeq++;
+  if (voiceSupported()) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * Fala o texto com a voz mais natural disponível. Sempre chama `onEnd` (mesmo quando o
+ * navegador bloqueia a voz por ainda não ter havido um clique na página).
+ */
+export async function speak(text: string, handlers: SpeakHandlers = {}) {
+  const my = ++speakSeq;
+  let ended = false;
+  let guard: ReturnType<typeof setTimeout> | undefined;
+  const end = (r: 'done' | 'blocked' | 'error' | 'cancelled') => {
+    if (ended) return;
+    ended = true;
+    if (guard) clearTimeout(guard);
+    handlers.onEnd?.(r);
+  };
+  const parts = chunks(text);
+  if (!voiceSupported() || !parts.length) return end(parts.length ? 'error' : 'done');
   try {
     const synth = window.speechSynthesis;
     const voice = pickBestVoice(await loadVoices());
+    if (my !== speakSeq) return end('cancelled');
     synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = voice?.lang || 'pt-BR';
-    if (voice) u.voice = voice;
-    u.rate = voice && voice.localService ? 0.95 : 0.98;
-    // Voz local (offline) costuma soar mais robótica: um tom levemente mais alto e fala
-    // um pouco mais lenta deixam a saudação mais suave.
-    u.pitch = voice && voice.localService ? 1.1 : 1.05;
-    u.volume = 1;
-    synth.speak(u);
+    let started = false;
+    // segurança: alguns navegadores nunca avisam que a fala terminou
+    const arm = (ms: number) => {
+      if (guard) clearTimeout(guard);
+      guard = setTimeout(() => end(started ? 'done' : 'blocked'), ms);
+    };
+    arm(2500 + text.length * 110);
+    parts.forEach((part, i) => {
+      const u = new SpeechSynthesisUtterance(part);
+      u.lang = voice?.lang || 'pt-BR';
+      if (voice) u.voice = voice;
+      // Voz local (offline) costuma soar mais robótica: um tom levemente mais alto e fala
+      // um pouco mais lenta deixam a fala mais suave.
+      u.rate = voice && voice.localService ? 0.97 : 1;
+      u.pitch = voice && voice.localService ? 1.1 : 1.05;
+      u.volume = 1;
+      u.onstart = () => {
+        if (my !== speakSeq) return;
+        if (!started) {
+          started = true;
+          handlers.onStart?.();
+        }
+      };
+      u.onerror = (ev) => {
+        if (my !== speakSeq) return end('cancelled');
+        const code = (ev as SpeechSynthesisErrorEvent).error;
+        if (code === 'interrupted' || code === 'canceled') return end('cancelled');
+        end(code === 'not-allowed' ? 'blocked' : 'error');
+      };
+      if (i === parts.length - 1) {
+        u.onend = () => end(my === speakSeq ? 'done' : 'cancelled');
+      }
+      synth.speak(u);
+    });
   } catch {
-    /* sem voz disponível — segue em silêncio */
+    end('error');
   }
 }

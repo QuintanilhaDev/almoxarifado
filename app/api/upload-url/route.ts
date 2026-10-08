@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { BUCKET, db, ensureBucket } from '@/lib/supabaseAdmin';
 import { fail, readJson, serverError } from '@/lib/http';
-import { isAuthorizedEmail } from '@/lib/emails';
+import { isAuthorizedEmail } from '@/lib/almoxarifado/emails';
 import { EMAIL_RE, normalizeEmail } from '@/lib/format';
-import { MAX_FILE_BYTES, MAX_FILES } from '@/lib/limits';
+import { MAX_FILE_BYTES, MAX_FILES } from '@/lib/almoxarifado/limits';
 
 export const dynamic = 'force-dynamic';
 

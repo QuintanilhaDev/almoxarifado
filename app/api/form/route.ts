@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getFormFields } from '@/lib/formConfig';
+import { getFormFields } from '@/lib/almoxarifado/formConfig';
 import { serverError } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';

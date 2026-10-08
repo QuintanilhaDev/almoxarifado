@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { RequestForm } from '@/components/RequestForm';
+import { RequestForm } from '@/components/almoxarifado/RequestForm';
 
 export const metadata: Metadata = { title: 'Nova solicitação · Almoxarifado' };
 

@@ -1,8 +1,6 @@
-import type { Metadata } from 'next';
-import { LoginScreen } from '@/components/LoginScreen';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Entrar · Almoxarifado' };
-
+/** Endereço antigo: o login agora é a página principal. */
 export default function LoginPage() {
-  return <LoginScreen />;
+  redirect('/');
 }

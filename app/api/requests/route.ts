@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
 import { fail, readJson, serverError } from '@/lib/http';
-import { getFormFields } from '@/lib/formConfig';
-import { validateAnswers } from '@/lib/validate';
-import { isAuthorizedEmail } from '@/lib/emails';
+import { getFormFields } from '@/lib/almoxarifado/formConfig';
+import { validateAnswers } from '@/lib/almoxarifado/validate';
+import { isAuthorizedEmail } from '@/lib/almoxarifado/emails';
 import { broadcast } from '@/lib/broadcast';
 import { answerToText } from '@/lib/format';
-import type { Attachment } from '@/lib/types';
+import type { Attachment } from '@/lib/almoxarifado/types';
 
 export const dynamic = 'force-dynamic';
 

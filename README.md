@@ -1,97 +1,142 @@
-# Almoxarifado · Central de Solicitações
+# Max Hub
 
-Site para organizar os pedidos de fardamento, calçados e EPIs que chegam ao almoxarifado.
+Plataforma interna que reúne os setores da empresa em um só lugar, com login único, permissões por pessoa e a **Max**, assistente virtual por voz.
 
 | Endereço | Para quem | O que faz |
 |---|---|---|
-| `/solicitacao` | Supervisores dos postos | Formulário de pedido (só e-mails autorizados conseguem enviar) |
-| `/login` | Neilton e Juliana | Entrada no painel, com saudação por voz |
-| `/dashboard` | Neilton e Juliana | Solicitações, **estoque**, **postos**, editor do formulário, e-mails autorizados e conta |
+| `/` | Todos | **Login global.** Cada pessoa cai direto na ferramenta do seu setor. A Max fica em escuta constante aqui. |
+| `/hub` | Master geral | Painel master: setores, usuários, alocação e permissões |
+| `/setor/almoxarifado` | Equipe do almoxarifado | Solicitações, estoque, postos, métricas, formulário, e-mails |
+| `/setor/rh` · `/setor/operacional` · `/setor/financeiro` · `/setor/comercial` | Equipe de cada setor | Tela padrão, ainda sem funções (com Equipe, Minha conta e a Max) |
+| `/solicitacao` | Supervisores dos postos | Formulário de pedido ao almoxarifado (sem login, só e-mails autorizados) |
 
-**Usuários iniciais:** `neilton` e `juliana`. A senha dos dois é `123456`. Troquem a senha no primeiro acesso, em **Minha conta**.
+Os endereços antigos `/login` e `/dashboard` continuam funcionando: redirecionam para os novos.
 
-**Tecnologia:** Next.js 15 (React + TypeScript), hospedado na **Vercel**. Banco de dados, arquivos e tempo real ficam no **Supabase**.
-
----
-
-## Passo a passo para colocar no ar
-
-Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**. Leva uns 20 minutos.
-
-### 1. Criar o banco no Supabase
-
-1. Acesse https://supabase.com e entre (pode usar a conta do GitHub).
-2. Clique em **New project**.
-   - **Name:** `almoxarifado` (ou o nome que preferir).
-   - **Database Password:** clique em *Generate a password* e guarde num lugar seguro.
-   - **Region:** escolha **South America (São Paulo)**.
-   - Se aparecerem as opções **Enable Data API** e **Enable automatic RLS**, deixe as duas **ligadas**.
-   - Clique em **Create new project** e espere 1 a 2 minutos.
-3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
-4. Abra o arquivo `supabase/schema.sql` deste projeto, copie **todo** o conteúdo, cole no editor e clique em **Run**.
-   - O resultado esperado é *Success. No rows returned*.
-   - Esse script cria as tabelas, os dois usuários e o bucket privado `anexos` para fotos e vídeos.
-   - Para o **Estoque** e os **Postos**, rode também `supabase/estoque.sql` (tabelas e funções) e, depois, `supabase/seed_estoque.sql` (carga inicial com os itens da planilha). Veja a seção *Estoque e Postos* abaixo.
-   - Pode rodar de novo sem problema: ele não duplica nada.
-5. Confira se deu certo: abra **Table Editor**. Devem aparecer as tabelas `admins`, `authorized_emails`, `form_config` e `requests`. Na tabela `admins` devem estar Neilton e Juliana.
-6. Agora pegue as chaves. Vá em **Project Settings** (ícone de engrenagem):
-   - Em **Data API** (ou **API**), copie a **Project URL** (algo como `https://abcdxyz.supabase.co`).
-   - Em **API Keys**, copie:
-     - a chave **pública**: `anon` *ou* `publishable` (começa com `eyJ...` ou `sb_publishable_...`);
-     - a chave **secreta**: `service_role` *ou* `secret` (começa com `eyJ...` ou `sb_secret_...`). Clique em *Reveal* para ver.
-   - ⚠️ **A chave secreta nunca pode ser compartilhada nem colocada no código.** Ela vai só nas variáveis da Vercel (passo 3).
-7. Confira o tempo real: em **Project Settings → Realtime**, a opção **"Allow public access"** deve estar **ligada**. Ela vem ligada por padrão.
-   - Isso só permite receber avisos do tipo "algo mudou". Nenhum dado é enviado por esse canal.
-
-### 2. Subir o código para o GitHub
-
-1. Acesse https://github.com e clique em **New repository**.
-   - Nome: `almoxarifado`.
-   - Marque **Private**.
-   - Clique em **Create repository**.
-2. Na página do repositório recém-criado, clique em **uploading an existing file**.
-3. Descompacte o zip no seu computador e **arraste todo o conteúdo da pasta** para a página (as pastas `app`, `components`, `lib`, `public`, `supabase` e os arquivos soltos).
-   - O arquivo `.gitignore` às vezes fica escondido. Tudo bem se ele não for.
-4. Clique em **Commit changes**.
-
-> Se você usa Git no terminal: `git init && git add . && git commit -m "primeira versão"`, depois siga as instruções do GitHub para o `git push`.
-
-### 3. Publicar na Vercel
-
-1. Acesse https://vercel.com e entre com o GitHub.
-2. Clique em **Add New… → Project** e escolha o repositório `almoxarifado` (clique em **Import**).
-3. A Vercel reconhece sozinha que é **Next.js**. Não mude nada em *Build settings*.
-4. Abra **Environment Variables** e cadastre as 4 variáveis abaixo. Para cada uma, cole o nome em *Key* e o valor em *Value*:
-
-   | Key | Value |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | a Project URL do Supabase |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | a chave pública (`anon` / `publishable`) |
-   | `SUPABASE_SERVICE_ROLE_KEY` | a chave secreta (`service_role` / `secret`) |
-   | `SESSION_SECRET` | uma frase longa e aleatória, com 40 caracteres ou mais |
-
-   Para criar o `SESSION_SECRET`, você pode digitar uma frase qualquer bem longa, por exemplo: `almox-salvador-2026-troque-isso-por-algo-so-seu-9f8e7d`.
-
-5. Clique em **Deploy** e espere de 1 a 3 minutos.
-6. Pronto! A Vercel mostra o endereço do site, algo como `https://almoxarifado-xyz.vercel.app`:
-   - Supervisores: `https://almoxarifado-xyz.vercel.app/solicitacao`
-   - Equipe: `https://almoxarifado-xyz.vercel.app/login`
-
-> **Mudou alguma variável depois?** Em **Settings → Environment Variables**, altere o valor e depois vá em **Deployments → ⋯ → Redeploy**. As variáveis que começam com `NEXT_PUBLIC_` só passam a valer depois de um novo deploy.
-
-> **Quer um endereço mais bonito?** Em **Settings → Domains** você pode trocar o nome (ex.: `almox-salvador.vercel.app`) ou ligar um domínio próprio.
-
-### 4. Primeiro uso
-
-1. Entre em `/login` com `neilton` e senha `123456`.
-2. Em **Minha conta**, troque a senha. A Juliana faz o mesmo no login dela.
-3. Em **Formulário**, abra a pergunta **Posto** e troque `Posto 01`, `Posto 02`… pelos nomes reais dos postos. Clique em **Salvar formulário**.
-4. Em **E-mails autorizados**, cadastre os e-mails executivos dos supervisores. Dá para colar vários de uma vez, um por linha.
-5. Mande o link `/solicitacao` para os supervisores.
+**Tecnologia:** Next.js 15 (React + TypeScript) na **Vercel**; banco, arquivos e tempo real no **Supabase**. A Max não usa nenhum serviço pago.
 
 ---
 
-## Como funciona
+## Atualizando o site que já está no ar
+
+> ⚠️ **Antes de tudo: troque as chaves do Supabase.** A versão anterior do arquivo `.env.example` tinha a chave secreta (`service_role`) de verdade e foi enviada ao GitHub. No Supabase, em **Project Settings → API Keys**, gere chaves novas; depois atualize `SUPABASE_SERVICE_ROLE_KEY` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` na Vercel e faça **Redeploy**.
+
+### 1. Banco (Supabase)
+
+No **SQL Editor**, rode o arquivo `supabase/maxhub.sql` inteiro. Ele pode ser rodado mais de uma vez e não mexe nos dados do almoxarifado. O que ele faz:
+
+- acrescenta à tabela `admins` as colunas de setor, papel, permissões e ativo/desativado;
+- na primeira vez, coloca quem já usava o painel no setor **Almoxarifado com acesso total** (ninguém perde nada);
+- garante que **@mateus** é master geral.
+
+### 2. Código (GitHub)
+
+Vários arquivos **mudaram de pasta**. Não envie os novos por cima dos antigos: as rotas antigas (`app/api/admin/...`) continuariam no ar **sem** as permissões novas.
+
+Na pasta do projeto no seu computador (a que tem a pasta oculta `.git`):
+
+1. Apague tudo, **menos** a pasta `.git` (e o seu `.env.local`, se existir).
+2. Descompacte o conteúdo do zip novo ali dentro.
+3. No terminal:
+
+```bash
+git add -A
+git commit -m "Max Hub: login global, setores, permissões e Max"
+git push
+```
+
+A Vercel publica sozinha. Não há variável nova obrigatória.
+
+> Publicou o código antes de rodar o SQL? O site continua funcionando como antes (todos no almoxarifado); só o cadastro de usuários avisa que falta o `maxhub.sql`.
+
+### 3. Primeiro acesso
+
+1. Entre em `/` com `mateus`. Você cai no **Painel master**.
+2. Em **Usuários**, confira cada pessoa: setor, se é **master do setor** e as permissões.
+3. Todos precisam entrar de novo uma vez (o login antigo deixa de valer).
+
+---
+
+## Acessos e permissões
+
+| Papel | O que pode |
+|---|---|
+| **Master geral** | Tudo: painel master, todos os setores, criar/editar/desativar/excluir usuários, definir outros masters gerais e o master de cada setor |
+| **Master do setor** | Acesso total à ferramenta do seu setor e, na aba **Equipe**, define as permissões dos outros membros do setor |
+| **Membro** | Só o que foi liberado, módulo por módulo: **sem acesso**, **visualizar** ou **editar** |
+
+- Cada pessoa pertence a **um** setor. Ao entrar, vai direto para ele e não abre os outros.
+- As permissões valem **na hora**: o servidor confere no banco a cada ação (nunca confia só na tela) e a tela da pessoa se ajusta sozinha.
+- Travas: ninguém tira o próprio acesso master nem se desativa, e o sistema nunca fica sem um master geral ativo.
+- Quem só visualiza um módulo não vê os botões de alterar; se tentar por outro caminho, o servidor recusa.
+- Pessoa sem setor entra e vê um aviso para procurar o administrador.
+
+Módulos do Almoxarifado: Solicitações, Estoque, Postos, Métricas, Formulário e E-mails autorizados. Dar baixa de estoque pela resposta de uma solicitação exige **editar** em Solicitações **e** em Estoque.
+
+---
+
+## Max, a assistente virtual
+
+**Na tela de login** ela fica acima do formulário, em **escuta constante**. Diga “Max, apresente-se”, “Max, bom dia” (ela responde conforme o horário de Salvador) ou “Max, que horas são?”. O botão **Escuta ligada** desliga o microfone, e a escolha fica lembrada naquele navegador. Antes do login ela só responde o que não depende de dados da empresa.
+
+**Dentro de cada ferramenta** ela é a esfera no canto inferior direito. Clique nela, espere ficar **verde** e fale “Max, …”. Também dá para digitar (botão **Digitar**), usar **Alt+M** e fechar com **Esc**. O ícone de alto-falante liga e desliga a voz.
+
+Alguns pedidos:
+
+| Onde | Exemplos |
+|---|---|
+| Qualquer tela | “Max, que dia é hoje?” · “Max, quanto é 15% de 2400?” · “Max, abrir minha conta” · “Max, modo silencioso” · “Max, sair” |
+| Almoxarifado | “Max, desejo ver as métricas da última semana” · “Max, tem solicitação nova?” · “Max, abrir a solicitação 12” · “Max, quanto tem de bota 42?” · “Max, o que está com estoque baixo?” · “Max, o que tem no Posto 01?” · “Max, copiar o link do formulário” |
+| Painel master | “Max, quantos usuários temos?” · “Max, quem está no almoxarifado?” · “Max, em que setor está a Juliana?” · “Max, novo usuário chamado Rita Lopes no financeiro” · “Max, abrir o setor financeiro” |
+| Com internet | “Max, como está o tempo?” · “Max, qual a cotação do dólar?” · “Max, quem foi Santos Dumont?” |
+
+**Como ela pensa (tudo sem custo):**
+
+1. **Habilidades locais**, no próprio navegador: entendem variações, erros de digitação e de reconhecimento de voz. Respeitam as permissões de quem pergunta. A Max **consulta e abre telas; ela não altera dados** (entradas, baixas e cadastros continuam sendo feitos por você).
+2. Se nenhuma servir: **clima** (Open-Meteo), **câmbio** (AwesomeAPI/Frankfurter) e **Wikipédia**, todos gratuitos e sem chave.
+3. **IA opcional** (abaixo), para entender qualquer frase.
+
+**Voz:** usa o reconhecimento e a fala do próprio navegador. Funciona no Chrome, Edge e Safari; no Firefox, só digitando. No Chrome o áudio captado é processado pelos servidores do Google (é assim que o reconhecimento do navegador funciona). Por regra dos navegadores, a Max só consegue **falar** depois do primeiro clique na página.
+
+### IA opcional da Max
+
+Sem ela, frases muito fora do previsto recebem “ainda não sei responder isso”. Com ela, a Max entende pedidos livres (“como tá a saída de bota esse mês?”) e responde perguntas gerais.
+
+Funciona com qualquer serviço compatível com a API *chat/completions* da OpenAI. Há serviços com plano gratuito e sem cartão (por exemplo a **Groq**; os limites são por minuto e por dia e mudam com o tempo). Na Vercel, cadastre:
+
+| Key | Value |
+|---|---|
+| `MAX_LLM_API_KEY` | a chave criada no serviço |
+| `MAX_LLM_BASE_URL` | ex.: `https://api.groq.com/openai/v1` |
+| `MAX_LLM_MODEL` | o nome de um modelo, copiado da página de modelos do serviço |
+
+Só a **frase dita** é enviada à IA. Saldos, nomes e números do sistema nunca saem: quando o pedido depende de dados, a IA apenas “traduz” a frase para um comando que a Max executa localmente.
+
+---
+
+## Criar a ferramenta de um setor
+
+Os setores ficam em `lib/sectors.ts`. A tela padrão é `components/setores/SectorShell.tsx`.
+
+- **Novo setor:** acrescente uma entrada em `lib/sectors.ts`. Ele ganha sozinho a página `/setor/<slug>`, o cartão no painel master, a aba Equipe e a Max.
+- **Funções de um setor:** declare os `modules` (viram linhas no editor de permissões), crie as telas em `components/<setor>/` e as rotas em `app/api/<setor>/`, protegendo cada rota com `requireModule('<setor>', '<módulo>', 'view' | 'edit')` de `lib/access.ts`. O almoxarifado é o exemplo completo.
+- **Ensinar a Max:** acrescente habilidades em `lib/max/` (veja `skills-almox.ts`) e as frases de teste em `tests/max-nlu.test.ts`.
+
+---
+
+## Colocar no ar do zero
+
+Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
+
+1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql` e `supabase/maxhub.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
+2. **GitHub:** crie um repositório **privado** e envie o conteúdo deste projeto.
+3. **Vercel:** importe o repositório e cadastre as variáveis do arquivo `.env.example` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`). Clique em **Deploy**.
+4. Os usuários iniciais são `master` (senha `berrythedev45`), `neilton` e `juliana` (senha `123456`). Entre com `master`, troque as senhas e ajuste os acessos no painel master.
+
+> Mudou alguma variável? Altere em **Settings → Environment Variables** e faça **Redeploy**.
+
+---
+
+## Almoxarifado: como funciona
 
 **Formulário**
 - Todos os campos são obrigatórios, menos fotos e vídeos. Isso pode ser mudado no editor.
@@ -140,7 +185,7 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
 **Atualizando um site que já está no ar:** no Supabase, abra o **SQL Editor** e rode, nesta ordem, `supabase/estoque.sql` e `supabase/seed_estoque.sql` (cada um pode ser rodado de novo sem duplicar nada). Depois suba os arquivos novos no GitHub: a Vercel publica sozinha. Não há variáveis novas.
 
-**Estoque** (`/dashboard#estoque`)
+**Estoque** (`/setor/almoxarifado#estoque`)
 - Cada item tem **saldo no almoxarifado**, quanto está **nos postos**, estoque mínimo, custo e tamanho. O total é a soma dos dois.
 - Toque em um item para: **Enviar a posto**, registrar **Entrada**, **Saída** ou **Ajustar saldo** (contagem de inventário), editar os dados, excluir, e ver onde ele está e o histórico dele.
 - **Novo item** cadastra um produto. **Transferir** envia vários itens de uma vez para um posto (tudo ou nada: se um item não tiver saldo, nada sai).
@@ -149,7 +194,7 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 - **Histórico:** toda movimentação fica registrada (quem fez, quando, saldo depois).
 - **Exportar** baixa um `.csv` que abre direto no Excel. **Importar planilha** cadastra só os itens novos (mesmo nome + tamanho = já existe e não é mexido).
 
-**Postos** (`/dashboard#postos`)
+**Postos** (`/setor/almoxarifado#postos`)
 - Lista de postos com o que cada um tem. Toque em um posto para ver o estoque dele, **devolver** ao almoxarifado, dar **baixa** (consumido no posto), **enviar itens**, editar ou **remover**. Ao remover um posto, o que estava nele volta para o almoxarifado.
 - **Novo posto:** um só (com código, cidade, endereço, supervisor) ou vários de uma vez, um nome por linha.
 - **Importar planilha:** aceita `.xlsx` e `.csv`. O leitor acha sozinho a tabela e as colunas, mesmo com título, linhas vazias, células mescladas, totais, abas extras ou sem cabeçalho. Mostra uma **pré-visualização** antes de gravar. Postos que **já existem nunca são substituídos**: só os novos entram. Excel antigo (`.xls`) precisa ser salvo como `.xlsx`. Limite de 4 MB por arquivo.
@@ -159,7 +204,7 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
 ---
 
-## Responder com baixa automática e usuário master
+## Responder com baixa automática
 
 **Atualizando um site que já está no ar:** no Supabase, abra o **SQL Editor** e rode `supabase/baixa_e_usuarios.sql` (depois do `estoque.sql`; pode rodar mais de uma vez). Depois suba os arquivos no GitHub. Não há variáveis novas.
 
@@ -172,14 +217,9 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 - Tudo ou nada: se algum item não tiver saldo, nada é baixado. Clicar duas vezes ou perder a internet **nunca baixa em duplicidade**. Se já existe baixa na solicitação, a janela avisa e pede sua confirmação para registrar outra.
 - Em **Baixas de estoque** (no detalhe da solicitação) fica o registro de cada baixa, com o botão **Estornar** (devolve ao almoxarifado, uma única vez). Tudo aparece também no histórico do Estoque.
 
-**Usuário master e usuários do painel** (`/dashboard#usuarios`, só para o master)
-- Usuário: `master` · senha inicial: `berrythedev45`. **Troque essa senha** assim que entrar (aba Usuários → Trocar senha, ou Minha conta).
-- O master **cria usuários** (nome, usuário de login, senha) e **troca a senha de qualquer um, inclusive a dele**. As demais pessoas não veem essa aba.
-- Quem já estava logado continua logado após uma troca de senha; vale no próximo login. Não há exclusão de usuários.
-
 ---
 
-## Métricas (`/dashboard#metricas`)
+## Métricas (`/setor/almoxarifado#metricas`)
 
 Não precisa rodar nenhum SQL novo nem criar variável: usa o histórico do estoque e as solicitações que já existem.
 
@@ -200,31 +240,63 @@ Precisa do Node.js 20 ou mais novo.
 npm install
 cp .env.example .env.local   # e preencha com as chaves do Supabase
 npm run dev                  # abre em http://localhost:3000
+npm run typecheck            # confere os tipos
+npm test                     # frases da Max + clima/câmbio/Wikipédia/IA simulados
+```
+
+Teste completo no navegador, sem tocar no banco de verdade (usa um Supabase de mentira em memória; usuários `mateus`, `neilton`, `juliana`, `carla`, `pedro`, senha `123456`):
+
+```bash
+npm run build
+node tests/mock-supabase.mjs 54321 &
+NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon \
+SUPABASE_SERVICE_ROLE_KEY=eyJteste SESSION_SECRET=uma-frase-longa-so-para-o-teste-local \
+npx next start -p 3100 &
+npm i --no-save playwright && npx playwright install chromium
+node tests/e2e.mjs
 ```
 
 ## Estrutura
 
 ```
 app/
-  solicitacao/        página do formulário
-  login/              página de login
-  dashboard/          painel
-  api/                rotas do servidor (formulário, login, painel, estoque, postos)
-components/           telas e peças visuais
-  dashboard/          caixa de entrada, editor, e-mails, conta, estoque, postos
-lib/                  regras (validação, sessão, voz, tempo real, banco)
-middleware.ts         protege /dashboard
-supabase/schema.sql   script do banco
-supabase/estoque.sql  tabelas e funções do estoque e dos postos
-supabase/seed_estoque.sql  carga inicial do estoque (planilha)
-supabase/baixa_e_usuarios.sql  baixa pelo Responder e usuário master
+  page.tsx                 login global (endereço principal)
+  hub/                     painel master
+  setor/[slug]/            ferramenta de cada setor
+  sem-setor/               aviso para quem ainda não foi alocado
+  solicitacao/             formulário dos supervisores (público)
+  api/
+    auth/  account/        login, sessão e "Minha conta"
+    hub/users/             cadastro de usuários (master geral)
+    setor/[slug]/equipe/   permissões da equipe (master do setor)
+    max/ask/               segunda camada da Max (clima, câmbio, IA, Wikipédia)
+    almoxarifado/          rotas do almoxarifado (com permissão por módulo)
+    form/ requests/ upload-url/   rotas públicas do formulário
+components/
+  core/                    moldura, marca, conta, equipe, permissões, janelas
+  login/                   tela de entrada
+  hub/                     painel master
+  setores/                 tela padrão de setor e aviso "sem setor"
+  max/                     esfera 3D e assistente
+  almoxarifado/            todas as telas do almoxarifado
+lib/
+  sectors.ts               lista de setores e módulos
+  permissions.ts           regras de acesso (iguais no navegador e no servidor)
+  auth.ts  access.ts       sessão e conferências das rotas
+  max/                     cérebro da Max (texto, habilidades, voz, escuta)
+  almoxarifado/            regras do almoxarifado
+supabase/
+  maxhub.sql               login global, setores e permissões  ← novo
+  schema.sql  estoque.sql  seed_estoque.sql  baixa_e_usuarios.sql
+tests/                     testes da Max, banco de mentira e teste no navegador
+middleware.ts              barra quem não está logado
 ```
 
 ## Problemas comuns
 
 | Sintoma | Solução |
 |---|---|
-| Formulário mostra "Não foi possível abrir o formulário" | Confira as 4 variáveis na Vercel e faça **Redeploy**. Confira também se o `schema.sql` foi rodado. |
+| Formulário de solicitação mostra "Não foi possível abrir o formulário" | Confira as 4 variáveis na Vercel e faça **Redeploy**. Confira também se o `schema.sql` foi rodado. |
 | Login diz "Não foi possível concluir agora" | A chave secreta (`SUPABASE_SERVICE_ROLE_KEY`) está errada ou faltando. |
 | Erro "permission denied for table" nos logs da Vercel | Rode o `schema.sql` de novo: ele libera as tabelas para o servidor. |
 | Anexo não envia | Confira se a chave pública está certa. Arquivos acima de 50 MB são recusados. |
@@ -232,4 +304,11 @@ supabase/baixa_e_usuarios.sql  baixa pelo Responder e usuário master
 | A voz não fala | Verifique o volume e o modo silencioso. Alguns navegadores (ex.: Firefox no Linux) não têm voz em português instalada. |
 | "Falta rodar o arquivo baixa_e_usuarios.sql" ao dar baixa | Rode `supabase/baixa_e_usuarios.sql` no SQL Editor. |
 | Estoque ou Postos mostram "Não foi possível carregar" | Rode `supabase/estoque.sql` no SQL Editor e recarregue a página. |
-| Esqueceram a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'neilton';`. A senha volta a ser `123456`. |
+| Alguém esqueceu a senha | O master geral abre **Painel master → Usuários**, clica na pessoa e define uma **Nova senha**. |
+| O master geral esqueceu a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'mateus';`. A senha volta a ser `123456`; troque em seguida. |
+| "Falta rodar o arquivo supabase/maxhub.sql" | Rode `supabase/maxhub.sql` no SQL Editor (passo 1 da atualização). |
+| Entrei e caí em "Quase lá" | O usuário não tem setor. O master geral aloca em **Usuários**. |
+| Ninguém é master geral | No SQL Editor: `update admins set is_master = true, sector = null where username = 'seu_usuario';` |
+| A Max não ouve | Use Chrome, Edge ou Safari e permita o microfone (cadeado da barra de endereço). No Firefox ela funciona digitando. |
+| A Max ouve mas não fala na tela de login | O navegador só libera voz depois de um clique na página. Clique em qualquer lugar. |
+| A Max responde "ainda não sei" a perguntas gerais | Sem a IA opcional ela usa só Wikipédia, clima e câmbio. Veja *IA opcional da Max*. |

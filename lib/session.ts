@@ -1,10 +1,10 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-export const SESSION_COOKIE = 'almox_session';
+export const SESSION_COOKIE = 'maxhub_session';
 export const SESSION_DAYS = 7;
 
 export interface SessionPayload {
-  sub: string; // id do admin
+  sub: string; // id do usuário
   name: string;
 }
 
