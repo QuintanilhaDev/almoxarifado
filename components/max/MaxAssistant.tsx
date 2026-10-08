@@ -437,7 +437,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
         aria-expanded={open}
         title="Max (Alt+M)"
       >
-        <MaxOrb size={68} state={status} />
+        <MaxOrb size={128} state={status} />
       </button>
     </div>
   );

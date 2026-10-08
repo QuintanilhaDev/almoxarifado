@@ -14,6 +14,7 @@
   pointer-events: auto;
 }
 .max-fab {
+  position: relative;
   width: 68px;
   height: 68px;
   border-radius: 50%;
@@ -295,10 +296,13 @@
     right: 12px;
     bottom: calc(78px + var(--safe-bottom));
   }
-  .max-fab,
+  .max-fab {
+    width: 60px;
+    height: 60px;
+  }
   .max-fab .max-orb {
-    width: 58px !important;
-    height: 58px !important;
+    width: 112px !important;
+    height: 112px !important;
   }
   .max-panel {
     max-height: min(480px, calc(100dvh - 230px));
@@ -319,4 +323,13 @@
   body:has(.drawer-overlay) .max-dock {
     display: none;
   }
+}
+
+/* a esfera é maior que o botão: a folga transparente em volta dela não recebe cliques */
+.max-fab .max-orb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }

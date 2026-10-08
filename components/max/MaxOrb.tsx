@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { MaxFace } from './MaxFace';
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -260,6 +261,7 @@ export function MaxOrb({ size, state = 'idle', className }: { size: number; stat
   return (
     <span className={`max-orb is-${state}${className ? ' ' + className : ''}`} style={{ width: size, height: size }} aria-hidden>
       {fallback ? <OrbFallback /> : <canvas ref={canvasRef} />}
+      <MaxFace state={state} />
     </span>
   );
 }

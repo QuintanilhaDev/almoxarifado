@@ -2759,3 +2759,55 @@ html.intro .intro-overlay,
     margin-top: 8px;
   }
 }
+
+/* =========================================================
+   Max · o rostinho (por cima da esfera)
+   ========================================================= */
+.max-orb {
+  --face-ink: #2b1656;
+}
+.max-orb.is-listening {
+  --face-ink: #093d27;
+}
+.max-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+.max-face .mf-ink {
+  fill: var(--face-ink);
+  transition: fill 0.35s;
+}
+.max-face .mf-line {
+  fill: none;
+  stroke: var(--face-ink);
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.35s, opacity 0.12s;
+}
+.max-face .mf-ball {
+  transition: opacity 0.12s;
+}
+.max-face .mf-mouth {
+  fill: #4a1238;
+  stroke: var(--face-ink);
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.35s;
+}
+.max-face .mf-tongue {
+  fill: #ff7fa8;
+  stroke: #d9527f;
+  stroke-width: 0.4;
+  transition: opacity 0.12s;
+}
+.max-face .mf-cheek {
+  fill: #ff8fb8;
+  filter: blur(0.6px);
+}

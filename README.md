@@ -80,6 +80,8 @@ Módulos do Almoxarifado: Solicitações, Estoque, Postos, Métricas, Formulári
 
 Ela também cumprimenta pelo nome: “Max, diga olá para Fernanda” → “Bom dia, Fernanda! Tudo tranquilo?”. Com mais de um nome, ela diz os dois primeiros e completa com “e a todos que estão presentes!”.
 
+**Ela tem um rostinho.** Os olhos (com cílios) acompanham o mouse quando ele passa perto, ela sorri e cora; pisca sozinha e, de vez em quando, faz caras e bocas. Quando fala, a boca se mexe no ritmo da fala; ouvindo, fica verde e atenta; pensando, olha para cima. Quem ativou "reduzir movimento" no sistema vê só o piscar e a fala. O rosto fica em `components/max/MaxFace.tsx`.
+
 **Dentro de cada ferramenta** ela é a esfera no canto inferior direito. Clique nela, espere ficar **verde** e fale “Max, …”. Também dá para digitar (botão **Digitar**), usar **Alt+M** e fechar com **Esc**. O ícone de alto-falante liga e desliga a voz.
 
 Alguns pedidos:
