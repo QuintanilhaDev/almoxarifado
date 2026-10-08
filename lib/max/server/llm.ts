@@ -10,6 +10,8 @@ import { dateText, timeText } from '../clock';
  *   MAX_LLM_API_KEY   chave do serviço
  *   MAX_LLM_BASE_URL  ex.: https://api.groq.com/openai/v1
  *   MAX_LLM_MODEL     nome do modelo (copie da página de modelos do serviço)
+ *   MAX_LLM_REASONING_EFFORT  (opcional) low | medium | high — só para modelos "de raciocínio"
+ *                             que aceitam esse parâmetro (ex.: openai/gpt-oss-* na Groq)
  */
 export function llmConfigured(): boolean {
   return Boolean(process.env.MAX_LLM_API_KEY && process.env.MAX_LLM_BASE_URL && process.env.MAX_LLM_MODEL);
@@ -31,7 +33,10 @@ export interface LlmAnswer {
 function systemPrompt(ctx: LlmContext): string {
   return [
     'Você é a Max, assistente virtual (feminina) do Max Hub, a plataforma interna de uma empresa de segurança privada de Salvador, Bahia.',
-    `Agora: ${dateText()}, ${timeText().written} (horário de Salvador). Pessoa: ${ctx.userName || 'colaborador'}. Tela: ${ctx.sectorName ? 'setor ' + ctx.sectorName : ctx.scope === 'hub' ? 'painel master' : 'Max Hub'}.`,
+    `Agora: ${dateText()}, ${timeText().written} (horário de Salvador). Pessoa: ${ctx.userName || 'colaborador'}. Tela: ${ctx.sectorName ? 'setor ' + ctx.sectorName : ctx.scope === 'hub' ? 'painel master' : ctx.scope === 'login' ? 'tela de entrada (a pessoa ainda NÃO fez login)' : 'Max Hub'}.`,
+    ...(ctx.scope === 'login'
+      ? ['A pessoa está na tela de entrada. Converse com naturalidade e responda perguntas gerais. Se ela pedir qualquer dado ou tela do sistema (estoque, métricas, solicitações, usuários), diga em "say" que é só entrar com usuário e senha que você mostra lá dentro. Você não vê senhas nem cadastros.']
+      : []),
     'Responda SEMPRE com um único objeto JSON, sem texto fora dele, em um destes dois formatos:',
     '1) {"route":"<frase>"} — quando o pedido puder ser atendido por um dos comandos abaixo. Reescreva o pedido como uma frase curta no mesmo estilo dos exemplos, trocando só os detalhes (período, nome do item, número, setor). Use isto para tudo que dependa de dados do sistema ou de abrir telas: você NÃO conhece os dados da empresa.',
     '2) {"say":"<resposta>"} — para qualquer outra coisa (conhecimento geral, dúvidas, conversa, textos, ideias). Resposta em português do Brasil, natural para ser falada em voz alta, com no máximo 3 frases curtas, sem markdown, listas, emojis ou links.',
@@ -64,6 +69,8 @@ function parse(content: string): LlmAnswer | null {
 export async function askLlm(text: string, ctx: LlmContext): Promise<LlmAnswer | null> {
   if (!llmConfigured()) return null;
   const base = process.env.MAX_LLM_BASE_URL!.replace(/\/+$/, '');
+  const rawEffort = (process.env.MAX_LLM_REASONING_EFFORT || '').trim().toLowerCase();
+  const effort = ['low', 'medium', 'high'].includes(rawEffort) ? rawEffort : '';
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 9000);
   try {
@@ -75,7 +82,9 @@ export async function askLlm(text: string, ctx: LlmContext): Promise<LlmAnswer |
       body: JSON.stringify({
         model: process.env.MAX_LLM_MODEL,
         temperature: 0.3,
-        max_tokens: 320,
+        // folga para modelos de raciocínio, que gastam parte dos tokens "pensando" antes de responder
+        max_tokens: 1200,
+        ...(effort ? { reasoning_effort: effort } : {}),
         messages: [
           { role: 'system', content: systemPrompt(ctx) },
           { role: 'user', content: text },

@@ -159,7 +159,7 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
   if (best && best.score >= 0.5) return runSkill(best, q, host, opts.memory);
 
   return {
-    say: host.scope === 'login' ? 'Essa eu só respondo depois do login. Por aqui posso me apresentar, dizer as horas ou explicar como entrar.' : 'Ainda não sei responder isso. Veja alguns pedidos que eu entendo.',
+    say: host.scope === 'login' ? 'Essa eu ainda não sei responder por aqui. Entre com seu usuário e senha, que lá dentro eu ajudo com o seu setor.' : 'Ainda não sei responder isso. Veja alguns pedidos que eu entendo.',
     chips: capabilities(host),
     unknown: true,
   };

@@ -2695,3 +2695,11 @@ html.intro .intro-overlay,
 .max-orb .max-orb-svg {
   position: absolute;
 }
+/* login sem botão nem dica: o espaço da legenda fica reservado só para a conversa */
+.login-caption {
+  min-height: 74px;
+  justify-content: center;
+}
+.login-caption-text {
+  min-height: 0;
+}

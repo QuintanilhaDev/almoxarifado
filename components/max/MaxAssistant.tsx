@@ -6,6 +6,10 @@ import { speak, stopSpeaking, loadVoices } from '@/lib/voice';
 import { capabilities } from '@/lib/max/skills-core';
 import { examplesFor, hear, think, type RemoteAnswer } from '@/lib/max/engine';
 import { Listener, listenSupported, type ListenState } from '@/lib/max/speech';
+
+/** quanto ela espera alguém falar: depois do clique · depois de uma resposta (para continuar a conversa) */
+const WAIT_MS = 14000;
+const FOLLOW_MS = 8000;
 import { sfx } from '@/lib/max/sfx';
 import type { MaxCard, MaxHost, MaxMemory, MaxReply } from '@/lib/max/types';
 import { MaxOrb, type OrbState } from './MaxOrb';
@@ -47,6 +51,8 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const openRef = useRef(open);
   openRef.current = open;
+  const followUp = useRef(false);
+  const startRef = useRef<(follow?: boolean) => void>(() => undefined);
   const memory = useRef<MaxMemory>({ last: null, lastInput: '', voiceOn: true, setVoice: () => undefined });
 
   const setVoice = useCallback((on: boolean) => {
@@ -113,7 +119,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
 
   /** Processa um pedido (falado ou digitado). */
   const ask = useCallback(
-    async (raw: string) => {
+    async (raw: string, byVoice = false) => {
       const shown = raw.trim();
       if (!shown) return;
       const my = ++seq.current;
@@ -146,10 +152,14 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
         if (my !== seq.current) return;
         setStatus('idle');
         reply.afterSpeech?.();
+        // conversa natural: quem falou pode continuar falando, sem clicar de novo
+        if (byVoice && !reply.afterSpeech && !reply.unknown && openRef.current) startRef.current(true);
       };
       if (!reply.say || !memory.current.voiceOn) {
-        setStatus('idle');
-        if (reply.afterSpeech) setTimeout(done, 900);
+        if (reply.afterSpeech) {
+          setStatus('idle');
+          setTimeout(done, 900);
+        } else done();
         return;
       }
       setStatus('speaking');
@@ -163,9 +173,11 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
     [close, push, remote],
   );
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback((follow = false) => {
     const l = listener.current;
     if (!l) return;
+    followUp.current = follow;
+    if (follow && (l.state === 'denied' || !listenSupported())) return;
     seq.current++;
     stopSpeaking();
     setInterim('');
@@ -178,13 +190,22 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       return;
     }
     setStatus('listening');
-    sfx.listen();
-    l.start();
+    l.start(follow ? FOLLOW_MS : WAIT_MS);
   }, []);
+  startRef.current = startListening;
 
   useEffect(() => {
     const l = new Listener({
-      continuous: false,
+      mode: 'once',
+      onTrouble: (kind) => {
+        setStatus('idle');
+        setTyping(true);
+        setNote(
+          kind === 'mic'
+            ? 'Não encontrei um microfone neste aparelho. Digite o pedido abaixo.'
+            : 'O reconhecimento de voz deste navegador não respondeu (alguns, como Brave e Opera, bloqueiam). No Chrome ou no Edge eu ouço normalmente. Por aqui, digite o pedido.',
+        );
+      },
       onState: (s) => {
         setListen(s);
         if (s === 'denied') {
@@ -198,13 +219,13 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
         // entre as alternativas ouvidas, prefere a que começa com "Max"
         const best = alts.find((a) => hear(a).wake === 'strong') ?? text;
         sfx.heard();
-        void ask(best);
+        void ask(best, true);
       },
       onSilence: () => {
         setInterim('');
         setStatus((s) => (s === 'listening' ? 'idle' : s));
-        if (openRef.current) setNote('Não ouvi nada. Clique em mim e fale de novo, ou digite o pedido.');
-        sfx.off();
+        // depois de uma resposta, o silêncio só encerra a conversa (sem aviso)
+        if (openRef.current && !followUp.current) setNote('Não ouvi nada. Clique em mim e fale de novo, ou digite o pedido.');
       },
     });
     listener.current = l;
@@ -226,7 +247,6 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       listener.current?.stop();
       setStatus('idle');
       setInterim('');
-      sfx.off();
       return;
     }
     startListening();

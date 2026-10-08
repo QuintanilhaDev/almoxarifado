@@ -18,10 +18,13 @@ const FAKE_SPEECH = `
     start(){ if(this._on) throw new Error('already'); this._on=true; setTimeout(()=>this.onstart&&this.onstart(),10); }
     stop(){ this._end(); } abort(){ this._end(); }
     _end(){ if(!this._on) return; this._on=false; setTimeout(()=>this.onend&&this.onend(),10); }
-    _say(t){ if(!this._on) return false; const r=[{transcript:t,confidence:.9}]; r.isFinal=true; this.onresult&&this.onresult({resultIndex:0,results:[r]}); if(!this.continuous) this._end(); return true; }
+    _say(t){ if(!this._on) return false; const r=[{transcript:t,confidence:.9}]; r.isFinal=true; this.onresult&&this.onresult({resultIndex:0,results:[r]}); return true; }
   }
   window.webkitSpeechRecognition = FakeRec; window.SpeechRecognition = FakeRec;
   window.__say = (t) => window.__recs.some((r) => r._say(t));
+  // o navegador encerra a sessão sozinho (silêncio, ruído…), como acontece de verdade
+  window.__drop = () => window.__recs.forEach((r) => r._end());
+  window.__live = () => window.__recs.filter((r) => r._on).length;
   window.__spoken = [];
   const realSpeak = window.speechSynthesis && window.speechSynthesis.speak.bind(window.speechSynthesis);
   if (window.speechSynthesis) window.speechSynthesis.speak = (u) => { window.__spoken.push(u.text); setTimeout(()=>{u.onstart&&u.onstart({}); setTimeout(()=>u.onend&&u.onend({}), 250);}, 20); };
@@ -63,7 +66,11 @@ try {
   await page.waitForSelector('.login-card');
   await page.waitForTimeout(1500);
   ok(await page.locator('.max-orb canvas').count() === 1, 'esfera 3D (WebGL) desenhada no login');
-  ok(await page.locator('.listen-chip.is-on').count() === 1, 'escuta constante ligada ao abrir');
+  ok((await page.evaluate(() => window.__live())) === 1, 'escuta constante ligada ao abrir');
+  ok(!(await page.locator('.listen-chip').count()) && !/Diga|Escuta|Ligando/.test(await page.locator('.login-caption').textContent()), 'sem botão de escuta e sem frase de dica');
+  for (let i = 0; i < 4; i++) { await page.evaluate(() => window.__drop()); await page.waitForTimeout(450); }
+  ok((await page.evaluate(() => window.__live())) === 1, 'navegador encerrou a sessão 4 vezes: a escuta religou sozinha');
+  ok((await page.locator('.login-caption').textContent()).trim() === '', 'nada pisca na tela enquanto religa');
   await page.screenshot({ path: SHOTS + '/01-login.png' });
   await say(page, 'vamos almoçar mais tarde');
   await page.waitForTimeout(500);
@@ -80,8 +87,12 @@ try {
   ok((await page.evaluate(() => window.__spoken.length)) >= 2, 'respostas faladas em voz');
   await loginIdle(page);
   await say(page, 'Max, métricas da semana');
-  await page.waitForFunction(() => /depois do login/.test(document.querySelector('.login-caption .said')?.textContent || ''), null, { timeout: 8000 }).catch(() => undefined);
-  ok(/depois do login/.test(await page.locator('.login-caption .said').textContent()), 'no login, dados do sistema não são respondidos');
+  await page.waitForFunction(() => /Entre com seu usuário/.test(document.querySelector('.login-caption .said')?.textContent || ''), null, { timeout: 8000 }).catch(() => undefined);
+  ok(/Entre com seu usuário/.test(await page.locator('.login-caption .said').textContent()), 'no login, dados do sistema não são respondidos');
+  await loginIdle(page);
+  await say(page, 'que horas são'); // continuação da conversa, sem repetir "Max"
+  await page.waitForFunction(() => /Agora são/.test(document.querySelector('.login-caption .said')?.textContent || ''), null, { timeout: 8000 }).catch(() => undefined);
+  ok(/Agora são/.test(await page.locator('.login-caption .said').textContent()), 'conversa continua sem repetir "Max"');
   await page.fill('#user', 'mateus'); await page.fill('#pass', 'errada'); await page.click('button[type=submit]');
   await page.waitForSelector('.login-error span');
   ok(/incorretos/.test(await page.locator('.login-error').textContent()), 'senha errada mostra o erro');
@@ -99,6 +110,13 @@ try {
   await page.screenshot({ path: SHOTS + '/04-hub.png' });
   let r = await ask(page, 'Max, quantos usuários temos?');
   ok(/usuários ativos/.test(r), 'Max no hub: ' + r.slice(0, 70));
+  await page.waitForSelector('.max-fab.is-listening', { timeout: 8000 });
+  ok(true, 'depois de responder, ela volta a ouvir sozinha (conversa contínua)');
+  for (let i = 0; i < 3; i++) { await page.evaluate(() => window.__drop()); await page.waitForTimeout(400); }
+  ok((await page.locator('.max-fab.is-listening').count()) === 1 && (await page.evaluate(() => window.__live())) === 1, 'sessão caiu 3 vezes: continua ouvindo (não desliga na hora)');
+  await say(page, 'que dia é hoje');
+  await page.waitForFunction(() => /2026/.test([...document.querySelectorAll('.max-msg.max p')].pop()?.textContent || ''), null, { timeout: 6000 });
+  ok(true, 'pedido seguinte atendido sem clicar de novo');
   await page.screenshot({ path: SHOTS + '/05-hub-max.png' });
   r = await ask(page, 'Max, novo usuário chamado Rita Lopes no financeiro');
   await page.waitForSelector('.modal.sheet', { timeout: 5000 });
@@ -255,7 +273,7 @@ try {
   await page.addInitScript(() => { delete window.SpeechRecognition; delete window.webkitSpeechRecognition; });
   await page.goto(B + '/');
   await page.waitForTimeout(1000);
-  ok(/Toque na Max/.test(await page.locator('.login-caption').textContent()), 'login explica que a escuta não existe neste navegador');
+  ok(/não consigo ouvir/.test(await page.locator('.login-caption').textContent()), 'login explica que a escuta não existe neste navegador');
   await page.click('.login-orb-btn');
   await page.waitForSelector('.login-caption .said');
   ok(true, 'toque na esfera faz a Max se apresentar');

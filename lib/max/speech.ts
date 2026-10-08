@@ -43,28 +43,41 @@ export function listenSupported(): boolean {
   return recCtor() !== null;
 }
 
+export type ListenTrouble = 'network' | 'mic';
+
 export interface ListenerOptions {
-  /** true = fica ouvindo sem parar (tela de login) · false = ouve um pedido e para */
-  continuous: boolean;
+  /**
+   * 'always' = fica ouvindo sem parar (tela de login)
+   * 'once'   = ouve até a pessoa falar um pedido (ou a janela de espera acabar)
+   */
+  mode: 'always' | 'once';
   onState: (s: ListenState) => void;
   /** texto parcial, enquanto a pessoa ainda fala */
   onInterim?: (text: string) => void;
   /** frase concluída, com as alternativas que o navegador ouviu (da mais provável para a menos) */
   onFinal: (text: string, alternatives: string[]) => void;
-  /** modo de um pedido só: terminou sem ouvir nada */
+  /** modo 'once': a janela de espera acabou sem ninguém falar */
   onSilence?: () => void;
+  /** o navegador não está conseguindo ouvir (serviço de voz bloqueado, microfone ausente…) */
+  onTrouble?: (kind: ListenTrouble) => void;
 }
 
+/**
+ * O reconhecimento do navegador encerra a sessão sozinho o tempo todo (alguns segundos de
+ * silêncio, um ruído, a cada frase…). Isso é normal. Esta classe religa em silêncio e só
+ * avisa a tela quando o estado muda DE VERDADE: assim nada fica "ligando e desligando".
+ */
 export class Listener {
   private rec: Rec | null = null;
   private wanted = false;
   private paused = false;
   private running = false;
-  private gotFinal = false;
   private dead = false;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private watchdog: ReturnType<typeof setTimeout> | null = null;
   private failures = 0;
+  private troubleTold = false;
+  private deadline = 0;
   private lastFinal = { text: '', at: 0 };
   state: ListenState = 'off';
 
@@ -78,22 +91,56 @@ export class Listener {
     this.opts.onState(s);
   }
 
+  private clearTimers() {
+    if (this.retry) clearTimeout(this.retry);
+    if (this.watchdog) clearTimeout(this.watchdog);
+    this.retry = null;
+    this.watchdog = null;
+  }
+
+  private trouble(kind: ListenTrouble) {
+    if (this.troubleTold) return;
+    this.troubleTold = true;
+    this.opts.onTrouble?.(kind);
+  }
+
+  /** Desiste (modo 'once') ou continua tentando com calma (modo 'always'). */
+  private afterEnd() {
+    if (this.dead || this.state === 'denied' || this.paused) return;
+    if (!this.wanted) return this.setState('off');
+    if (this.opts.mode === 'once') {
+      const expired = Date.now() >= this.deadline;
+      if (expired || this.failures >= 3) {
+        this.wanted = false;
+        this.setState('off');
+        if (this.failures < 3) this.opts.onSilence?.();
+        return;
+      }
+    }
+    // religa sem mudar o estado visível
+    const wait = this.failures ? Math.min(15000, 500 * 2 ** Math.min(this.failures, 5)) : 120;
+    this.schedule(wait);
+  }
+
   private build(): Rec | null {
     const C = recCtor();
     if (!C) return null;
     const rec = new C();
     rec.lang = 'pt-BR';
-    rec.continuous = this.opts.continuous;
+    // contínuo: não encerra na primeira pausa de quem fala
+    rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 4;
     rec.onstart = () => {
       if (this.rec !== rec) return;
       this.running = true;
-      this.failures = 0;
-      this.setState('on');
+      if (this.watchdog) clearTimeout(this.watchdog);
+      this.watchdog = null;
     };
     rec.onresult = (e) => {
-      if (this.rec !== rec || this.paused) return;
+      if (this.rec !== rec || this.paused || !this.wanted) return;
+      this.failures = 0;
+      this.troubleTold = false;
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
@@ -109,7 +156,18 @@ export class Listener {
           const now = Date.now();
           if (alts[0] === this.lastFinal.text && now - this.lastFinal.at < 1500) continue;
           this.lastFinal = { text: alts[0], at: now };
-          this.gotFinal = true;
+          if (this.opts.mode === 'once') {
+            // pedido ouvido: encerra esta escuta
+            this.wanted = false;
+            this.clearTimers();
+            try {
+              rec.abort();
+            } catch {
+              /* ignore */
+            }
+            this.opts.onFinal(alts[0], alts);
+            return;
+          }
           this.opts.onFinal(alts[0], alts);
         } else {
           interim += res[0]?.transcript || '';
@@ -122,34 +180,23 @@ export class Listener {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         this.wanted = false;
         this.setState('denied');
-      } else if (e.error === 'audio-capture' || e.error === 'network' || e.error === 'language-not-supported') {
+      } else if (e.error === 'network' || e.error === 'language-not-supported') {
         this.failures++;
+        if (this.failures >= 2) this.trouble('network');
+      } else if (e.error === 'audio-capture') {
+        this.failures++;
+        this.trouble('mic');
+      } else if (e.error === 'no-speech') {
+        this.failures = 0; // silêncio é normal: o serviço está funcionando
       }
-      // 'no-speech' e 'aborted' são normais: o onend decide o que fazer
     };
     rec.onend = () => {
       if (this.rec !== rec) return;
       this.running = false;
       this.rec = null;
-      if (this.dead) return;
-      if (this.state === 'denied') return;
-      if (this.wanted && !this.paused && this.opts.continuous) {
-        if (this.failures >= 6) {
-          // microfone ou rede indisponíveis: para de insistir (um clique na Max tenta de novo)
-          this.wanted = false;
-          this.setState('off');
-          return;
-        }
-        this.setState('starting');
-        this.schedule(this.failures ? Math.min(8000, 600 * 2 ** this.failures) : 250);
-        return;
-      }
-      // pausada (a Max está falando): continua "ligada" para quem vê
-      if (this.paused) return;
-      const silent = this.wanted && !this.gotFinal;
-      this.wanted = false;
-      this.setState('off');
-      if (silent) this.opts.onSilence?.();
+      if (this.watchdog) clearTimeout(this.watchdog);
+      this.watchdog = null;
+      this.afterEnd();
     };
     return rec;
   }
@@ -167,11 +214,10 @@ export class Listener {
     const rec = this.build();
     if (!rec) return this.setState('unsupported');
     this.rec = rec;
-    this.gotFinal = false;
-    this.setState('starting');
-    // alguns navegadores aceitam o start() e nunca respondem: não fica "ligando" para sempre
+    // alguns navegadores aceitam o start() e nunca respondem
     if (this.watchdog) clearTimeout(this.watchdog);
     this.watchdog = setTimeout(() => {
+      this.watchdog = null;
       if (this.rec !== rec || this.running || this.dead) return;
       this.rec = null;
       try {
@@ -179,31 +225,35 @@ export class Listener {
       } catch {
         /* ignore */
       }
-      this.wanted = false;
-      this.setState('off');
-      this.opts.onSilence?.();
+      this.failures++;
+      if (this.failures >= 2) this.trouble('network');
+      this.afterEnd();
     }, 6000);
     try {
       rec.start();
     } catch {
-      // já havia uma escuta ativa neste navegador: tenta de novo em instantes
+      // ainda havia uma sessão encerrando neste navegador: tenta de novo em instantes
       this.rec = null;
-      this.failures++;
-      if (this.failures < 6) this.schedule(700);
-      else {
-        this.wanted = false;
-        this.setState('off');
-      }
+      if (this.watchdog) clearTimeout(this.watchdog);
+      this.watchdog = null;
+      this.schedule(400);
     }
   }
 
-  /** Começa a ouvir (no modo de um pedido, ouve uma frase e para sozinha). */
-  start() {
+  /**
+   * Começa a ouvir. No modo 'once', `windowMs` é quanto tempo ela espera alguém falar.
+   */
+  start(windowMs = 12000) {
     if (this.dead || !listenSupported()) return;
     this.wanted = true;
     this.paused = false;
     this.failures = 0;
-    if (this.state === 'denied') this.state = 'off'; // nova tentativa a pedido da pessoa
+    this.troubleTold = false;
+    this.deadline = Date.now() + windowMs;
+    this.state = this.state === 'on' ? 'on' : 'off';
+    this.setState('on');
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = null;
     this.begin();
   }
 
@@ -211,8 +261,7 @@ export class Listener {
   stop() {
     this.wanted = false;
     this.paused = false;
-    if (this.retry) clearTimeout(this.retry);
-    this.retry = null;
+    this.clearTimers();
     const rec = this.rec;
     if (rec) {
       try {
@@ -220,15 +269,15 @@ export class Listener {
       } catch {
         /* ignore */
       }
-    } else if (this.state !== 'denied' && this.state !== 'unsupported') this.setState('off');
+    }
+    if (this.state !== 'denied' && this.state !== 'unsupported') this.setState('off');
   }
 
-  /** Pausa enquanto a Max fala (para ela não ouvir a própria voz). */
+  /** Pausa enquanto a Max fala (para ela não ouvir a própria voz). Para a tela, continua ligada. */
   pause() {
     if (!this.wanted || this.paused) return;
     this.paused = true;
-    if (this.retry) clearTimeout(this.retry);
-    this.retry = null;
+    this.clearTimers();
     try {
       this.rec?.abort();
     } catch {
@@ -239,7 +288,7 @@ export class Listener {
   resume() {
     if (!this.paused) return;
     this.paused = false;
-    if (this.wanted && !this.dead) this.schedule(350);
+    if (this.wanted && !this.dead) this.schedule(300);
   }
 
   get active() {
@@ -248,9 +297,8 @@ export class Listener {
 
   destroy() {
     this.dead = true;
-    if (this.watchdog) clearTimeout(this.watchdog);
     this.wanted = false;
-    if (this.retry) clearTimeout(this.retry);
+    this.clearTimers();
     try {
       this.rec?.abort();
     } catch {

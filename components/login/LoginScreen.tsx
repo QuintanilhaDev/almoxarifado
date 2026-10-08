@@ -1,6 +1,6 @@
 'use client';
 import { AnimatePresence, motion, useAnimate } from 'framer-motion';
-import { Eye, EyeOff, LogIn, Mic, MicOff } from 'lucide-react';
+import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand } from '../core/Brand';
 import { DiagonalField } from '../core/DiagonalField';
@@ -11,16 +11,15 @@ import { getSector } from '@/lib/sectors';
 import type { HubUser } from '@/lib/permissions';
 import { loadVoices, speak, stopSpeaking } from '@/lib/voice';
 import { firstName } from '@/lib/max/clock';
-import { hear, think, understand } from '@/lib/max/engine';
-import { Listener, listenSupported, type ListenState } from '@/lib/max/speech';
-import { sfx } from '@/lib/max/sfx';
+import { hear, think, understand, type RemoteAnswer } from '@/lib/max/engine';
+import { Listener, listenSupported, type ListenState, type ListenTrouble } from '@/lib/max/speech';
 import type { MaxHost, MaxMemory } from '@/lib/max/types';
 
 type Phase = 'form' | 'morph' | 'greet' | 'expand';
 
-const LISTEN_PREF = 'maxhub:escuta';
-/** depois de dizer só "Max", o próximo pedido vale sem repetir o nome (ms) */
+/** depois de chamar "Max" (ou de uma resposta dela), o próximo pedido vale sem repetir o nome (ms) */
 const ARMED_MS = 9000;
+const FOLLOW_MS = 7000;
 
 export function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -42,6 +41,7 @@ export function LoginScreen() {
   const [heard, setHeard] = useState('');
   const [reply, setReply] = useState('');
   const [voiceHint, setVoiceHint] = useState(false);
+  const [trouble, setTrouble] = useState<ListenTrouble | null>(null);
   const listener = useRef<Listener | null>(null);
   const armedUntil = useRef(0);
   const busy = useRef(false);
@@ -73,6 +73,26 @@ export function LoginScreen() {
     };
   }, []);
 
+  /** Resposta livre (clima, câmbio, IA, Wikipédia) pela rota pública do login. */
+  const remote = useCallback(async (text: string, examples: string[]): Promise<RemoteAnswer | null> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const r = await fetch('/api/max/publico', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: ctrl.signal,
+        body: JSON.stringify({ text, examples }),
+      });
+      if (!r.ok) return null;
+      return (await r.json()) as RemoteAnswer;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }, []);
+
   const answer = useCallback(
     async (command: string, shown: string) => {
       if (phaseRef.current !== 'form') return;
@@ -82,8 +102,9 @@ export function LoginScreen() {
       setHeard(shown);
       setReply('');
       setOrb('thinking');
-      sfx.heard();
-      const r = await think(command, host, { memory: memory.current });
+      // enquanto pensa e fala, não ouve (para não responder a si mesma)
+      listener.current?.pause();
+      const r = await think(command, host, { memory: memory.current, remote });
       if (my !== seq.current || phaseRef.current !== 'form') return;
       if (r.source !== 'stop') memory.current.last = r;
       r.act?.();
@@ -94,6 +115,8 @@ export function LoginScreen() {
         setOrb('idle');
         listener.current?.resume();
         r.afterSpeech?.();
+        // conversa natural: logo depois da resposta, dá para continuar sem repetir "Max"
+        if (r.source !== 'stop' && !r.afterSpeech) armedUntil.current = Date.now() + FOLLOW_MS;
         clearTimer.current = setTimeout(() => {
           if (my !== seq.current) return;
           setHeard('');
@@ -101,8 +124,6 @@ export function LoginScreen() {
         }, 14000);
       };
       if (!r.say || !memory.current.voiceOn) return finish();
-      // pausa a escuta enquanto fala, para não ouvir a própria voz
-      listener.current?.pause();
       speak(r.say, {
         onStart: () => my === seq.current && setOrb('speaking'),
         onEnd: (result) => {
@@ -111,7 +132,7 @@ export function LoginScreen() {
         },
       });
     },
-    [host],
+    [host, remote],
   );
 
   const onFinal = useCallback(
@@ -126,7 +147,6 @@ export function LoginScreen() {
           setOrb('listening');
           setHeard('Max…');
           setReply('Estou ouvindo.');
-          sfx.listen();
           return;
         }
         armedUntil.current = 0;
@@ -170,15 +190,10 @@ export function LoginScreen() {
   }, []);
 
   useEffect(() => {
-    const l = new Listener({ continuous: true, onState: setListen, onInterim, onFinal });
+    // escuta sempre ativa nesta tela: a classe religa sozinha, em silêncio, quando o navegador encerra
+    const l = new Listener({ mode: 'always', onState: setListen, onInterim, onFinal, onTrouble: setTrouble });
     listener.current = l;
-    let wants = true;
-    try {
-      wants = localStorage.getItem(LISTEN_PREF) !== 'off';
-    } catch {
-      /* sem armazenamento */
-    }
-    if (wants && listenSupported()) l.start();
+    if (listenSupported()) l.start();
     const onVis = () => {
       // aba escondida não fica com o microfone aberto
       if (document.visibilityState === 'hidden') l.pause();
@@ -192,30 +207,6 @@ export function LoginScreen() {
       stopSpeaking();
     };
   }, [onFinal, onInterim]);
-
-  const savePref = (on: boolean) => {
-    try {
-      localStorage.setItem(LISTEN_PREF, on ? 'on' : 'off');
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const toggleListen = () => {
-    const l = listener.current;
-    if (!l || listen === 'unsupported') return;
-    setVoiceHint(false);
-    if (l.active) {
-      l.stop();
-      savePref(false);
-      setOrb('idle');
-      setHeard('');
-      setReply('');
-    } else {
-      l.start();
-      savePref(true);
-    }
-  };
 
   /** Clique na esfera: liga a escuta (se preciso) e já fica atenta, sem precisar dizer "Max". */
   const orbClick = () => {
@@ -236,14 +227,13 @@ export function LoginScreen() {
       return;
     }
     if (!l.active) {
+      setTrouble(null);
       l.start();
-      savePref(true);
     }
     armedUntil.current = Date.now() + ARMED_MS;
     setOrb('listening');
     setHeard('');
     setReply('Estou ouvindo.');
-    sfx.listen();
     setTimeout(() => {
       if (!busy.current && Date.now() >= armedUntil.current) setOrb((o) => (o === 'listening' ? 'idle' : o));
     }, ARMED_MS + 200);
@@ -349,14 +339,17 @@ export function LoginScreen() {
 
   const letters = Array.from(greeting.title);
   const inForm = phase === 'form';
-  const hint =
-    listen === 'on' || listen === 'starting'
-      ? 'Diga “Max, bom dia” ou “Max, apresente-se”'
-      : listen === 'denied'
-        ? 'Microfone bloqueado. Libere no cadeado da barra de endereço e toque na Max.'
-        : listen === 'unsupported'
-          ? 'Toque na Max para ela se apresentar. (Escuta por voz: use Chrome ou Edge.)'
-          : 'Toque na Max para falar com ela';
+  // nada na tela enquanto tudo funciona; só aparece um aviso quando ela NÃO consegue ouvir
+  const problem =
+    listen === 'denied'
+      ? 'Para falar comigo, libere o microfone no cadeado da barra de endereço e toque em mim.'
+      : listen === 'unsupported'
+        ? 'Neste navegador eu não consigo ouvir. Use o Chrome ou o Edge para falar comigo.'
+        : trouble === 'mic'
+          ? 'Não encontrei um microfone neste aparelho.'
+          : trouble === 'network'
+            ? 'O reconhecimento de voz deste navegador não respondeu. No Chrome ou no Edge eu ouço normalmente.'
+            : '';
 
   return (
     <>
@@ -384,17 +377,11 @@ export function LoginScreen() {
                 </>
               ) : heard ? (
                 <span className="heard">“{heard}”</span>
-              ) : (
-                <span className="hint">{hint}</span>
-              )}
+              ) : problem ? (
+                <span className="hint">{problem}</span>
+              ) : null}
               {voiceHint ? <span className="hint">Clique em qualquer lugar da página para eu poder responder em voz alta.</span> : null}
             </div>
-            {listen !== 'unsupported' ? (
-              <button type="button" className={`listen-chip${listen === 'on' ? ' is-on' : ''}`} onClick={toggleListen} aria-pressed={listen === 'on' || listen === 'starting'}>
-                {listen === 'on' || listen === 'starting' ? <Mic size={13} /> : <MicOff size={13} />}
-                {listen === 'on' ? 'Escuta ligada' : listen === 'starting' ? 'Ligando a escuta…' : listen === 'denied' ? 'Microfone bloqueado' : 'Escuta desligada'}
-              </button>
-            ) : null}
           </div>
 
           <motion.div
