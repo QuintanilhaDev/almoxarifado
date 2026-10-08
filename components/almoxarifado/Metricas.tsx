@@ -7,6 +7,7 @@ import { COLORS, chartGeometry, chartSvg, fmt, fmtSigned, reportSvg } from '@/li
 import { useToast } from '../core/Toasts';
 import { api } from '../core/api';
 import { useMaxBus } from '@/lib/max/bus';
+import { saveBlob, svgToPng } from '@/lib/almoxarifado/metricsDownload';
 import './estoque.css';
 import './metricas.css';
 
@@ -23,40 +24,6 @@ function readSavedPeriod(): Period {
   return 'ultima-semana';
 }
 
-function saveBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-
-/** SVG do relatório → PNG (2x, fundo opaco). PNG abre em qualquer lugar, inclusive no Power BI. */
-async function svgToPng(svg: string, width: number, height: number, scale = 2): Promise<Blob> {
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
-  try {
-    const img = new Image();
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error('Não foi possível desenhar o gráfico.'));
-      img.src = url;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Seu navegador não conseguiu gerar a imagem.');
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Não foi possível gerar a imagem.'))), 'image/png'));
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 /** número que "rola" até o novo valor */
 function Count({ value, signed }: { value: number; signed?: boolean }) {

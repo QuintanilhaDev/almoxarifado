@@ -86,6 +86,7 @@ Alguns pedidos:
 |---|---|
 | Qualquer tela | “Max, que dia é hoje?” · “Max, quanto é 15% de 2400?” · “Max, abrir minha conta” · “Max, modo silencioso” · “Max, sair” |
 | Almoxarifado | “Max, desejo ver as métricas da última semana” · “Max, quantos itens saíram nas últimas 15 horas?” · “Max, o que entrou no estoque ontem?” · “Max, quantas botas saíram esta semana?” · “Max, tem solicitação nova?” · “Max, abrir a solicitação 12” · “Max, quanto tem de bota 42?” · “Max, o que está com estoque baixo?” · “Max, o que tem no Posto 01?” · “Max, copiar o link do formulário” |
+| Baixar métricas | “Max, desejo baixar as métricas do almoxarifado” (gráfico .png) · “Max, baixe a planilha das métricas do último mês” (.xlsx) · períodos: hoje, último dia, última semana (padrão) e último mês |
 | Painel master | “Max, quantos usuários temos?” · “Max, quem está no almoxarifado?” · “Max, em que setor está a Juliana?” · “Max, novo usuário chamado Rita Lopes no financeiro” · “Max, abrir o setor financeiro” |
 | Com internet | “Max, como está o tempo?” · “Max, qual a cotação do dólar?” · “Max, quem foi Santos Dumont?” |
 
@@ -137,6 +138,8 @@ Funciona com qualquer serviço compatível com a API *chat/completions* da OpenA
 Só a **frase dita** é enviada à IA. Saldos, nomes e números do sistema nunca saem: quando o pedido depende de dados, a IA apenas “traduz” a frase para um comando que a Max executa localmente.
 
 ---
+
+**Baixar métricas pela Max.** O arquivo é baixado sozinho para a pasta de downloads: gráfico `.png` por padrão, planilha `.xlsx` se a pessoa disser "planilha" ou "Excel". Se o setor não tiver métricas, ela avisa e orienta a procurar o Mateus na sede. Para um setor novo ganhar o download: marque `metrics: true` em `lib/sectors.ts` e registre a função dele em `METRICS_DOWNLOAD` (`lib/max/skills-core.ts`). No Chrome, a partir do segundo download seguido o navegador pode pedir uma vez a permissão de "baixar vários arquivos".
 
 ## Criar a ferramenta de um setor
 

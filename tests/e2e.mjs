@@ -135,6 +135,27 @@ try {
   ok(/^(Bom dia|Boa tarde|Boa noite), Mateus! Eu sou a Max/.test(r), 'apresentação começa com a saudação do horário');
   r = await ask(page, 'Max quantos itens saíram do estoque do almoxarifado nas últimas 15 horas');
   ok(/^Nas últimas 15 horas saíram 11 unidades do almoxarifado, de 3 itens diferentes/.test(r), 'saídas em um período livre: ' + r.slice(0, 90));
+  // baixar o arquivo das métricas (gráfico por padrão, planilha se pedir)
+  const fs = await import('node:fs');
+  let dlP = page.waitForEvent('download', { timeout: 20000 });
+  r = await ask(page, 'Max, desejo baixar as métricas do almoxarifado');
+  let dl = await dlP.catch(() => null);
+  let size = dl ? fs.statSync(await dl.path()).size : 0;
+  ok(Boolean(dl) && /\.png$/.test(dl.suggestedFilename()) && size > 20000, `gráfico .png baixado sozinho: ${dl?.suggestedFilename()} (${size} bytes)`);
+  ok(/^Baixei o gráfico das métricas do Almoxarifado \(última semana\)/.test(r), 'ela confirma o que baixou: ' + r.slice(0, 80));
+  if (dl) fs.copyFileSync(await dl.path(), SHOTS + '/metricas-baixadas.png');
+  dlP = page.waitForEvent('download', { timeout: 20000 });
+  r = await ask(page, 'Max, baixe a planilha das métricas do almoxarifado do último mês');
+  dl = await dlP.catch(() => null);
+  size = dl ? fs.statSync(await dl.path()).size : 0;
+  const head = dl ? fs.readFileSync(await dl.path()).subarray(0, 2).toString() : '';
+  ok(Boolean(dl) && /ultimo-mes.*\.xlsx$/.test(dl.suggestedFilename()) && head === 'PK' && size > 5000, `planilha .xlsx baixada: ${dl?.suggestedFilename()} (${size} bytes)`);
+  dlP = page.waitForEvent('download', { timeout: 20000 });
+  r = await ask(page, 'Max, desejo baixar as métricas do almoxarifado do último dia');
+  dl = await dlP.catch(() => null);
+  ok(Boolean(dl) && /ultimo-dia.*\.png$/.test(dl.suggestedFilename()) && /\(último dia\)/.test(r), `período falado vale no arquivo: ${dl?.suggestedFilename()}`);
+  r = await ask(page, 'Max, desejo baixar as métricas do financeiro');
+  ok(r === 'O setor Financeiro ainda não possui métricas. Caso queira que esse setor obtenha uma contagem de métricas, contate Mateus na sede.', 'setor sem métricas: avisa e orienta');
   r = await ask(page, 'Max, novo usuário chamado Rita Lopes no financeiro');
   await page.waitForSelector('.modal.sheet', { timeout: 5000 });
   ok((await page.inputValue('#hu-name')) === 'Rita Lopes' && (await page.inputValue('#hu-user')) === 'rita.lopes' && (await page.inputValue('#hu-sector')) === 'financeiro', 'Max abriu o cadastro já preenchido (nome, login e setor)');

@@ -89,6 +89,11 @@ const CASES: Case[] = [
   [almox, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor', 'logout'], [hub, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor', 'logout'], [almox, 'Max me desloga', 'logout'],
   [almox, 'Max quero sair da minha conta', 'logout'], [almox, 'Max faz logout pra mim', 'logout'], [almox, 'Max me leva para a tela de login', 'logout'], [almox, 'Max encerre minha sessão por favor', 'logout'], [rh, 'Max desconectar', 'logout'],
   [almox, 'Max abrir minha conta', 'go-tab'], [almox, 'Max quero trocar a senha da minha conta', 'go-tab'], [almox, 'Max o que saiu', 'almox-moves'], [almox, 'Max sair', 'logout'],
+  // baixar o arquivo das métricas
+  [hub, 'Max, desejo baixar as métricas do almoxarifado', 'download-metrics'], [almox, 'Max, desejo baixar as métricas', 'download-metrics'], [almox, 'Max baixe a planilha das métricas do último mês', 'download-metrics'],
+  [hub, 'Max desejo baixar as métricas do financeiro', 'download-metrics'], [rh, 'Max quero baixar as métricas de recursos humanos', 'download-metrics'], [almox, 'Max me envie o gráfico das métricas', 'download-metrics'],
+  [almox, 'Max exportar relatório em excel', 'download-metrics'], [hub, 'Max baixar métricas', 'download-metrics'], [almox, 'Max fazer download do gráfico de hoje', 'download-metrics'],
+  [almox, 'Max métricas da última semana', 'almox-metrics'], [almox, 'Max o que está com estoque baixo', 'almox-stock-low'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];
@@ -220,6 +225,7 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
   const show = async (host: MaxHost, p: string) => console.log(`\n> ${p}\n  ${(await think(hear(p).command, host, { memory: mem })).say}`);
   if (process.argv.includes('--show')) {
     await show(hub, 'Max quantos itens saíram do estoque do almoxarifado nas últimas 15 horas'); await show(almox, 'Max o que entrou no estoque ontem'); await show(almox, 'Max quantas botas saíram ontem'); await show(almox, 'Max quantas camisas saíram esta semana'); await show(almox, 'Max quantos coturnos saíram hoje'); await show(almox, 'Max métricas das últimas 15 horas'); await show(almox, 'Max o que saiu'); await show(almox, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor');
+    await show(hub, 'Max desejo baixar as métricas do financeiro'); await show(rh, 'Max quero baixar as métricas'); await show(hub, 'Max baixar métricas'); await show({ ...rh, user: user({ is_master: false, sector: 'rh' }) }, 'Max baixar as métricas do almoxarifado');
     await show(login, 'Max, apresente-se'); await show(login, 'Max, bom dia'); await show(login, 'Max boa noite'); await show(almox, 'Max, quanto tem de bota 42?');
     await show(almox, 'Max quantas botas temos'); await show(almox, 'Max, o que está com estoque baixo?'); await show(almox, 'Max, resumo do estoque'); await show(almox, 'Max tem solicitação nova?');
     await show(almox, 'Max qual foi a última solicitação'); await show(hub, 'Max, quantos usuários temos?'); await show(hub, 'Max em que setor está a Juliana'); await show(hub, 'Max novo usuário chamado Pedro Alves no financeiro');

@@ -23,6 +23,8 @@ export interface SectorDef {
   modules: SectorModule[];
   /** false = a ferramenta ainda é só a tela padrão, sem funções */
   ready: boolean;
+  /** o setor tem métricas (tela de Métricas, gráfico e planilha para baixar) */
+  metrics?: boolean;
   /** como as pessoas costumam chamar o setor (usado pela Max) */
   aliases: string[];
 }
@@ -34,6 +36,7 @@ export const SECTORS: SectorDef[] = [
     short: 'Almoxarifado',
     description: 'Solicitações dos postos, estoque de fardamento e EPIs, postos e métricas.',
     ready: true,
+    metrics: true,
     aliases: ['almoxarifado', 'almox', 'estoque', 'fardamento'],
     modules: [
       { id: 'solicitacoes', label: 'Solicitações', hint: 'Mudar status, responder e apagar pedidos' },
