@@ -261,7 +261,10 @@ try {
   r = await ask(page, 'Max, vai tomar no cu');
   ok(/conversa profissional/.test(r), 'palavrão é barrado');
   r = await ask(page, 'Max quantas botas saíram hoje');
-  ok(/saíram 2 unidades de Bota de segurança 42/.test(r), 'saída de um item no período: ' + r.slice(0, 80));
+  // o banco de teste tem uma saída de 7 há 15 horas: depois das 15h (Salvador) ela também é "de hoje"
+  const sinceMidnight = (() => { const d = new Date(Date.now() - 3 * 3600000); return d.getUTCHours() * 60 + d.getUTCMinutes(); })();
+  const outToday = sinceMidnight > 905 ? 9 : sinceMidnight < 895 ? 2 : null;
+  ok(outToday === null ? /saíram (2|9) unidades de Bota de segurança 42/.test(r) : new RegExp(`saíram ${outToday} unidades de Bota de segurança 42`).test(r), 'saída de um item no período: ' + r.slice(0, 80));
   r = await ask(page, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor');
   await page.waitForURL(B + '/', { timeout: 8000 });
   ok(true, 'Max encerrou a sessão');

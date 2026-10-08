@@ -6,6 +6,8 @@ import type { Posto, StockItem } from '@/lib/almoxarifado/types';
 import { fold, itemLabel, num } from '@/lib/almoxarifado/stockFormat';
 import { useToast } from '../core/Toasts';
 import { api } from '../core/api';
+import { CategoryPicker } from './CategoryPicker';
+import { DEFAULT_CATEGORIES } from '@/lib/almoxarifado/categories';
 
 export function Sheet({
   title,
@@ -71,14 +73,21 @@ const UNITS = ['Cada', 'Par', 'Caixa', 'Kit', 'Pacote', 'Metro', 'Litro', 'Rolo'
 /* ------------------------------------------------------------------ */
 export function ItemFormModal({
   item,
+  options,
+  initialCategories,
   onClose,
   onSaved,
 }: {
   item: StockItem | null;
+  /** categorias para sugerir (as conhecidas + as que a equipe já criou) */
+  options?: string[];
+  /** item novo já nasce na categoria que está filtrada na tela */
+  initialCategories?: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const [categories, setCategories] = useState<string[]>(item?.categories ?? initialCategories ?? []);
   const [f, setF] = useState({
     name: item?.name ?? '',
     size: item?.size ?? '',
@@ -99,7 +108,10 @@ export function ItemFormModal({
     if (!f.name.trim()) return setError('Dê um nome ao item.');
     setBusy(true);
     try {
-      const payload = { name: f.name, size: f.size, unit: f.unit, min_quantity: f.min_quantity, cost: f.cost };
+      const base = { name: f.name, size: f.size, unit: f.unit, min_quantity: f.min_quantity, cost: f.cost };
+      // só manda as categorias se mudaram (assim o cadastro funciona mesmo antes do categorias.sql)
+      const changed = (item?.categories ?? []).join('|') !== categories.join('|');
+      const payload = changed ? { ...base, categories } : base;
       if (item) await api(`/api/almoxarifado/stock/${item.id}`, { method: 'PATCH', json: payload });
       else await api('/api/almoxarifado/stock', { method: 'POST', json: { ...payload, quantity: f.quantity } });
       toast({ kind: 'success', title: item ? 'Item atualizado' : 'Item cadastrado', text: f.name.trim() });
@@ -162,6 +174,21 @@ export function ItemFormModal({
               Custo unitário (R$) <span className="opt-tag">(opcional)</span>
             </label>
             <input id="it-cost" className="input" inputMode="decimal" value={f.cost} onChange={set('cost')} placeholder="0,00" />
+          </div>
+          <div className="full">
+            <span className="label">
+              Categorias <span className="opt-tag">(pode marcar mais de uma)</span>
+            </span>
+            <CategoryPicker
+              value={categories}
+              options={options ?? [...DEFAULT_CATEGORIES]}
+              onChange={(next) => {
+                setCategories(next);
+                setError('');
+              }}
+              disabled={busy}
+              idPrefix="it-cat"
+            />
           </div>
         </div>
         <ErrorLine text={error} />

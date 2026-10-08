@@ -1,6 +1,8 @@
 import 'server-only';
 import { db } from '../supabaseAdmin';
 import type { Posto, StockItem } from './types';
+import { isMissingColumn } from '../auth';
+import { sortCategories } from './categories';
 
 const PAGE = 1000; // o Supabase devolve no máximo 1000 linhas por consulta
 
@@ -26,12 +28,29 @@ export async function fetchAll<T>(
   return out;
 }
 
+const ITEM_COLS = 'id, ref, name, size, unit, quantity, min_quantity, cost, created_at, updated_at';
+/** false enquanto o supabase/categorias.sql não tiver sido rodado (a tela segue funcionando sem categorias). */
+let categoriesReady: boolean | null = null;
+let categoriesCheckedAt = 0;
+
 export async function loadItems(): Promise<StockItem[]> {
-  const items = await fetchAll<Omit<StockItem, 'at_postos'>>(
-    'stock_items',
-    'id, ref, name, size, unit, quantity, min_quantity, cost, created_at, updated_at',
-    { column: 'name_key', tiebreak: 'id' },
-  );
+  type Row = Omit<StockItem, 'at_postos' | 'categories'> & { categories?: string[] | null };
+  let items: Row[];
+  const order = { column: 'name_key', tiebreak: 'id' };
+  const retry = categoriesReady === false && Date.now() - categoriesCheckedAt > 60_000;
+  if (categoriesReady !== false || retry) {
+    try {
+      items = await fetchAll<Row>('stock_items', `${ITEM_COLS}, categories`, order);
+      categoriesReady = true;
+    } catch (e) {
+      if (!isMissingColumn(e)) throw e;
+      categoriesReady = false;
+      categoriesCheckedAt = Date.now();
+      items = await fetchAll<Row>('stock_items', ITEM_COLS, order);
+    }
+  } else {
+    items = await fetchAll<Row>('stock_items', ITEM_COLS, order);
+  }
   const lines = await fetchAll<{ item_id: string; quantity: number; posto_id: string }>(
     'posto_stock',
     'posto_id, item_id, quantity',
@@ -39,7 +58,12 @@ export async function loadItems(): Promise<StockItem[]> {
   );
   const sum = new Map<string, number>();
   for (const l of lines) sum.set(l.item_id, (sum.get(l.item_id) ?? 0) + l.quantity);
-  return items.map((i) => ({ ...i, cost: i.cost === null ? null : Number(i.cost), at_postos: sum.get(i.id) ?? 0 }));
+  return items.map((i) => ({
+    ...i,
+    cost: i.cost === null ? null : Number(i.cost),
+    categories: Array.isArray(i.categories) ? sortCategories(i.categories.filter((c) => typeof c === 'string' && c)) : [],
+    at_postos: sum.get(i.id) ?? 0,
+  }));
 }
 
 export async function loadPostos(): Promise<Posto[]> {

@@ -159,7 +159,7 @@ Os setores ficam em `lib/sectors.ts`. A tela padrão é `components/setores/Sect
 
 Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
-1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql` e `supabase/maxhub.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
+1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql`, `supabase/maxhub.sql` e `supabase/categorias.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
 2. **GitHub:** crie um repositório **privado** e envie o conteúdo deste projeto.
 3. **Vercel:** importe o repositório e cadastre as variáveis do arquivo `.env.example` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`). Clique em **Deploy**.
 4. Os usuários iniciais são `master` (senha `berrythedev45`), `neilton` e `juliana` (senha `123456`). Entre com `master`, troque as senhas e ajuste os acessos no painel master.
@@ -233,6 +233,19 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 - Se a lista de postos do **formulário de solicitações** for diferente da daqui, aparece um aviso com o botão **Atualizar formulário**.
 
 **Observações sobre a planilha original (`Livro1.xlsx`):** as colunas ENTRADA, SAÍDA, SALDO e REF dependiam de outra planilha (links externos) e vinham com erro. A carga inicial usa a coluna **QUANT** como saldo atual. Dois pares de linhas repetidas (mesmo nome e tamanho) foram unidos.
+
+---
+
+## Categorias do estoque
+
+Cada item pode ter **uma ou mais categorias**: Max Forte, Max Serviços, Max Confiável, EPI, Acessório, Equipamento, Higienizado, ou qualquer outra que a equipe criar. Um cinto pode ser "Acessório" **e** "Max Forte" ao mesmo tempo, e aparece nos dois filtros.
+
+- **Estoque:** a barra "Categoria" filtra a lista; os números do topo e os filtros (estoque baixo, sem saldo, nos postos) acompanham a categoria escolhida. "Sem categoria" mostra o que falta classificar.
+- **Detalhe do item:** marque ou desmarque as categorias (salva na hora) ou digite uma nova. Mudar categoria **não** mexe em saldo nem cria movimentação.
+- **Novo item / Editar dados:** mesmas opções. A exportação (CSV) ganhou a coluna "Categorias".
+- **Max:** "Max, quanto temos de EPI?", "Max, mostre os itens da Max Forte", "Max, o que está com estoque baixo na Max Serviços?", "Max, quais categorias existem?". Com a IA ligada: "Max, o cinto tático também é Max Forte" (ela pede confirmação antes de gravar).
+
+**Atualizando um site que já está no ar:** no Supabase, abra o **SQL Editor** e rode `supabase/categorias.sql`. Ele cria a coluna de categorias e classifica os 308 itens da planilha. **Não altera saldo, mínimo, custo, postos nem histórico**, e pode ser rodado de novo: só preenche itens que ainda estão sem categoria. Se o código for publicado antes do SQL, o estoque continua funcionando normalmente, só sem categorias.
 
 ---
 
@@ -320,6 +333,7 @@ lib/
 supabase/
   maxhub.sql               login global, setores e permissões  ← novo
   schema.sql  estoque.sql  seed_estoque.sql  baixa_e_usuarios.sql
+  categorias.sql           categorias dos itens do estoque  ← novo
 tests/                     testes da Max, banco de mentira e teste no navegador
 middleware.ts              barra quem não está logado
 ```
@@ -338,6 +352,7 @@ middleware.ts              barra quem não está logado
 | Estoque ou Postos mostram "Não foi possível carregar" | Rode `supabase/estoque.sql` no SQL Editor e recarregue a página. |
 | Alguém esqueceu a senha | O master geral abre **Painel master → Usuários**, clica na pessoa e define uma **Nova senha**. |
 | O master geral esqueceu a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'mateus';`. A senha volta a ser `123456`; troque em seguida. |
+| "As categorias ainda não foram ativadas no banco" | Rode `supabase/categorias.sql` no SQL Editor. |
 | "Falta rodar o arquivo supabase/maxhub.sql" | Rode `supabase/maxhub.sql` no SQL Editor (passo 1 da atualização). |
 | Entrei e caí em "Quase lá" | O usuário não tem setor. O master geral aloca em **Usuários**. |
 | Ninguém é master geral | No SQL Editor: `update admins set is_master = true, sector = null where username = 'seu_usuario';` |

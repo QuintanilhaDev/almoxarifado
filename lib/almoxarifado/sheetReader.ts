@@ -599,6 +599,11 @@ export const ITEM_SCHEMA: SchemaSpec = {
       synonyms: ['custo', 'custo unitario', 'preco', 'preco unitario', 'valor unitario', 'valor unit', 'vlr unit', 'valor'],
       exclude: ['estoque', 'total'],
     },
+    {
+      key: 'categories',
+      kind: 'text',
+      synonyms: ['categoria', 'categorias', 'categoria do item', 'classificacao', 'grupo'],
+    },
     { key: 'size', kind: 'size', synonyms: ['tam', 'tamanho', 'numero', 'num', 'numeracao', 'medida'] },
     { key: 'unit', kind: 'unit', synonyms: ['unid', 'unidade', 'un', 'und', 'unidade de medida'] },
     {

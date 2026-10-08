@@ -8,7 +8,8 @@ import type { MaxHost, MaxMemory } from '../lib/max/types';
 import type { HubUser, HubUserRow } from '../lib/permissions';
 
 const user = (over: Partial<HubUser> = {}): HubUser => ({ id: 'u1', username: 'mateus', display_name: 'Mateus Quintanilha', is_master: true, sector: null, sector_role: 'member', permissions: {}, active: true, ...over });
-const item = (name: string, size: string | null, quantity: number, min = 0, at_postos = 0) => ({ id: name + size, ref: 1, name, size, unit: 'Cada', quantity, min_quantity: min, cost: 10, at_postos, created_at: '2026-01-01', updated_at: '2026-01-01' });
+const CATS: Record<string, string[]> = { 'Bota de segurança': ['Max Forte', 'EPI'], 'Camisa social manga curta': ['Max Serviços'], 'Calça tática': ['Max Forte'], 'Boné': ['Max Forte', 'Max Serviços'], 'Cinto tático': ['Max Forte', 'Acessório'], 'Colete refletivo': ['EPI'], 'Rádio comunicador': ['Equipamento'] };
+const item = (name: string, size: string | null, quantity: number, min = 0, at_postos = 0) => ({ id: name + size, ref: 1, name, size, unit: 'Cada', quantity, min_quantity: min, cost: 10, categories: CATS[name] ?? [], at_postos, created_at: '2026-01-01', updated_at: '2026-01-01' });
 const items = [
   item('Bota de segurança', '40', 12, 5), item('Bota de segurança', '42', 3, 5), item('Bota de segurança', '44', 0, 5),
   item('Camisa social manga curta', 'G', 40), item('Camisa social manga curta', 'M', 22), item('Calça tática', '44', 9, 10),
@@ -55,6 +56,10 @@ const CASES: Case[] = [
   [almox, 'Max, quanto tem de bota 42?', 'almox-stock-lookup'], [almox, 'Max saldo de camisa social', 'almox-stock-lookup'], [almox, 'Max tem boné no estoque?', 'almox-stock-lookup'],
   [almox, 'Max procurar coturno', 'almox-stock-lookup'], [almox, 'Max quantas botas temos', 'almox-stock-lookup'], [almox, 'Max quanto tem de unicórnio no estoque', 'almox-stock-lookup'],
   [almox, 'Max, o que está com estoque baixo?', 'almox-stock-low'], [almox, 'Max quais itens estão zerados', 'almox-stock-low'], [almox, 'Max o que está acabando', 'almox-stock-low'], [almox, 'Max o que precisa repor', 'almox-stock-low'],
+  [almox, 'Max, quanto temos de EPI?', 'almox-stock-category'], [almox, 'Max mostre os itens da Max Forte', 'almox-stock-category'], [almox, 'Max quais categorias existem no estoque', 'almox-stock-category'],
+  [almox, 'Max filtre o estoque por acessórios', 'almox-stock-category'], [almox, 'Max quantos itens da Max Serviços temos', 'almox-stock-category'], [almox, 'Max quais itens estão sem categoria', 'almox-stock-category'],
+  [almox, 'Max o que está com estoque baixo na Max Forte', 'almox-stock-low'], [almox, 'Max quanto tem de bota 42 de EPI', 'almox-stock-lookup'], [almox, 'Max quantos equipamentos temos no estoque', 'almox-stock-category'],
+  [hub, 'Max quanto temos de EPI no almoxarifado', 'almox-stock-category'], [almox, 'Max quais serviços você faz', null], [almox, 'Max itens de serviços', 'almox-stock-category'], [almox, 'Max quantos acessórios saíram na última semana', 'almox-moves'],
   [almox, 'Max, resumo do estoque', 'almox-stock-summary'], [almox, 'Max qual o valor do estoque', 'almox-stock-summary'], [almox, 'Max quantos itens temos no estoque', 'almox-stock-summary'],
   [almox, 'Max, o que tem no posto 01?', 'almox-posto-stock'], [almox, 'Max estoque do posto shopping barra', 'almox-posto-stock'], [almox, 'Max, quantos postos temos?', 'almox-postos-count'],
   [almox, 'Max copiar o link do formulário', 'almox-form-link'], [almox, 'Max quantos e-mails autorizados', 'almox-emails-count'],

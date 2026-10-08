@@ -3,6 +3,8 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireAlmox } from '@/lib/access';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
+import { isMissingColumn } from '@/lib/auth';
+import { MISSING_CATEGORIES_SQL, cleanCategories } from '@/lib/almoxarifado/categories';
 import { UUID_RE, dbMessage, intOrNull, moneyOrNull, str } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
@@ -56,10 +58,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (body.cost !== '' && body.cost != null && c === null) return fail('Custo inválido.');
     patch.cost = c;
   }
+  if ('categories' in body) {
+    if (!Array.isArray(body.categories) && typeof body.categories !== 'string') return fail('Categorias inválidas.');
+    patch.categories = cleanCategories(body.categories);
+  }
   try {
     const admin = await requireAlmox('estoque', 'edit');
     const { data, error } = await db().from('stock_items').update(patch).eq('id', id).select('id').maybeSingle();
     if (error) {
+      if ('categories' in patch && isMissingColumn(error)) return fail(MISSING_CATEGORIES_SQL, 409);
       if (error.code === '23505') return fail('Já existe outro item com esse nome e tamanho.', 409);
       const m = dbMessage(error);
       if (m) return fail(m, 400);

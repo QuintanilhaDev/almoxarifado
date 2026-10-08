@@ -4,6 +4,7 @@ import { listUsers } from '../../auth';
 import { canManageSector, hasLevel, isLevel, sanitizePermissions, type HubUser, type HubUserRow } from '../../permissions';
 import { SECTORS, getSector, isSectorSlug } from '../../sectors';
 import { loadItems, loadPostos } from '../../almoxarifado/stockData';
+import { cleanCategories, countCategories, findCategory, hasCategory } from '../../almoxarifado/categories';
 import { MAX_SPAN_MS, loadRange } from '../../almoxarifado/rangeData';
 import type { Posto, StockItem } from '../../almoxarifado/types';
 import { dateText, timeText } from '../clock';
@@ -174,16 +175,24 @@ const TOOLS: Tool[] = [
   /* ---------------- almoxarifado: consultas ---------------- */
   {
     name: 'estoque_consultar',
-    description: 'Saldo do estoque do almoxarifado. Com "termo", busca itens pelo nome/tamanho; sem termo, devolve o resumo geral.',
-    params: { termo: { type: 'string' } },
+    description: 'Saldo do estoque do almoxarifado. Com "termo", busca itens pelo nome/tamanho; sem termo, devolve o resumo geral. "categoria" restringe a uma categoria (ex.: Max Forte, Max Serviços, Max Confiável, EPI, Acessório, Equipamento, Higienizado); um item pode ter várias categorias.',
+    params: { termo: { type: 'string' }, categoria: { type: 'string' } },
     when: (c) => inAlmox(c) && (view(c, 'estoque') || view(c, 'postos')),
     run: async (a, c) => {
-      const all = await items(c);
+      const every = await items(c);
+      const inUse = countCategories(every);
+      const wanted = str(a.categoria, 60);
+      const cat = wanted ? findCategory(wanted, inUse.map((x) => x.name)) : null;
+      if (wanted && (!cat || !every.some((i) => hasCategory(i, cat)))) {
+        throw new ToolError(`Não há itens na categoria "${wanted}". Categorias em uso: ${inUse.map((x) => `${x.name} (${x.n})`).join(', ') || 'nenhuma'}. Avise a pessoa.`);
+      }
+      const all = cat ? every.filter((i) => hasCategory(i, cat)) : every;
       const termo = str(a.termo);
       if (!termo) {
         const low = all.filter((i) => i.min_quantity > 0 && i.quantity <= i.min_quantity);
         return {
           data: {
+            ...(cat ? { categoria: cat } : { categorias: inUse.map((x) => ({ categoria: x.name, itens: x.n })), itens_sem_categoria: every.filter((i) => !i.categories.length).length }),
             itens_cadastrados: all.length,
             unidades_no_almoxarifado: all.reduce((s, i) => s + i.quantity, 0),
             unidades_nos_postos: all.reduce((s, i) => s + i.at_postos, 0),
@@ -195,7 +204,7 @@ const TOOLS: Tool[] = [
         };
       }
       const hits = bestMatches(termo, all, label, 0.6, 14).map((h) => h.item);
-      return { data: hits.length ? hits.map((i) => ({ item: label(i), saldo: i.quantity, nos_postos: i.at_postos, minimo: i.min_quantity, custo: i.cost })) : `Nenhum item parecido com "${termo}".` };
+      return { data: hits.length ? hits.map((i) => ({ item: label(i), saldo: i.quantity, nos_postos: i.at_postos, minimo: i.min_quantity, custo: i.cost, categorias: i.categories })) : `Nenhum item parecido com "${termo}"${cat ? ` na categoria ${cat}` : ''}.` };
     },
   },
   {
@@ -300,7 +309,7 @@ const TOOLS: Tool[] = [
   {
     name: 'item_cadastrar',
     description: 'Cadastra um item novo no estoque.',
-    params: { nome: { type: 'string' }, tamanho: { type: 'string' }, quantidade: { type: 'number' }, estoque_minimo: { type: 'number' }, custo: { type: 'number' } },
+    params: { nome: { type: 'string' }, tamanho: { type: 'string' }, quantidade: { type: 'number' }, estoque_minimo: { type: 'number' }, custo: { type: 'number' }, categorias: { type: 'string', description: 'uma ou mais, separadas por vírgula (ex.: "Acessório, Max Forte")' } },
     required: ['nome'],
     when: (c) => inAlmox(c) && edit(c, 'estoque'),
     run: async (a) => {
@@ -309,12 +318,36 @@ const TOOLS: Tool[] = [
       const size = str(a.tamanho, 40);
       const q = a.quantidade == null ? 0 : int(a.quantidade);
       if (!Number.isFinite(q) || q < 0) throw new ToolError('Quantidade inválida.');
+      const cats = cleanCategories(str(a.categorias, 200));
       return {
         pending: {
           method: 'POST',
           path: '/api/almoxarifado/stock',
-          body: { name, size, quantity: q, min_quantity: a.estoque_minimo == null ? 0 : int(a.estoque_minimo), cost: a.custo == null ? '' : Number(a.custo) },
-          what: `cadastro do item ${name}${size ? ' ' + size : ''} com ${units(q)}`,
+          body: { name, size, quantity: q, min_quantity: a.estoque_minimo == null ? 0 : int(a.estoque_minimo), cost: a.custo == null ? '' : Number(a.custo), ...(cats.length ? { categories: cats } : {}) },
+          what: `cadastro do item ${name}${size ? ' ' + size : ''} com ${units(q)}${cats.length ? `, categoria ${cats.join(' e ')}` : ''}`,
+        },
+      };
+    },
+  },
+  {
+    name: 'item_categorias',
+    description: 'Muda as categorias de um item do estoque, sem mexer no saldo. "adicionar" e "remover" aceitam uma ou mais categorias separadas por vírgula. Um item pode ter várias (ex.: Acessório e Max Forte).',
+    params: { item: { type: 'string' }, adicionar: { type: 'string' }, remover: { type: 'string' } },
+    required: ['item'],
+    when: (c) => inAlmox(c) && edit(c, 'estoque'),
+    run: async (a, c) => {
+      const it = pickOne(str(a.item), await items(c), label, 'item');
+      const add = cleanCategories(str(a.adicionar, 200));
+      const del = cleanCategories(str(a.remover, 200));
+      if (!add.length && !del.length) throw new ToolError('Faltou dizer qual categoria colocar ou tirar. Pergunte à pessoa.');
+      const next = cleanCategories([...it.categories.filter((x) => !del.some((d) => hasCategory({ categories: [x] }, d))), ...add]);
+      if (next.join('|') === it.categories.join('|')) throw new ToolError(`O item ${label(it)} já está assim: ${it.categories.join(', ') || 'sem categoria'}. Avise a pessoa.`);
+      return {
+        pending: {
+          method: 'PATCH',
+          path: `/api/almoxarifado/stock/${it.id}`,
+          body: { categories: next },
+          what: `categoria do item ${label(it)}: ${next.length ? next.join(' e ') : 'sem categoria'}`,
         },
       };
     },

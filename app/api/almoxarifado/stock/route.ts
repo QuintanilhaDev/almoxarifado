@@ -3,6 +3,8 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireAlmox } from '@/lib/access';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
+import { isMissingColumn } from '@/lib/auth';
+import { MISSING_CATEGORIES_SQL, cleanCategories } from '@/lib/almoxarifado/categories';
 import { dbMessage, intOrNull, loadItems, moneyOrNull, str } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +29,7 @@ export async function POST(req: Request) {
   if (min === null) return fail('O estoque mínimo precisa ser um número inteiro, zero ou maior.');
   const cost = moneyOrNull(body?.cost);
   if (body?.cost !== '' && body?.cost != null && cost === null) return fail('Custo inválido.');
+  const categories = cleanCategories(body?.categories);
   try {
     const admin = await requireAlmox('estoque', 'edit');
     const { data, error } = await db()
@@ -38,11 +41,13 @@ export async function POST(req: Request) {
         quantity,
         min_quantity: min,
         cost,
+        ...(categories.length ? { categories } : {}),
         created_by: admin.display_name,
       })
       .select('id, name, size')
       .single();
     if (error) {
+      if (categories.length && isMissingColumn(error)) return fail(MISSING_CATEGORIES_SQL, 409);
       const m = dbMessage(error);
       if (m) return fail(error.code === '23505' ? 'Esse item (com esse tamanho) já está cadastrado.' : m, 409);
       throw error;

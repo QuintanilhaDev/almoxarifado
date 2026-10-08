@@ -120,6 +120,8 @@ export interface StockItem {
   quantity: number;
   min_quantity: number;
   cost: number | null;
+  /** categorias do item (pode ter várias); vazio = sem categoria */
+  categories: string[];
   /** soma do que está espalhado pelos postos */
   at_postos: number;
   created_at: string;

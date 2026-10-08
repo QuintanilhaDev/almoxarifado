@@ -5,6 +5,8 @@ import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { fetchAll, intOrNull, moneyOrNull, str } from '@/lib/almoxarifado/stockData';
 import { ITEM_SCHEMA, SheetError, classify, itemKey, loadSheets, norm, readSheets } from '@/lib/almoxarifado/sheetReader';
+import { isMissingColumn } from '@/lib/auth';
+import { MISSING_CATEGORIES_SQL, cleanCategories } from '@/lib/almoxarifado/categories';
 import { readUpload } from '@/lib/almoxarifado/upload';
 import type { ImportPreview } from '@/lib/almoxarifado/types';
 
@@ -76,6 +78,7 @@ export async function POST(req: Request) {
     const seen = new Set<string>();
     const fresh: Record<string, unknown>[] = [];
     let skipped = 0;
+    const withCategories = body.rows.some((r) => cleanCategories(r?.categories).length > 0);
     for (const r of body.rows) {
       const name = str(r?.name, 160);
       if (!name) continue;
@@ -86,6 +89,7 @@ export async function POST(req: Request) {
         continue;
       }
       seen.add(k);
+      const categories = cleanCategories(r.categories);
       fresh.push({
         name,
         size,
@@ -93,6 +97,8 @@ export async function POST(req: Request) {
         quantity: intOrNull(r.quantity) ?? 0,
         min_quantity: intOrNull(r.min_quantity) ?? 0,
         cost: moneyOrNull(r.cost),
+        // sempre presente: o PostgREST exige as mesmas chaves em todas as linhas do lote
+        ...(withCategories ? { categories } : {}),
         created_by: admin.display_name,
       });
     }
@@ -102,7 +108,10 @@ export async function POST(req: Request) {
         .from('stock_items')
         .upsert(fresh.slice(i, i + 500), { onConflict: 'name_key,size_key', ignoreDuplicates: true })
         .select('id, name, size, quantity');
-      if (error) throw error;
+      if (error) {
+        if (withCategories && isMissingColumn(error)) return fail(MISSING_CATEGORIES_SQL, 409);
+        throw error;
+      }
       added += data?.length ?? 0;
       if (data?.length) {
         const { error: me } = await db()

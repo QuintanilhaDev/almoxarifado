@@ -756,3 +756,125 @@ details.imp-cols ul {
   background: var(--amber);
   color: #2a1d00;
 }
+
+/* ---------- categorias ---------- */
+.cat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.cat-bar > small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+.cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.cat-chip {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 99px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--onix-3);
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+.cat-chip:hover:not(:disabled) {
+  color: var(--white);
+}
+.cat-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cat-chip.is-on {
+  background: rgba(190, 170, 255, 0.16);
+  border-color: var(--lilac);
+  color: var(--white);
+}
+.cat-chip em {
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 700;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 99px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(246, 244, 251, 0.08);
+}
+.cat-chip.is-on em {
+  background: var(--lilac);
+  color: var(--lilac-ink);
+}
+.cat-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+.cat-tag {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 99px;
+  background: rgba(246, 244, 251, 0.08);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cat-tag.t-forte {
+  background: rgba(190, 170, 255, 0.16);
+  color: var(--lilac);
+}
+.cat-tag.t-servicos {
+  background: rgba(143, 227, 187, 0.14);
+  color: var(--mint);
+}
+.cat-tag.t-confiavel {
+  background: rgba(125, 190, 255, 0.16);
+  color: #9ccbff;
+}
+.cat-tag.t-epi {
+  background: rgba(242, 200, 121, 0.14);
+  color: var(--amber);
+}
+.cat-tag.t-higienizado {
+  background: rgba(120, 220, 232, 0.14);
+  color: #8fdfe8;
+}
+.cat-picker {
+  display: grid;
+  gap: 10px;
+}
+.cat-new {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cat-new .input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 14.5px;
+}
+.readonly-only {
+  display: none;
+}
+.is-readonly .readonly-only {
+  display: flex;
+}

@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 
 const PORT = Number(process.argv[2] || 54321);
 const LEGACY = process.env.LEGACY === '1';
+const NOCAT = process.env.NOCAT === '1'; // banco ainda sem o categorias.sql
 const HASH = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW'; // 123456
 const now = Date.now();
 const iso = (minAgo) => new Date(now - minAgo * 60000).toISOString();
@@ -15,7 +16,8 @@ const admin = (username, display_name, extra = {}) => ({
   id: randomUUID(), username, display_name, password_hash: HASH, created_at: iso(50000), updated_at: iso(50000),
   ...(LEGACY ? { is_master: Boolean(extra.is_master) } : { is_master: false, sector: null, sector_role: 'member', permissions: {}, active: true, created_by: null, last_login_at: null, ...extra }),
 });
-const item = (ref, name, size, quantity, min_quantity = 0, cost = 25) => ({ id: randomUUID(), ref, name, size, unit: 'Cada', quantity, min_quantity, cost, name_key: name.toLowerCase(), size_key: (size || '').toLowerCase(), created_by: 'Neilton', created_at: iso(9000), updated_at: iso(100) });
+const CATS = { 'Bota de segurança': ['Max Forte', 'EPI'], 'Camisa social manga curta': ['Max Serviços'], 'Calça tática': ['Max Forte'], 'Boné': ['Max Forte', 'Max Serviços'], 'Cinto tático': ['Acessório'], 'Colete refletivo': ['EPI'] };
+const item = (ref, name, size, quantity, min_quantity = 0, cost = 25) => ({ id: randomUUID(), ref, name, size, unit: 'Cada', quantity, min_quantity, cost, ...(NOCAT ? {} : { categories: CATS[name] ?? [] }), name_key: name.toLowerCase(), size_key: (size || '').toLowerCase(), created_by: 'Neilton', created_at: iso(9000), updated_at: iso(100) });
 const posto = (name, city) => ({ id: randomUUID(), name, name_key: name.toLowerCase(), code: null, city, address: null, supervisor: 'Sup. ' + name, notes: null, created_by: 'Neilton', created_at: iso(9000), updated_at: iso(9000) });
 
 const items = [item(1, 'Bota de segurança', '40', 12, 5), item(2, 'Bota de segurança', '42', 3, 5), item(3, 'Bota de segurança', '44', 0, 5), item(4, 'Camisa social manga curta', 'G', 40, 10), item(5, 'Camisa social manga curta', 'M', 22, 10), item(6, 'Calça tática', '44', 9, 10), item(7, 'Boné', null, 70), item(8, 'Cinto tático', null, 15), item(9, 'Colete refletivo', null, 0, 2), item(10, 'Rádio comunicador', null, 6, 0, 480)];
@@ -84,6 +86,7 @@ function project(table, rows, select) {
   for (const c of cols) {
     const name = c.split('(')[0];
     if (table === 'admins' && HIDDEN.includes(name)) return { error: { code: '42703', message: `column admins.${name} does not exist` } };
+    if (NOCAT && table === 'stock_items' && name === 'categories') return { error: { code: '42703', message: 'column stock_items.categories does not exist' } };
   }
   return {
     rows: rows.map((r) => {
@@ -130,7 +133,7 @@ http
       }
       return send(res, status, p.rows);
     };
-    const badColumn = (obj) => (table === 'admins' ? Object.keys(obj).find((k) => HIDDEN.includes(k)) : null);
+    const badColumn = (obj) => (table === 'admins' ? Object.keys(obj).find((k) => HIDDEN.includes(k)) : NOCAT && table === 'stock_items' && 'categories' in obj ? 'categories' : null);
 
     if (req.method === 'GET') {
       let rows = filterRows(db[table], params);
@@ -146,7 +149,7 @@ http
     if (req.method === 'POST') {
       const list = Array.isArray(body) ? body : [body];
       const bad = list.map(badColumn).find(Boolean);
-      if (bad) return send(res, 400, { code: 'PGRST204', message: `Could not find the '${bad}' column of 'admins' in the schema cache` });
+      if (bad) return send(res, 400, { code: 'PGRST204', message: `Could not find the '${bad}' column of '${table}' in the schema cache` });
       const created = [];
       for (const row of list) {
         const unique = table === 'admins' ? 'username' : table === 'authorized_emails' ? 'email' : null;
@@ -154,7 +157,7 @@ http
           if (prefer.includes('ignore-duplicates')) continue;
           return send(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint' });
         }
-        const full = { id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(table === 'admins' && !LEGACY ? { is_master: false, sector: null, sector_role: 'member', permissions: {}, active: true, last_login_at: null } : {}), ...row };
+        const full = { id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(table === 'admins' && !LEGACY ? { is_master: false, sector: null, sector_role: 'member', permissions: {}, active: true, last_login_at: null } : {}), ...(table === 'stock_items' ? { ref: db.stock_items.length + 1, unit: 'Cada', quantity: 0, min_quantity: 0, cost: null, name_key: String(row.name || '').toLowerCase(), size_key: String(row.size || '').toLowerCase(), ...(NOCAT ? {} : { categories: [] }) } : {}), ...row };
         db[table].push(full);
         created.push(full);
       }
@@ -162,7 +165,7 @@ http
     }
     if (req.method === 'PATCH') {
       const bad = badColumn(body);
-      if (bad) return send(res, 400, { code: 'PGRST204', message: `Could not find the '${bad}' column of 'admins' in the schema cache` });
+      if (bad) return send(res, 400, { code: 'PGRST204', message: `Could not find the '${bad}' column of '${table}' in the schema cache` });
       const rows = filterRows(db[table], params);
       if (table === 'admins' && body.username && db.admins.some((r) => r.username === body.username && !rows.includes(r))) return send(res, 409, { code: '23505', message: 'duplicate key' });
       rows.forEach((r) => Object.assign(r, body));

@@ -34,6 +34,7 @@ const CONFIG: Record<
     cols: [
       { key: 'name', label: 'Item' },
       { key: 'size', label: 'Tam.' },
+      { key: 'categories', label: 'Categoria' },
       { key: 'unit', label: 'Unid.' },
       { key: 'quantity', label: 'Saldo', fmt: (v) => (v === null ? '' : num(Number(v))) },
       { key: 'min_quantity', label: 'Mín.', fmt: (v) => (v === null ? '' : num(Number(v))) },
@@ -50,6 +51,7 @@ const FIELD_LABEL: Record<string, string> = {
   supervisor: 'responsável',
   notes: 'observação',
   size: 'tamanho',
+  categories: 'categoria',
   unit: 'unidade',
   quantity: 'saldo',
   min_quantity: 'estoque mínimo',

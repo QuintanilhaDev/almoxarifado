@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react';
  */
 export interface MaxEvents {
   'almox:inbox': { filter?: 'nova' | 'pendente' | 'resolvida'; protocol?: number; query?: string };
-  'almox:estoque': { filter?: 'todos' | 'baixo' | 'zerado' | 'postos'; query?: string; openId?: string };
+  'almox:estoque': { filter?: 'todos' | 'baixo' | 'zerado' | 'postos'; query?: string; openId?: string; category?: string };
   'almox:metricas': { period: 'ultimo-dia' | 'hoje' | 'ultima-semana' | 'ultimo-mes' };
   'almox:postos': { query?: string; openId?: string };
   'hub:users': { create?: { name?: string; sector?: string; master?: boolean }; sector?: string; query?: string };

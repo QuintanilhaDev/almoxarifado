@@ -6,6 +6,7 @@ import { bestMatches, contentTokens, listJoin, normalize, plural, type Query } f
 import type { MaxHost, MaxReply, Skill } from './types';
 import type { RangeData } from '../almoxarifado/range';
 import { windowIn, type TimeWindow } from './when';
+import { categoryInPhrase, countCategories, hasCategory } from '../almoxarifado/categories';
 
 const SECTOR = 'almoxarifado';
 const fmt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
@@ -102,6 +103,9 @@ function requestCounts(host: MaxHost) {
   list.forEach((r) => c[r.status]++);
   return { list, c };
 }
+
+const LOW_RE = /\b(estoque (baixo|minimo|critico)|abaixo do minimo|no minimo|acabando|em falta|faltando|precis\w+ (repor|comprar)|repor|reposicao|o que comprar|lista de compras?|zerad[oa]s?|sem saldo|esgotad[oa]s?|sem estoque|acabou|acabaram)\b/;
+const CAT_FILLER = new Set(['categoria', 'categorias', 'max', 'tipo', 'grupo', 'linha']);
 
 /* ---------- movimentação em um período qualquer ---------- */
 const OUT_RE = /\b(sai|saiu|sairam|saindo|saida|saidas|enviad\w+|enviamos|enviou|enviaram|transferid\w+|transferimos|transferiu|transferiram|retirad\w+|retirou|retiraram|despachad\w+|distribuid\w+|entregues?|entregou|entregaram|entregamos)\b/;
@@ -452,6 +456,90 @@ export const almoxSkills: Skill[] = [
 
   /* ---------- estoque ---------- */
   {
+    id: 'almox-stock-category',
+    sector: SECTOR,
+    examples: ['Max, quanto temos de EPI?', 'Max, mostre os itens da Max Forte', 'Max, quais categorias existem no estoque?'],
+    match: (q, host) => {
+      if (aboutMoves(q) || windowIn(q.norm)) return 0;
+      if (LOW_RE.test(q.norm)) return 0; // "estoque baixo na Max Forte" é com a outra habilidade
+      if (q.re(/\b(sem categoria|categorias)\b/) && !q.re(/\b(usuario|usuarios|setor|setores)\b/)) return 0.9;
+      const items = host.almox?.items();
+      const cat = categoryInPhrase(q.norm, items ? countCategories(items).map((c) => c.name) : []);
+      if (!cat) return 0;
+      const about = q.any(...STOCK_WORDS, 'categoria', 'itens', 'item', 'unidades', 'produtos', 'materiais') || q.re(/\b(quant[oa]s?|quais|o que (tem|temos|ha)|mostr\w+|filtr\w+|list\w+|ver|abr\w+|resumo)\b/);
+      if (!about) return 0;
+      // "quanto tem de capacete epi" cita um item de verdade: a busca por item cuida disso
+      const needle = stockNeedle(q);
+      if (needle && items) {
+        const rest = contentTokens(needle.replace(new RegExp(`\\b${normalize(cat).replace(/\s+/g, '\\s+')}\\b`), ' ')).filter((t) => !GENERIC.has(t) && !CAT_FILLER.has(t));
+        if (rest.length && bestMatches(rest.join(' '), items, itemLabel, 0.6, 1).length) return 0;
+      }
+      return 0.93;
+    },
+    run: (q, host) => {
+      if (!host.can('estoque')) return noAccess('Estoque');
+      const items = host.almox?.items();
+      if (!items) return loading('o estoque');
+      const cats = countCategories(items);
+      if (!cats.length) return { say: 'Os itens do estoque ainda não têm categoria.' };
+      const none = items.filter((i) => !i.categories.length).length;
+      if (q.re(/\bsem categoria\b/)) {
+        return {
+          say: none ? `${plural(none, 'item está', 'itens estão')} sem categoria.` : 'Todos os itens têm categoria.',
+          act: () => {
+            host.goTab('estoque');
+            maxEmit('almox:estoque', { filter: 'todos', query: '', category: none ? '__sem__' : '' });
+          },
+        };
+      }
+      const cat = categoryInPhrase(q.norm, cats.map((c) => c.name));
+      if (!cat) {
+        return {
+          say: `O estoque está dividido em ${plural(cats.length, 'categoria', 'categorias')}: ${listJoin(cats.map((c) => `${c.name} com ${fmt(c.n)}`))}. Um item pode estar em mais de uma.${none ? ` ${plural(none, 'item está', 'itens estão')} sem categoria.` : ''}`,
+          card: { kind: 'list', title: 'Categorias do estoque', rows: cats.map((c) => ({ label: c.name, value: fmt(c.n), sub: c.n === 1 ? 'item' : 'itens' })) },
+          act: () => {
+            host.goTab('estoque');
+            maxEmit('almox:estoque', { filter: 'todos', query: '', category: '' });
+          },
+        };
+      }
+      const list = items.filter((i) => hasCategory(i, cat));
+      const act = () => {
+        host.goTab('estoque');
+        maxEmit('almox:estoque', { filter: 'todos', query: '', category: cat });
+      };
+      if (!list.length) return { say: `Nenhum item está na categoria ${cat}.`, act };
+      let units = 0;
+      let atPostos = 0;
+      let value = 0;
+      let low = 0;
+      let zero = 0;
+      for (const i of list) {
+        units += i.quantity;
+        atPostos += i.at_postos;
+        if (i.cost !== null) value += i.quantity * i.cost;
+        if (isLow(i)) low++;
+        if (i.quantity === 0) zero++;
+      }
+      return {
+        say: `${cat} tem ${plural(list.length, 'item', 'itens')}, com ${plural(units, 'unidade', 'unidades')} no almoxarifado e ${fmt(atPostos)} nos postos. ${low ? `${plural(low, 'item está', 'itens estão')} com estoque baixo` : 'Nenhum com estoque baixo'}${zero ? ` e ${plural(zero, 'está sem saldo', 'estão sem saldo')}` : ''}.`,
+        card: {
+          kind: 'stats',
+          title: `Estoque · ${cat}`,
+          stats: [
+            { label: 'Itens', value: fmt(list.length) },
+            { label: 'No almoxarifado', value: fmt(units) },
+            { label: 'Nos postos', value: fmt(atPostos) },
+            { label: 'Valor', value: brl(value) },
+            { label: 'Estoque baixo', value: fmt(low), tone: low ? 'warn' : 'plain' },
+            { label: 'Sem saldo', value: fmt(zero), tone: zero ? 'warn' : 'plain' },
+          ],
+        },
+        act,
+      };
+    },
+  },
+  {
     id: 'almox-stock-low',
     sector: SECTOR,
     examples: ['Max, o que está com estoque baixo?', 'Max, quais itens estão zerados?'],
@@ -465,18 +553,20 @@ export const almoxSkills: Skill[] = [
       const items = host.almox?.items();
       if (!items) return loading('o estoque');
       const zero = Boolean(q.re(/\b(zerad[oa]s?|sem saldo|esgotad[oa]s?|sem estoque|acabou|acabaram)\b/));
-      const list = items.filter((i) => (zero ? i.quantity === 0 : isLow(i))).sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name, 'pt-BR'));
+      const cat = categoryInPhrase(q.norm, countCategories(items).map((c) => c.name));
+      const inCat = cat ? ` em ${cat}` : '';
+      const list = items.filter((i) => (!cat || hasCategory(i, cat)) && (zero ? i.quantity === 0 : isLow(i))).sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name, 'pt-BR'));
       const act = () => {
         host.goTab('estoque');
-        maxEmit('almox:estoque', { filter: zero ? 'zerado' : 'baixo', query: '' });
+        maxEmit('almox:estoque', { filter: zero ? 'zerado' : 'baixo', query: '', category: cat ?? '' });
       };
-      if (!list.length) return { say: zero ? 'Nenhum item está sem saldo.' : 'Nenhum item está com estoque baixo. Tudo acima do mínimo.', act };
+      if (!list.length) return { say: zero ? `Nenhum item está sem saldo${inCat}.` : `Nenhum item está com estoque baixo${inCat}. Tudo acima do mínimo.`, act };
       const top = list.slice(0, 3).map((i) => `${itemLabel(i).replace(' · ', ' ')}${zero ? '' : ' ' + withQty(i.quantity)}`);
       return {
-        say: `${plural(list.length, zero ? 'item está sem saldo' : 'item está com estoque baixo', zero ? 'itens estão sem saldo' : 'itens estão com estoque baixo')}. ${list.length > 3 ? 'Os mais críticos: ' : ''}${listJoin(top)}.`,
+        say: `${plural(list.length, zero ? 'item está sem saldo' : 'item está com estoque baixo', zero ? 'itens estão sem saldo' : 'itens estão com estoque baixo')}${inCat}. ${list.length > 3 ? 'Os mais críticos: ' : ''}${listJoin(top)}.`,
         card: {
           kind: 'list',
-          title: zero ? 'Sem saldo' : 'Estoque baixo',
+          title: (zero ? 'Sem saldo' : 'Estoque baixo') + (cat ? ` · ${cat}` : ''),
           rows: list.slice(0, 6).map((i) => ({ label: itemLabel(i), value: fmt(i.quantity), sub: i.min_quantity ? `mínimo ${fmt(i.min_quantity)}` : undefined })),
           foot: list.length > 6 ? `e mais ${fmt(list.length - 6)} no Estoque do almoxarifado` : undefined,
         },
@@ -527,7 +617,7 @@ export const almoxSkills: Skill[] = [
         },
         act: () => {
           host.goTab('estoque');
-          maxEmit('almox:estoque', { filter: 'todos', query: '' });
+          maxEmit('almox:estoque', { filter: 'todos', query: '', category: '' });
         },
       };
     },
@@ -556,7 +646,7 @@ export const almoxSkills: Skill[] = [
       const hits = bestMatches(needle, items, itemLabel, 0.6, 40);
       const act = () => {
         host.goTab('estoque');
-        maxEmit('almox:estoque', { filter: 'todos', query: needle });
+        maxEmit('almox:estoque', { filter: 'todos', query: needle, category: '' });
       };
       if (!hits.length) return { say: `Não encontrei “${needle}” no estoque. Tente o nome como está cadastrado.`, act };
       const best = hits[0].score;
@@ -578,7 +668,7 @@ export const almoxSkills: Skill[] = [
           },
           act: () => {
             host.goTab('estoque');
-            maxEmit('almox:estoque', { filter: 'todos', query: '', openId: i.id });
+            maxEmit('almox:estoque', { filter: 'todos', query: '', category: '', openId: i.id });
           },
         };
       }
