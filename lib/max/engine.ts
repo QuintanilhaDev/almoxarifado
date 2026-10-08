@@ -138,7 +138,7 @@ export function wantsChange(norm: string): boolean {
 }
 
 /** Comandos locais que continuam valendo mesmo quando a frase tem verbo de ação ("desative a voz", "trocar minha senha"). */
-const SAFE_LOCAL = new Set(['stop', 'repeat', 'voice-off', 'voice-on', 'logout', 'go-tab', 'go-sector', 'hub-create-user', 'calc', 'almox-form-link', 'download-metrics']);
+const SAFE_LOCAL = new Set(['stop', 'repeat', 'voice-off', 'voice-on', 'logout', 'go-tab', 'go-sector', 'hub-create-user', 'calc', 'almox-form-link', 'download-metrics', 'say-hello']);
 
 const YES_RE = /^(sim|s|isso|isso mesmo|confirm\w*|pode|pode sim|pode fazer|pode confirmar|pode registrar|ok|okay|certo|claro|com certeza|positivo|manda|manda ver|faz|faca|execute|exato|correto|bora|vai|afirmativo|autorizo|autorizado)( sim| pode| confirmar| confirmo| confirmado| por favor| max| isso| faz| manda)*$/;
 const NO_RE = /^(nao|n|cancel\w*|deixa|deixa pra la|esquece|esqueca|negativo|para|pare|melhor nao|errado|nada|desist\w*)\b/;
@@ -172,6 +172,8 @@ async function executePending(list: PendingAction[]): Promise<MaxReply> {
 
 export interface ThinkOptions {
   memory: MaxMemory;
+  /** a frase original, como foi ouvida/digitada (o `command` chega sem acentos nem maiúsculas) */
+  raw?: string;
   /** agente do servidor: IA com ferramentas (consulta, altera com confirmação, pesquisa na web). Só para quem está logado. */
   agent?: (text: string, examples: string[]) => Promise<AgentAnswer | null>;
   /**
@@ -202,6 +204,7 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
     return { say: 'Estou ouvindo. O que você precisa?', chips: capabilities(host) };
   }
   const mem = opts.memory;
+  mem.heard = opts.raw ?? command;
   if (isBlocked(command)) {
     mem.pending = null;
     return { say: BLOCKED_REPLY, source: 'bloqueio' };

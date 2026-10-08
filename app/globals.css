@@ -2703,3 +2703,59 @@ html.intro .intro-overlay,
 .login-caption-text {
   min-height: 0;
 }
+
+/* Login: só a Max (maior) acima do cartão; nada do que é dito aparece escrito */
+.login-max {
+  margin: calc(var(--orb, 300px) * -0.1) 0 calc(var(--orb, 300px) * -0.15);
+  pointer-events: none;
+}
+.login-max .login-orb-btn {
+  position: relative;
+  pointer-events: none;
+}
+/* a área de clique é só o miolo, não a folga transparente em volta (que passa por cima do cartão) */
+.login-max .login-orb-btn::after {
+  content: '';
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+.login-max .login-orb-btn:disabled::after {
+  pointer-events: none;
+}
+.login-caption {
+  min-height: 0;
+  margin: 2px 0 14px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  position: relative;
+  z-index: 4;
+}
+.greeting {
+  top: calc(50% - 34px + var(--orb, 300px) * 0.36 + 14px);
+}
+/* telas baixas (notebooks): cartão mais enxuto para a Max caber inteira sem rolagem */
+@media (max-height: 840px) {
+  .login-content {
+    padding-top: 22px;
+    padding-bottom: 20px;
+  }
+  .login-content > p {
+    display: none;
+  }
+  .login-content h1 {
+    margin: 16px 0 14px;
+    font-size: 27px;
+  }
+  .login-field {
+    margin-bottom: 10px;
+  }
+  .login-back {
+    margin-top: 10px;
+  }
+  .login-error {
+    min-height: 18px;
+    margin-top: 8px;
+  }
+}

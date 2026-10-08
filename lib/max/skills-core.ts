@@ -57,7 +57,73 @@ export function capabilities(host: MaxHost): string[] {
   return ['Max, que dia é hoje?', 'Max, quanto é 15% de 2400?', 'Max, abrir minha conta', 'Max, como está o tempo?'];
 }
 
+/* ---------- "diga olá para Fulano" ---------- */
+const HELLO_WORD = "ol[áa]|oi|bom dia|boa tarde|boa noite|al[ôo]|salve|boas[- ]vindas|bem[- ]vind[oa]s?|um abra[çc]o|abra[çc]o";
+const HELLO_TAIL = new RegExp(`(?:${HELLO_WORD})\\s+(?:para|pra|pro|pros|pras|ao|aos|à|às|a)\\s+(.+)$`, 'i');
+const HELLO_TAIL_2 = /(?:cumpriment\w+|sa[uú]d\w+|recepcion\w+|receb\w+)\s+(.+)$/i;
+const SMALL = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
+const EVERYONE = /^(todos|todas|todo mundo|tod[oa]s (voces|nos|os presentes|que estao aqui)|pessoal|galera|turma|equipe|time|gente|sala|presentes|visitantes|convidados|clientes)$/;
+
+/** A frase pede para a Max cumprimentar alguém pelo nome. */
+export function wantsHello(norm: string): boolean {
+  return (
+    /\b(diga|diz|dizer|fala|fale|falar|de|da|dar|manda|mande|mandar|deseje|deseja|desejar)\b.{0,12}\b(ola|oi|bom dia|boa tarde|boa noite|alo|salve|boas vindas|bem vind[oa]s?|abraco)\b.{0,6}\b(para|pra|pro|pros|pras|ao|aos|a|as)\b \S/.test(norm) ||
+    /\b(cumprimente|cumprimenta|cumprimentar|saude|sauda|saudar|recepcione|recepcionar)\b (o |a |os |as )?\S/.test(norm)
+  );
+}
+
+/**
+ * Nomes citados em "diga olá para Fernanda, Júnior e Suzana".
+ * O reconhecimento de voz nem sempre escreve as vírgulas: três ou mais palavras seguidas, sem
+ * "de/da/dos", são tratadas como uma pessoa por palavra; duas palavras são nome e sobrenome.
+ */
+export function helloNames(raw: string): { names: string[]; everyone: boolean } {
+  const m = raw.match(HELLO_TAIL) ?? raw.match(HELLO_TAIL_2);
+  if (!m) return { names: [], everyone: false };
+  const tail = m[1]
+    .replace(/[.!?…]+/g, ' ')
+    .replace(/\s+(por favor|por gentileza|max)\s*$/i, '')
+    .trim();
+  const clean = (s: string) =>
+    s
+      .trim()
+      .replace(/^(?:(?:o|a|os|as|ao|à|para|pra|pro|com|meu|minha|nosso|nossa)\s+)+/i, '')
+      .replace(/\s+/g, ' ');
+  let parts = tail.split(/\s*[,;]\s*|\s+e\s+|\s+&\s+|\s+mais\s+/i).map(clean).filter(Boolean);
+  if (parts.length === 1) {
+    const words = parts[0].split(' ');
+    if (words.length >= 3 && !words.some((w) => SMALL.has(w.toLowerCase()))) parts = words;
+  }
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (parts.some((p) => EVERYONE.test(norm(p)))) return { names: [], everyone: true };
+  const cap = (s: string) =>
+    s
+      .split(' ')
+      .map((w, i) => (i > 0 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+      .join(' ');
+  const names = parts.map((p) => cap(p.replace(/[^\p{L}\p{M}' -]/gu, '').trim())).filter((p) => p.length >= 2 && p.length <= 40);
+  return { names: names.slice(0, 12), everyone: false };
+}
+
+const helloSkill: Skill = {
+  id: 'say-hello',
+  examples: ['Max, diga olá para Fernanda'],
+  match: (q) => (wantsHello(q.norm) ? 0.97 : 0),
+  run: (q, _host, mem) => {
+    const period = PERIOD_GREETING[dayPeriod()];
+    const { names, everyone } = helloNames(mem.heard || q.raw);
+    if (everyone || !names.length) {
+      return { say: `${period} a todos que estão presentes! ${pick(['Como vocês estão hoje?', 'Tudo tranquilo por aí?', 'Tudo de boa com vocês?'])}` };
+    }
+    if (names.length === 1) {
+      return { say: `${period}, ${names[0]}! ${pick(['Como você está hoje?', 'Tudo tranquilo?', 'Tudo de boa?', 'Tudo certo por aí?', 'Como vão as coisas?'])}` };
+    }
+    return { say: `${period}, ${names[0]}, ${names[1]} e a todos que estão presentes!` };
+  },
+};
+
 export const coreSkills: Skill[] = [
+  helloSkill,
   /* ---------- parar / repetir / voz ---------- */
   {
     id: 'stop',

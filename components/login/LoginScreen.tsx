@@ -29,7 +29,7 @@ export function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<Phase>('form');
   const [greeting, setGreeting] = useState({ title: '', sub: '' });
-  const [orbSize, setOrbSize] = useState(184);
+  const [orbSize, setOrbSize] = useState(370);
   const [scope, animate] = useAnimate();
   const userRef = useRef<HTMLInputElement>(null);
   const orbRef = useRef<HTMLDivElement>(null);
@@ -38,7 +38,7 @@ export function LoginScreen() {
   /* ---------- Max na tela de entrada: escuta constante ---------- */
   const [listen, setListen] = useState<ListenState>('off');
   const [orb, setOrb] = useState<OrbState>('idle');
-  const [heard, setHeard] = useState('');
+  const [, setHeard] = useState('');
   const [reply, setReply] = useState('');
   const [voiceHint, setVoiceHint] = useState(false);
   const [trouble, setTrouble] = useState<ListenTrouble | null>(null);
@@ -105,7 +105,7 @@ export function LoginScreen() {
       setOrb('thinking');
       // enquanto pensa e fala, não ouve (para não responder a si mesma)
       listener.current?.pause();
-      const r = await think(command, host, { memory: memory.current, remote });
+      const r = await think(command, host, { memory: memory.current, remote, raw: shown });
       if (my !== seq.current || phaseRef.current !== 'form') return;
       if (r.source !== 'stop') memory.current.last = r;
       r.act?.();
@@ -184,7 +184,13 @@ export function LoginScreen() {
     loadVoices(); // pré-carrega as vozes para a saudação sair na hora
     // no celular não abre o teclado sozinho
     if (window.matchMedia('(pointer: fine)').matches) userRef.current?.focus();
-    const fit = () => setOrbSize(window.innerHeight < 640 ? 104 : window.innerHeight < 800 ? 140 : 184);
+    const fit = () => {
+      const h = window.innerHeight;
+      // a tela da esfera tem folga em volta da massa (para as gotas se esticarem), então ela é
+      // desenhada bem grande e as margens negativas do CSS aproveitam essa folga
+      const byHeight = h < 620 ? 220 : h < 720 ? 260 : h < 820 ? 300 : h < 940 ? 370 : 440;
+      setOrbSize(Math.round(Math.min(byHeight, window.innerWidth * 0.82)));
+    };
     fit();
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
@@ -294,7 +300,7 @@ export function LoginScreen() {
       if (orbEl) {
         const rect = orbEl.getBoundingClientRect();
         const dy = window.innerHeight / 2 - (rect.top + rect.height / 2) - 34;
-        await animate(orbEl, { y: dy, scale: 1.3 }, { duration: 0.8, ease: [0.76, 0, 0.24, 1] });
+        await animate(orbEl, { y: dy, scale: 1.12 }, { duration: 0.8, ease: [0.76, 0, 0.24, 1] });
       }
     } catch {
       /* animação interrompida: segue */
@@ -356,7 +362,7 @@ export function LoginScreen() {
     <>
       <DiagonalField />
       <main className="login-page page-layer">
-        <div className="login-stage">
+        <div className="login-stage" style={{ ['--orb' as string]: `${orbSize}px` }}>
           <motion.div
             ref={orbRef}
             className="login-max"
@@ -369,21 +375,18 @@ export function LoginScreen() {
             </button>
           </motion.div>
 
-          <div className={`login-caption${inForm ? '' : ' is-hidden'}`}>
-            <div className="login-caption-text" aria-live="polite">
-              {reply ? (
-                <>
-                  {heard ? <span className="heard">“{heard}”</span> : null}
-                  <span className="said">{reply}</span>
-                </>
-              ) : heard ? (
-                <span className="heard">“{heard}”</span>
-              ) : problem ? (
-                <span className="hint">{problem}</span>
-              ) : null}
+          {/* Só a Max aparece: o que se fala e o que ela responde não são escritos na tela.
+              A resposta fica disponível apenas para leitores de tela. */}
+          <div className="sr-only" aria-live="polite">
+            {reply ? <span className="login-said">{reply}</span> : null}
+          </div>
+          {/* aviso discreto, só quando ela NÃO consegue ouvir ou falar */}
+          {inForm && (problem || voiceHint) ? (
+            <div className="login-caption" role="status">
+              {problem ? <span className="hint">{problem}</span> : null}
               {voiceHint ? <span className="hint">Clique em qualquer lugar da página para eu poder responder em voz alta.</span> : null}
             </div>
-          </div>
+          ) : null}
 
           <motion.div
             ref={scope}

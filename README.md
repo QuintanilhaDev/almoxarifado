@@ -78,6 +78,8 @@ Módulos do Almoxarifado: Solicitações, Estoque, Postos, Métricas, Formulári
 
 **Na tela de login** ela fica acima do formulário, em **escuta constante**. Diga “Max, apresente-se”, “Max, bom dia” (ela responde conforme o horário de Salvador) ou “Max, que horas são?”. O botão **Escuta ligada** desliga o microfone, e a escolha fica lembrada naquele navegador. Antes do login ela só responde o que não depende de dados da empresa.
 
+Ela também cumprimenta pelo nome: “Max, diga olá para Fernanda” → “Bom dia, Fernanda! Tudo tranquilo?”. Com mais de um nome, ela diz os dois primeiros e completa com “e a todos que estão presentes!”.
+
 **Dentro de cada ferramenta** ela é a esfera no canto inferior direito. Clique nela, espere ficar **verde** e fale “Max, …”. Também dá para digitar (botão **Digitar**), usar **Alt+M** e fechar com **Esc**. O ícone de alto-falante liga e desliga a voz.
 
 Alguns pedidos:

@@ -72,6 +72,8 @@ export interface MaxMemory {
   pending?: PendingAction[] | null;
   last: MaxReply | null;
   lastInput: string;
+  /** a frase como foi ouvida/digitada (com maiúsculas e acentos), para habilidades que usam nomes próprios */
+  heard?: string;
   voiceOn: boolean;
   setVoice: (on: boolean) => void;
 }

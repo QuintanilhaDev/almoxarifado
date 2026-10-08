@@ -94,6 +94,9 @@ const CASES: Case[] = [
   [hub, 'Max desejo baixar as métricas do financeiro', 'download-metrics'], [rh, 'Max quero baixar as métricas de recursos humanos', 'download-metrics'], [almox, 'Max me envie o gráfico das métricas', 'download-metrics'],
   [almox, 'Max exportar relatório em excel', 'download-metrics'], [hub, 'Max baixar métricas', 'download-metrics'], [almox, 'Max fazer download do gráfico de hoje', 'download-metrics'],
   [almox, 'Max métricas da última semana', 'almox-metrics'], [almox, 'Max o que está com estoque baixo', 'almox-stock-low'],
+  // "diga olá para…"
+  [login, 'Max, diga olá para Fernanda', 'say-hello'], [login, 'Max diga oi pro Júnior', 'say-hello'], [login, 'Max, diga olá para Fernanda, Junior, Suzana', 'say-hello'], [login, 'Max dê bom dia para a Suzana', 'say-hello'],
+  [login, 'Max cumprimente o Carlos', 'say-hello'], [login, 'Max manda um alô pra galera', 'say-hello'], [almox, 'Max diga olá para o Neilton', 'say-hello'], [login, 'Max, bom dia', 'greet'], [login, 'Max olá', 'greet'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];
@@ -221,6 +224,42 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
     r = await think('vai tomar no cu', almox, { memory: m2, agent });
     check('palavrão é barrado antes de tudo', /conversa profissional/.test(r.say), r);
     (globalThis as { fetch: unknown }).fetch = prevFetch;
+  }
+  // nomes em "diga olá para…"
+  {
+    const { helloNames } = await import('../lib/max/skills-core');
+    const eq = (raw: string, want: string) => {
+      const r = helloNames(raw);
+      const got = r.everyone ? '*' : r.names.join('|');
+      if (got !== want) {
+        fail++;
+        console.log(`FALHOU nomes: "${raw}" → ${got} · esperado ${want}`);
+      }
+    };
+    eq('Max, diga olá para Fernanda', 'Fernanda');
+    eq('Max diga olá para Fernanda, Junior, Suzana...', 'Fernanda|Junior|Suzana');
+    eq('Max diga olá para Fernanda Júnior e Suzana', 'Fernanda Júnior|Suzana');
+    eq('Max diga olá para Fernanda Júnior Suzana', 'Fernanda|Júnior|Suzana');
+    eq('max diga oi pro josé antônio', 'José Antônio');
+    eq('Max dê bom dia para a Suzana e o Carlos, por favor', 'Suzana|Carlos');
+    eq('Max diga olá para Maria da Silva Santos', 'Maria da Silva Santos');
+    eq('Max cumprimente o Carlos', 'Carlos');
+    eq('Max diga olá para todos', '*');
+    eq('Max manda um alô pra galera', '*');
+    eq('Max dê as boas-vindas ao seu João e à dona Ana', 'Seu João|Dona Ana');
+    const m3: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () => undefined };
+    const say = async (raw: string) => (await think(hear(raw).command, login, { memory: m3, raw })).say;
+    const G = '(Bom dia|Boa tarde|Boa noite)';
+    const chk = (name: string, text: string, re: RegExp) => {
+      if (!re.test(text)) {
+        fail++;
+        console.log('FALHOU olá:', name, '→', text);
+      }
+    };
+    chk('um nome', await say('Max, diga olá para Fernanda'), new RegExp(`^${G}, Fernanda! (Como você está hoje\\?|Tudo tranquilo\\?|Tudo de boa\\?|Tudo certo por aí\\?|Como vão as coisas\\?)$`));
+    chk('vários nomes', await say('Max, diga olá para Fernanda, Junior, Suzana...'), new RegExp(`^${G}, Fernanda, Junior e a todos que estão presentes!$`));
+    chk('dois nomes', await say('Max diga olá para Júnior e Suzana'), new RegExp(`^${G}, Júnior, Suzana e a todos que estão presentes!$`));
+    chk('todos', await say('Max diga olá para todos'), new RegExp(`^${G} a todos que estão presentes! `));
   }
   const show = async (host: MaxHost, p: string) => console.log(`\n> ${p}\n  ${(await think(hear(p).command, host, { memory: mem })).say}`);
   if (process.argv.includes('--show')) {

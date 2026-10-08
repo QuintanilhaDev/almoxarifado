@@ -156,7 +156,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       setStatus('thinking');
       let reply: MaxReply;
       try {
-        reply = await think(command, hostRef.current, { memory: memory.current, remote, agent });
+        reply = await think(command, hostRef.current, { memory: memory.current, remote, agent, raw: shown });
       } catch {
         reply = { say: 'Tive um problema para responder. Tente de novo.' };
       }
