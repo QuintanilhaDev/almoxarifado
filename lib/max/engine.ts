@@ -12,7 +12,11 @@ export const CONFIDENT = 0.6;
 function available(host: MaxHost): Skill[] {
   return ALL.filter((s) => {
     if (s.scopes && !s.scopes.includes(host.scope)) return false;
-    if (s.sector && host.sector?.slug !== s.sector) return false;
+    if (s.sector && host.sector?.slug !== s.sector) {
+      // no painel master, o master geral também consulta os dados dos setores
+      const fromHub = host.scope === 'hub' && Boolean(host.user?.is_master) && s.sector === 'almoxarifado' && Boolean(host.almox);
+      if (!fromHub) return false;
+    }
     return true;
   });
 }

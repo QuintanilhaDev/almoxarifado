@@ -97,23 +97,29 @@ export const coreSkills: Skill[] = [
     id: 'introduce',
     examples: ['Max, apresente-se'],
     match: (q) => {
-      if (q.re(/\b(apresent\w+( se)?|se apresent\w+)\b/)) return 0.96;
+      // "apresente-se" / "se apresenta" — mas NÃO "me apresente as métricas" (aí é pedido de dados)
+      if (q.re(/\b(apresent\w+[- ]se|se apresent\w+|apresent\w+ (voce|a max|a si mesma))\b/)) return 0.96;
+      if (q.tokens.length <= 2 && q.re(/^(se )?apresent\w+$/)) return 0.9;
       if (q.re(/\b(quem e voce|quem e vc|quem voce e|qual (e )?(o )?seu nome|como voce se chama|como e seu nome|o que e voce|voce e o que|voce e quem|fale sobre voce|fala sobre voce|me fale de voce)\b/)) return 0.95;
       if (q.re(/\b(o que e|que e|para que serve|pra que serve|como funciona) (o |a |esse |este |essa |esta )?(max hub|maxhub|hub|sistema|plataforma|site)\b/)) return 0.93;
       return 0;
     },
-    run: (_q, host) => {
+    run: (q, host) => {
       const sectors = listJoin(SECTORS.map((s) => s.name));
+      // cumprimenta conforme o horário de Salvador; se pedirem "a todos", fala com a sala
+      const period = PERIOD_GREETING[dayPeriod()];
+      const crowd = Boolean(q.re(/\b(todos|todas|todo mundo|pessoal|galera|turma|sala|equipe|time|plateia|publico|convidados|visitantes|presentes|gente|clientes|diretoria|reuniao)\b/));
+      const hello = crowd ? `Olá a todos, ${period.toLowerCase()}!` : `${period}${name(host)}!`;
       if (host.scope === 'login') {
         return {
-          say: `Eu sou a Max, a assistente virtual do Max Hub. Aqui os setores da empresa trabalham em um só lugar: ${sectors}. Entre com seu usuário e senha, e eu levo você direto para a ferramenta do seu setor. Lá dentro, é só me chamar.`,
-          text: 'Eu sou a Max, a assistente virtual do Max Hub. Entre com seu usuário e senha e eu levo você direto para a ferramenta do seu setor.',
+          say: `${hello} Eu sou a Max, a assistente virtual do Max Hub. Aqui os setores da empresa trabalham em um só lugar: ${sectors}. Entre com seu usuário e senha, e eu levo você direto para a ferramenta do seu setor. Lá dentro, é só me chamar.`,
+          text: `${hello} Eu sou a Max, a assistente virtual do Max Hub. Entre com seu usuário e senha e eu levo você direto para a ferramenta do seu setor.`,
           chips: ['Max, que horas são?', 'Max, como faço para entrar?'],
         };
       }
       const where = host.scope === 'hub' ? 'no painel master, de onde você administra todos os setores e usuários' : `na ferramenta do setor ${host.sector?.name}`;
       return {
-        say: `Eu sou a Max, a assistente virtual do Max Hub. Você está ${where}. Posso abrir telas, buscar informações, fazer contas e responder perguntas. Clique em mim e diga “Max”, seguido do que precisa.`,
+        say: `${hello} Eu sou a Max, a assistente virtual do Max Hub. Você está ${where}. Posso abrir telas, buscar informações, fazer contas e responder perguntas. Clique em mim e diga “Max”, seguido do que precisa.`,
         chips: capabilities(host),
       };
     },

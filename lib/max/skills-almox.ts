@@ -16,6 +16,9 @@ const withQty = (n: number) => (n === 0 ? 'zerado' : `com ${fmt(n)}`);
 const ofPosto = (name: string) => (/^posto\b/i.test(name.trim()) ? `do ${name}` : `do posto ${name}`);
 const thePosto = (name: string) => (/^posto\b/i.test(name.trim()) ? `O ${name}` : `O posto ${name}`);
 const cap = (s: string) => s.replace(/^./, (c) => c.toUpperCase());
+/** dentro do setor a Max abre a tela; no painel master ela só responde */
+const inSector = (host: MaxHost) => host.scope === 'sector';
+const opened = (host: MaxHost) => (inSector(host) ? ' Abri para você.' : '');
 
 const REQ_WORDS = ['solicitacao', 'solicitacoes', 'pedido', 'pedidos', 'requisicao', 'requisicoes', 'chamado', 'chamados'];
 const STOCK_WORDS = ['estoque', 'almoxarifado', 'saldo', 'inventario'];
@@ -104,7 +107,9 @@ export const almoxSkills: Skill[] = [
     id: 'almox-metrics',
     sector: SECTOR,
     examples: ['Max, métricas da última semana', 'Max, como foi o mês?', 'Max, entradas e saídas de hoje'],
-    match: (q) => {
+    match: (q, host) => {
+      // no painel master, "métricas" sozinho é o resumo do hub; as do almoxarifado precisam ser pedidas pelo nome
+      if (host.scope === 'hub' && !q.any('almoxarifado', 'almox', 'estoque')) return 0;
       const period = periodIn(q);
       if (q.any('metrica', 'metricas', 'relatorio', 'relatorios', 'indicador', 'indicadores', 'desempenho', 'balanco', 'movimentacao', 'movimentacoes', 'estatistica', 'estatisticas', 'dashboard', 'grafico')) return 0.93;
       if (q.any('entrada', 'entradas', 'entrou', 'entraram') && q.any('saida', 'saidas', 'saiu', 'sairam')) return 0.92;
@@ -152,13 +157,22 @@ export const almoxSkills: Skill[] = [
             { label: 'Em aberto', value: fmt(t.requestsOpen), tone: t.requestsOpen ? 'warn' : 'plain' },
             { label: 'Estoque baixo', value: fmt(data.stock.low), tone: data.stock.low ? 'warn' : 'plain' },
           ],
-          foot: 'Abri a tela de Métricas com esse período.',
+          foot: inSector(host) ? 'Abri a tela de Métricas com esse período.' : 'Almoxarifado · para ver o gráfico, abra o setor.',
         },
         act: () => {
-          host.goTab('metricas');
-          maxEmit('almox:metricas', { period });
+          if (inSector(host)) {
+            host.goTab('metricas');
+            maxEmit('almox:metricas', { period });
+          } else {
+            // deixa o período escolhido para quando o master abrir o setor
+            try {
+              localStorage.setItem('almox:metricas:periodo', period);
+            } catch {
+              /* ignore */
+            }
+          }
         },
-        chips: ['Max, o que está com estoque baixo?', 'Max, como foi o mês?'],
+        chips: inSector(host) ? ['Max, o que está com estoque baixo?', 'Max, como foi o mês?'] : ['Max, abrir o almoxarifado', 'Max, o que está com estoque baixo?'],
         source: 'metricas',
       };
     },
@@ -179,7 +193,7 @@ export const almoxSkills: Skill[] = [
       if (!r) return { say: `Não encontrei a solicitação número ${n}.`, text: `Não encontrei a solicitação ${protocolLabel(n)}.` };
       const status = r.status === 'nova' ? 'nova' : r.status === 'pendente' ? 'pendente' : 'resolvida';
       return {
-        say: `Solicitação ${n}, de ${r.collaborator || 'colaborador não informado'}${r.posto ? `, ${ofPosto(r.posto)}` : ''}. Está ${status}. Abri para você.`,
+        say: `Solicitação ${n}, de ${r.collaborator || 'colaborador não informado'}${r.posto ? `, ${ofPosto(r.posto)}` : ''}. Está ${status}.${opened(host)}`,
         text: `${protocolLabel(r.protocol)} · ${r.collaborator || 'Colaborador'}${r.posto ? ' · ' + r.posto : ''} · ${status} · ${formatDateTime(r.created_at)}`,
         act: () => {
           host.goTab('solicitacoes');
@@ -201,7 +215,7 @@ export const almoxSkills: Skill[] = [
       const r = [...list].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       const ago = timeAgo(r.created_at);
       return {
-        say: `A mais recente é a número ${r.protocol}, de ${r.collaborator || 'colaborador não informado'}${r.posto ? `, ${ofPosto(r.posto)}` : ''}. Está ${r.status}. Abri para você.`,
+        say: `A mais recente é a número ${r.protocol}, de ${r.collaborator || 'colaborador não informado'}${r.posto ? `, ${ofPosto(r.posto)}` : ''}. Está ${r.status}.${opened(host)}`,
         text: `${protocolLabel(r.protocol)} · ${r.collaborator || 'Colaborador'}${r.posto ? ' · ' + r.posto : ''} · ${r.status} · ${ago === 'agora' ? 'agora' : 'há ' + ago}`,
         act: () => {
           host.goTab('solicitacoes');
@@ -292,7 +306,7 @@ export const almoxSkills: Skill[] = [
           kind: 'list',
           title: zero ? 'Sem saldo' : 'Estoque baixo',
           rows: list.slice(0, 6).map((i) => ({ label: itemLabel(i), value: fmt(i.quantity), sub: i.min_quantity ? `mínimo ${fmt(i.min_quantity)}` : undefined })),
-          foot: list.length > 6 ? `e mais ${fmt(list.length - 6)} na tela de Estoque` : undefined,
+          foot: list.length > 6 ? `e mais ${fmt(list.length - 6)} no Estoque do almoxarifado` : undefined,
         },
         act,
       };
@@ -398,12 +412,12 @@ export const almoxSkills: Skill[] = [
       const sorted = [...close].sort((a, b) => (a.size ?? '').localeCompare(b.size ?? '', 'pt-BR', { numeric: true }) || a.name.localeCompare(b.name, 'pt-BR'));
       const spoken = sorted.slice(0, 4).map((i) => `${sameName ? (i.size ? 'tamanho ' + i.size : 'sem tamanho') : itemLabel(i).replace(' · ', ' ')} ${withQty(i.quantity)}`);
       return {
-        say: `Encontrei ${fmt(close.length)} ${sameName ? `variações de ${close[0].name}` : 'itens parecidos'}, somando ${plural(total, 'unidade', 'unidades')} no almoxarifado. ${cap(listJoin(spoken))}${close.length > 4 ? '. O restante está na tela' : ''}.`,
+        say: `Encontrei ${fmt(close.length)} ${sameName ? `variações de ${close[0].name}` : 'itens parecidos'}, somando ${plural(total, 'unidade', 'unidades')} no almoxarifado. ${cap(listJoin(spoken))}${close.length > 4 ? (inSector(host) ? '. O restante está na tela' : ' e outros') : ''}.`,
         card: {
           kind: 'list',
           title: `“${needle}” no estoque`,
           rows: sorted.slice(0, 8).map((i) => ({ label: itemLabel(i), value: fmt(i.quantity), sub: i.at_postos ? `${fmt(i.at_postos)} nos postos` : undefined })),
-          foot: close.length > 8 ? `e mais ${fmt(close.length - 8)} na tela de Estoque` : undefined,
+          foot: close.length > 8 ? `e mais ${fmt(close.length - 8)} no Estoque do almoxarifado` : undefined,
         },
         act,
       };
@@ -436,7 +450,7 @@ export const almoxSkills: Skill[] = [
       try {
         lines = (await getJson<{ lines: PostoStockLine[] }>(`/api/almoxarifado/postos/${p.id}`)).lines;
       } catch {
-        return { say: `${thePosto(p.name)} tem ${plural(p.units, 'unidade', 'unidades')} de ${plural(p.items_count, 'item', 'itens')}. Abri o posto para você ver os detalhes.`, act };
+        return { say: `${thePosto(p.name)} tem ${plural(p.units, 'unidade', 'unidades')} de ${plural(p.items_count, 'item', 'itens')}. ${inSector(host) ? 'Abri o posto para você ver os detalhes.' : ''}`, act };
       }
       const top = [...lines].sort((a, b) => b.quantity - a.quantity);
       return {
@@ -445,7 +459,7 @@ export const almoxSkills: Skill[] = [
           kind: 'list',
           title: p.name,
           rows: top.slice(0, 8).map((l) => ({ label: itemLabel(l), value: fmt(l.quantity) })),
-          foot: top.length > 8 ? `e mais ${fmt(top.length - 8)} na tela do posto` : undefined,
+          foot: top.length > 8 ? `e mais ${fmt(top.length - 8)} no posto` : undefined,
         },
         act,
       };

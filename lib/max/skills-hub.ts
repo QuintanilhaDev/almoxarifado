@@ -65,6 +65,8 @@ export const hubSkills: Skill[] = [
       const s = sectorIn(q);
       if (!s) return 0;
       if (q.re(/\b(quem|quais|quant[oa]s|list\w+|mostr\w+|equipe|time|pessoal)\b/) && (q.any(...USER_WORDS, 'equipe', 'time', 'quem', 'esta', 'estao', 'trabalha', 'trabalham', 'alocado', 'alocados'))) return 0.9;
+      // "usuários do setor operacional", "tem alguém no financeiro?"
+      if (q.any(...USER_WORDS, 'equipe', 'time', 'pessoal', 'alguem', 'ninguem', 'gente', 'integrantes', 'membros')) return 0.86;
       return 0;
     },
     run: (q, host) => {
@@ -115,6 +117,23 @@ export const hubSkills: Skill[] = [
           host.goTab('usuarios');
           maxEmit('hub:users', { query: u.username });
         },
+      };
+    },
+  },
+  {
+    id: 'hub-sector-not-ready',
+    scopes: ['hub'],
+    match: (q) => {
+      const s = sectorIn(q);
+      if (!s || s.ready) return 0;
+      return q.any('metrica', 'metricas', 'relatorio', 'relatorios', 'indicador', 'indicadores', 'desempenho', 'resumo', 'numeros', 'dados', 'dashboard', 'grafico', 'resultado', 'resultados', 'balanco', 'movimentacao') ? 0.91 : 0;
+    },
+    run: (q, host) => {
+      const s = sectorIn(q)!;
+      const team = (host.hub?.users() ?? []).filter((u) => u.sector === s.slug && !u.is_master);
+      return {
+        say: `A ferramenta do setor ${s.name} ainda está em preparação, então não há métricas por enquanto. Hoje o setor tem ${plural(team.length, 'pessoa alocada', 'pessoas alocadas')}.`,
+        chips: ['Max, métricas do almoxarifado', `Max, quem está no ${s.short}?`],
       };
     },
   },

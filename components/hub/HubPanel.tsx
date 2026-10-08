@@ -7,6 +7,7 @@ import { api } from '../core/api';
 import { ToastProvider } from '../core/Toasts';
 import { MaxAssistant } from '../max/MaxAssistant';
 import type { HubUserRow } from '@/lib/permissions';
+import type { Posto, RequestRow, StockItem } from '@/lib/almoxarifado/types';
 import { useRealtime } from '@/lib/realtime';
 import { useHashTab, useSession } from '@/lib/useSession';
 import type { MaxHost } from '@/lib/max/types';
@@ -52,6 +53,30 @@ function Shell() {
     loadUsers();
   }, [loadUsers]);
 
+  // dados do almoxarifado, para a Max responder daqui mesmo ("métricas do almoxarifado", "estoque baixo"…)
+  const almoxRef = useRef<{ requests: RequestRow[] | null; items: StockItem[] | null; postos: Posto[] | null; emails: number | null }>({ requests: null, items: null, postos: null, emails: null });
+  const loadAlmox = useCallback(async () => {
+    const get = async <T,>(url: string): Promise<T | null> => {
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        return r.ok ? ((await r.json()) as T) : null;
+      } catch {
+        return null;
+      }
+    };
+    const [rq, it, po, em] = await Promise.all([
+      get<{ requests: RequestRow[] }>('/api/almoxarifado/requests'),
+      get<{ items: StockItem[] }>('/api/almoxarifado/stock'),
+      get<{ postos: Posto[] }>('/api/almoxarifado/postos'),
+      get<{ emails: unknown[] }>('/api/almoxarifado/emails'),
+    ]);
+    const cur = almoxRef.current;
+    almoxRef.current = { requests: rq?.requests ?? cur.requests, items: it?.items ?? cur.items, postos: po?.postos ?? cur.postos, emails: em?.emails.length ?? cur.emails };
+  }, []);
+  useEffect(() => {
+    loadAlmox();
+  }, [loadAlmox]);
+
   useRealtime(
     (ev) => {
       if (ev === 'admins:update') {
@@ -62,6 +87,7 @@ function Shell() {
     () => {
       refresh();
       loadUsers();
+      loadAlmox();
     },
     30000,
   );
@@ -77,13 +103,22 @@ function Shell() {
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
       tab,
-      goTab: (id) => setTab(id as Tab),
+      // pedidos sobre outro setor chegam com abas que não existem aqui: ignora
+      goTab: (id) => {
+        if (VALID.includes(id as Tab)) setTab(id as Tab);
+      },
       can: () => true,
       navigate: (path) => {
         window.location.href = path;
       },
       logout,
       hub: { users: () => usersRef.current },
+      almox: {
+        requests: () => almoxRef.current.requests,
+        items: () => almoxRef.current.items,
+        postos: () => almoxRef.current.postos,
+        emailsCount: () => almoxRef.current.emails,
+      },
     }),
     [user, tab, setTab, logout],
   );

@@ -78,7 +78,11 @@ try {
   await say(page, 'Max, apresente-se');
   await page.waitForSelector('.login-caption .said');
   const intro = await page.locator('.login-caption .said').textContent();
-  ok(/Eu sou a Max/.test(intro), 'responde a "Max, apresente-se": ' + intro.slice(0, 60) + '…');
+  ok(/^(Bom dia|Boa tarde|Boa noite)! Eu sou a Max/.test(intro), 'apresentação com a saudação do horário: ' + intro.slice(0, 50) + '…');
+  await loginIdle(page);
+  await say(page, 'Max, apresente-se a todos da sala, por favor');
+  await page.waitForFunction(() => /Olá a todos/.test(document.querySelector('.login-caption .said')?.textContent || ''), null, { timeout: 8000 }).catch(() => undefined);
+  ok(/^Olá a todos, (bom dia|boa tarde|boa noite)! Eu sou a Max/.test(await page.locator('.login-caption .said').textContent()), '"apresente-se a todos" → "Olá a todos…"');
   await page.screenshot({ path: SHOTS + '/02-login-max.png' });
   await loginIdle(page);
   await say(page, 'Max, bom dia');
@@ -118,6 +122,17 @@ try {
   await page.waitForFunction(() => /2026/.test([...document.querySelectorAll('.max-msg.max p')].pop()?.textContent || ''), null, { timeout: 6000 });
   ok(true, 'pedido seguinte atendido sem clicar de novo');
   await page.screenshot({ path: SHOTS + '/05-hub-max.png' });
+  r = await ask(page, 'Max, me apresente as métricas da última semana do almoxarifado');
+  ok(/Na última semana foram 75 entradas/.test(r) && (await page.url()) === B + '/hub', 'no painel master, métricas do almoxarifado: ' + r.slice(0, 70));
+  await page.screenshot({ path: SHOTS + '/05b-hub-metricas.png' });
+  r = await ask(page, 'Max, o que está com estoque baixo?');
+  ok(/estoque baixo/.test(r), 'no painel master, estoque baixo do almoxarifado');
+  r = await ask(page, 'Max Me apresente as métricas da última semana do almoxarifado');
+  ok(/Na última semana foram 75 entradas/.test(r), 'métricas do almoxarifado pedidas do painel master: ' + r.slice(0, 60));
+  r = await ask(page, 'Quantos usuários temos no setor Financeiro');
+  ok(/Financeiro/.test(r) && !/não sei/i.test(r), 'usuários de um setor: ' + r.slice(0, 70));
+  r = await ask(page, 'Max, apresente-se');
+  ok(/^(Bom dia|Boa tarde|Boa noite), Mateus! Eu sou a Max/.test(r), 'apresentação começa com a saudação do horário');
   r = await ask(page, 'Max, novo usuário chamado Rita Lopes no financeiro');
   await page.waitForSelector('.modal.sheet', { timeout: 5000 });
   ok((await page.inputValue('#hu-name')) === 'Rita Lopes' && (await page.inputValue('#hu-user')) === 'rita.lopes' && (await page.inputValue('#hu-sector')) === 'financeiro', 'Max abriu o cadastro já preenchido (nome, login e setor)');
@@ -127,6 +142,7 @@ try {
   await page.waitForSelector('.modal.sheet', { state: 'detached' });
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
+  await page.click('.filter-chips button:has-text("Todos")');
   ok(await page.locator('.user-row:has-text("Rita Lopes")').count() === 1, 'usuário criado aparece na lista');
   await page.screenshot({ path: SHOTS + '/07-usuarios.png' });
   // editar: virar master do setor

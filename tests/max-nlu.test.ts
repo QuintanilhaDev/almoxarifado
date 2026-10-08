@@ -35,7 +35,7 @@ const ALMOX_TABS = [
 ];
 const base = { tab: 'inicio', goTab: () => undefined, can: () => true, navigate: () => undefined, logout: () => undefined };
 const almox: MaxHost = { ...base, scope: 'sector', sector: getSector('almoxarifado'), user: user(), tabs: ALMOX_TABS, almox: { requests: () => requests as never, items: () => items as never, postos: () => postos as never, emailsCount: () => 7 } };
-const hub: MaxHost = { ...base, scope: 'hub', sector: null, user: user(), tabs: [{ id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral'] }, { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'senha'] }], hub: { users: () => rows } };
+const hub: MaxHost = { ...base, scope: 'hub', sector: null, user: user(), tabs: [{ id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral'] }, { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'senha'] }], hub: { users: () => rows }, almox: almox.almox };
 const login: MaxHost = { ...base, scope: 'login', sector: null, user: null, tabs: [] };
 const rh: MaxHost = { ...base, scope: 'sector', sector: getSector('rh'), user: user({ is_master: false, sector: 'rh' }), tabs: [{ id: 'inicio', label: 'Início', aliases: ['inicio'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'senha'] }] };
 
@@ -67,6 +67,18 @@ const CASES: Case[] = [
   [hub, 'Max, criar usuário', 'hub-create-user'], [hub, 'Max novo usuário chamado Pedro Alves no financeiro', 'hub-create-user'], [hub, 'Max, abrir o setor financeiro', 'go-sector'], [hub, 'Max abrir almoxarifado', 'go-sector'],
   [hub, 'Max em que setor está a Juliana', 'hub-find-user'], [hub, 'Max abrir usuários', 'go-tab'], [hub, 'Max quantas pessoas no RH', 'hub-users-of-sector'], [hub, 'Max ir para recursos humanos', 'go-sector'],
   [hub, 'Max quais setores existem', 'hub-users-count'], [hub, 'Max métricas', 'hub-users-count'],
+  // o master pede dados do almoxarifado sem sair do painel master
+  [hub, 'Max Me apresente as métricas da última semana do almoxarifado', 'almox-metrics'], [hub, 'Max métricas do almoxarifado', 'almox-metrics'], [hub, 'Max como foi o mês no almoxarifado', 'almox-metrics'],
+  [hub, 'Max me mostre as métricas do almoxarifado de hoje', 'almox-metrics'], [hub, 'Max o que está com estoque baixo', 'almox-stock-low'], [hub, 'Max quanto tem de bota 42', 'almox-stock-lookup'],
+  [hub, 'Max tem solicitação nova', 'almox-request-count'], [hub, 'Max quantos postos temos', 'almox-postos-count'], [hub, 'Max resumo do estoque', 'almox-stock-summary'],
+  [hub, 'Max apresente-se', 'introduce'], [hub, 'Max se apresente', 'introduce'], [hub, 'Max apresente', 'introduce'], [hub, 'Max abrir o almoxarifado', 'go-sector'],
+  [hub, 'Max quantos usuários temos no setor financeiro', 'hub-users-of-sector'], [hub, 'Max Quantos usuários temos no setor Financeiro?', 'hub-users-of-sector'], [hub, 'Max quantos usuários tem no financeiro', 'hub-users-of-sector'], [hub, 'Max quantos usuários há no setor de recursos humanos', 'hub-users-of-sector'],
+  [hub, 'Max quantas pessoas trabalham no comercial', 'hub-users-of-sector'], [hub, 'Max usuários do setor operacional', 'hub-users-of-sector'], [hub, 'Max me mostre os usuários do financeiro', 'hub-users-of-sector'], [hub, 'Max tem alguém no financeiro', 'hub-users-of-sector'],
+  [hub, 'Max quantos funcionários o financeiro tem', 'hub-users-of-sector'], [hub, 'Max me diga quantos usuários existem no setor financeiro', 'hub-users-of-sector'], [hub, 'Max quantos estão no almoxarifado', 'hub-users-of-sector'],
+  [hub, 'Max métricas do financeiro', 'hub-sector-not-ready'], [hub, 'Max me apresente o relatório do RH', 'hub-sector-not-ready'], [hub, 'Max quantas solicitações pendentes no almoxarifado', 'almox-request-count'],
+  [login, 'Max, apresente-se a todos da sala, por favor', 'introduce'], [login, 'Max se apresente para todos', 'introduce'], [login, 'Max apresente se', 'introduce'], [login, 'Max se apresenta pra galera', 'introduce'],
+  [almox, 'Max me apresente as métricas da última semana', 'almox-metrics'], [almox, 'Max apresente o relatório do mês', 'almox-metrics'], [almox, 'Max me apresenta o estoque baixo', 'almox-stock-low'],
+  [rh, 'Max me apresente as métricas da semana', 'sector-not-ready'], [login, 'Max, pode se apresentar?', 'introduce'], [login, 'Max apresente-se por favor', 'introduce'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];
