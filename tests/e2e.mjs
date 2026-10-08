@@ -133,6 +133,8 @@ try {
   ok(/Financeiro/.test(r) && !/não sei/i.test(r), 'usuários de um setor: ' + r.slice(0, 70));
   r = await ask(page, 'Max, apresente-se');
   ok(/^(Bom dia|Boa tarde|Boa noite), Mateus! Eu sou a Max/.test(r), 'apresentação começa com a saudação do horário');
+  r = await ask(page, 'Max quantos itens saíram do estoque do almoxarifado nas últimas 15 horas');
+  ok(/^Nas últimas 15 horas saíram 11 unidades do almoxarifado, de 3 itens diferentes/.test(r), 'saídas em um período livre: ' + r.slice(0, 90));
   r = await ask(page, 'Max, novo usuário chamado Rita Lopes no financeiro');
   await page.waitForSelector('.modal.sheet', { timeout: 5000 });
   ok((await page.inputValue('#hu-name')) === 'Rita Lopes' && (await page.inputValue('#hu-user')) === 'rita.lopes' && (await page.inputValue('#hu-sector')) === 'financeiro', 'Max abriu o cadastro já preenchido (nome, login e setor)');
@@ -208,7 +210,9 @@ try {
   await page.keyboard.press('Escape'); // 2º fecha a Max
   await page.waitForSelector('.max-panel', { state: 'detached', timeout: 3000 }).catch(() => undefined);
   ok(!(await page.locator('.max-panel').count()), 'Esc fecha a Max');
-  r = await ask(page, 'Max, sair');
+  r = await ask(page, 'Max quantas botas saíram hoje');
+  ok(/saíram 2 unidades de Bota de segurança 42/.test(r), 'saída de um item no período: ' + r.slice(0, 80));
+  r = await ask(page, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor');
   await page.waitForURL(B + '/', { timeout: 8000 });
   ok(true, 'Max encerrou a sessão');
   await page.context().close();

@@ -87,16 +87,16 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [feed, interim, status]);
 
-  const remote = useCallback(async (text: string, examples: string[]): Promise<RemoteAnswer | null> => {
+  const remote = useCallback(async (text: string, examples: string[], mode?: 'route'): Promise<RemoteAnswer | null> => {
     const h = hostRef.current;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const timer = setTimeout(() => ctrl.abort(), mode === 'route' ? 7000 : 15000);
     try {
       const r = await fetch('/api/max/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: ctrl.signal,
-        body: JSON.stringify({ text, examples, scope: h.scope, sector: h.sector?.slug ?? null }),
+        body: JSON.stringify({ text, examples, mode, scope: h.scope, sector: h.sector?.slug ?? null }),
       });
       if (!r.ok) return null;
       return (await r.json()) as RemoteAnswer;

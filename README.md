@@ -85,7 +85,7 @@ Alguns pedidos:
 | Onde | Exemplos |
 |---|---|
 | Qualquer tela | “Max, que dia é hoje?” · “Max, quanto é 15% de 2400?” · “Max, abrir minha conta” · “Max, modo silencioso” · “Max, sair” |
-| Almoxarifado | “Max, desejo ver as métricas da última semana” · “Max, tem solicitação nova?” · “Max, abrir a solicitação 12” · “Max, quanto tem de bota 42?” · “Max, o que está com estoque baixo?” · “Max, o que tem no Posto 01?” · “Max, copiar o link do formulário” |
+| Almoxarifado | “Max, desejo ver as métricas da última semana” · “Max, quantos itens saíram nas últimas 15 horas?” · “Max, o que entrou no estoque ontem?” · “Max, quantas botas saíram esta semana?” · “Max, tem solicitação nova?” · “Max, abrir a solicitação 12” · “Max, quanto tem de bota 42?” · “Max, o que está com estoque baixo?” · “Max, o que tem no Posto 01?” · “Max, copiar o link do formulário” |
 | Painel master | “Max, quantos usuários temos?” · “Max, quem está no almoxarifado?” · “Max, em que setor está a Juliana?” · “Max, novo usuário chamado Rita Lopes no financeiro” · “Max, abrir o setor financeiro” |
 | Com internet | “Max, como está o tempo?” · “Max, qual a cotação do dólar?” · “Max, quem foi Santos Dumont?” |
 
@@ -93,7 +93,7 @@ Alguns pedidos:
 
 1. **Habilidades locais**, no próprio navegador: entendem variações, erros de digitação e de reconhecimento de voz. Respeitam as permissões de quem pergunta. A Max **consulta e abre telas; ela não altera dados** (entradas, baixas e cadastros continuam sendo feitos por você).
 2. Se nenhuma servir: **clima** (Open-Meteo), **câmbio** (AwesomeAPI/Frankfurter) e **Wikipédia**, todos gratuitos e sem chave.
-3. **IA opcional** (abaixo), para entender qualquer frase.
+3. **IA opcional** (abaixo), para entender qualquer frase. Com ela ligada, frases longas em que a habilidade local não tem tanta certeza passam por uma **segunda opinião** da IA, que confere qual comando a pessoa quis antes de a Max responder.
 
 **Voz:** usa o reconhecimento e a fala do próprio navegador. Funciona no Chrome, Edge e Safari; no Firefox, só digitando. No Chrome o áudio captado é processado pelos servidores do Google (é assim que o reconhecimento do navegador funciona). Por regra dos navegadores, a Max só consegue **falar** depois do primeiro clique na página.
 
@@ -107,7 +107,8 @@ Funciona com qualquer serviço compatível com a API *chat/completions* da OpenA
 |---|---|
 | `MAX_LLM_API_KEY` | a chave criada no serviço |
 | `MAX_LLM_BASE_URL` | ex.: `https://api.groq.com/openai/v1` |
-| `MAX_LLM_MODEL` | o nome de um modelo, copiado da página de modelos do serviço |
+| `MAX_LLM_MODEL` | o nome de um modelo, copiado da página de modelos do serviço (na Groq, ex.: `openai/gpt-oss-120b`) |
+| `MAX_LLM_REASONING_EFFORT` | opcional: `low`. Só para modelos de raciocínio, como os `gpt-oss` da Groq; deixa a resposta mais rápida e gasta menos da cota |
 
 Só a **frase dita** é enviada à IA. Saldos, nomes e números do sistema nunca saem: quando o pedido depende de dados, a IA apenas “traduz” a frase para um comando que a Max executa localmente.
 

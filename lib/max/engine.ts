@@ -8,6 +8,9 @@ const ALL: Skill[] = [...coreSkills, ...almoxSkills, ...hubSkills, ...emptySecto
 
 /** Abaixo disto a Max não tem certeza e passa a pergunta adiante (IA/Wikipedia) ou admite que não sabe. */
 export const CONFIDENT = 0.6;
+/** A partir disto a habilidade local responde direto, sem pedir segunda opinião à IA. */
+export const SURE = 0.9;
+const LONG_PHRASE = 7;
 
 function available(host: MaxHost): Skill[] {
   return ALL.filter((s) => {
@@ -118,8 +121,11 @@ export interface RemoteAnswer {
 
 export interface ThinkOptions {
   memory: MaxMemory;
-  /** consulta o servidor (clima, câmbio, IA, Wikipedia). Fora do login. */
-  remote?: (text: string, examples: string[]) => Promise<RemoteAnswer | null>;
+  /**
+   * consulta o servidor (clima, câmbio, IA, Wikipédia).
+   * mode 'route' = só pede à IA para dizer qual comando a frase quer (segunda opinião).
+   */
+  remote?: (text: string, examples: string[], mode?: 'route') => Promise<RemoteAnswer | null>;
 }
 
 async function runSkill(r: Ranked, q: Query, host: MaxHost, mem: MaxMemory): Promise<MaxReply> {
@@ -143,7 +149,23 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
     return { say: 'Estou ouvindo. O que você precisa?', chips: capabilities(host) };
   }
   const { q, top: best } = understand(command, host);
-  if (best && best.score >= CONFIDENT) return runSkill(best, q, host, opts.memory);
+  if (best && best.score >= CONFIDENT) {
+    // Frase longa em que a habilidade local não tem tanta certeza: palavras-chave soltas enganam
+    // ("deslogar da minha conta" tem "minha conta"). Se houver IA configurada, ela confere o pedido.
+    if (opts.remote && best.score < SURE && q.tokens.length >= LONG_PHRASE) {
+      let second: RemoteAnswer | null = null;
+      try {
+        second = await opts.remote(command, examplesFor(host), 'route');
+      } catch {
+        second = null;
+      }
+      if (second?.route) {
+        const routed = understand(hear(second.route).command, host);
+        if (routed.top && routed.top.score >= CONFIDENT && routed.top.skill.id !== best.skill.id) return runSkill(routed.top, routed.q, host, opts.memory);
+      }
+    }
+    return runSkill(best, q, host, opts.memory);
+  }
 
   if (opts.remote) {
     let ans: RemoteAnswer | null = null;

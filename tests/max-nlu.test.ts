@@ -79,6 +79,16 @@ const CASES: Case[] = [
   [login, 'Max, apresente-se a todos da sala, por favor', 'introduce'], [login, 'Max se apresente para todos', 'introduce'], [login, 'Max apresente se', 'introduce'], [login, 'Max se apresenta pra galera', 'introduce'],
   [almox, 'Max me apresente as métricas da última semana', 'almox-metrics'], [almox, 'Max apresente o relatório do mês', 'almox-metrics'], [almox, 'Max me apresenta o estoque baixo', 'almox-stock-low'],
   [rh, 'Max me apresente as métricas da semana', 'sector-not-ready'], [login, 'Max, pode se apresentar?', 'introduce'], [login, 'Max apresente-se por favor', 'introduce'],
+  // perguntas sobre o que aconteceu em um período (não é o retrato de agora)
+  [hub, 'Max quantos itens saíram do estoque do almoxarifado nas últimas 15 horas', 'almox-moves'], [almox, 'Max quantos itens saíram nas últimas 15 horas', 'almox-moves'], [almox, 'Max o que saiu do estoque hoje', 'almox-moves'],
+  [almox, 'Max quantas botas saíram ontem', 'almox-moves'], [almox, 'Max o que entrou no estoque essa semana', 'almox-moves'], [almox, 'Max quantas unidades foram enviadas aos postos nos últimos três dias', 'almox-moves'],
+  [almox, 'Max quais itens mais saíram no mês passado', 'almox-moves'], [almox, 'Max teve saída de colete hoje', 'almox-moves'], [almox, 'Max quantas camisas entraram e saíram esta semana', 'almox-moves'],
+  [almox, 'Max métricas das últimas 15 horas', 'almox-metrics'], [almox, 'Max como foi ontem', 'almox-metrics'], [almox, 'Max entradas e saídas dos últimos 3 dias', 'almox-metrics'], [almox, 'Max quantos itens temos no estoque', 'almox-stock-summary'],
+  [almox, 'Max quantas solicitações recebemos na semana passada', 'almox-metrics'], [hub, 'Max quantas unidades saíram do almoxarifado ontem', 'almox-moves'], [rh, 'Max quantos itens saíram ontem', null],
+  // sair da conta dito de qualquer jeito
+  [almox, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor', 'logout'], [hub, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor', 'logout'], [almox, 'Max me desloga', 'logout'],
+  [almox, 'Max quero sair da minha conta', 'logout'], [almox, 'Max faz logout pra mim', 'logout'], [almox, 'Max me leva para a tela de login', 'logout'], [almox, 'Max encerre minha sessão por favor', 'logout'], [rh, 'Max desconectar', 'logout'],
+  [almox, 'Max abrir minha conta', 'go-tab'], [almox, 'Max quero trocar a senha da minha conta', 'go-tab'], [almox, 'Max o que saiu', 'almox-moves'], [almox, 'Max sair', 'logout'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];
@@ -96,7 +106,12 @@ for (const [host, phrase, expected] of CASES) {
 
 // respostas completas (sem rede): não podem lançar erro nem voltar vazias
 const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () => undefined };
-(globalThis as { fetch?: unknown }).fetch = async () => ({ ok: false, json: async () => ({ error: 'sem rede no teste' }) });
+(globalThis as { fetch?: unknown }).fetch = async (url: string) => {
+  if (String(url).includes('/metrics/range')) {
+    return { ok: true, json: async () => ({ from: '', to: '', totals: { in: 5, out: 11, inMoves: 1, outMoves: 3, itemsIn: 1, itemsOut: 3, toPostos: 6, returned: 0, consumed: 0, adjustments: 0 }, items: [{ name: 'Camisa social manga curta · G', in: 0, out: 6 }, { name: 'Calça tática · 44', in: 5, out: 0 }, { name: 'Camisa social manga curta · M', in: 0, out: 3 }, { name: 'Bota de segurança · 42', in: 0, out: 2 }], postos: [{ name: 'Shopping Barra', received: 6 }], requests: { total: 2, nova: 2, pendente: 0, resolvida: 0 }, truncated: false }) };
+  }
+  return { ok: false, json: async () => ({ error: 'sem rede no teste' }) };
+};
 (async () => {
   for (const [host, phrase] of CASES) {
     const r = await think(hear(phrase).command, host, { memory: mem });
@@ -109,8 +124,38 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
       console.log('RESPOSTA COM LIXO', phrase, r.say, r.text);
     }
   }
+  // segunda opinião da IA: só em frase longa com pouca certeza local
+  {
+    let calls = 0;
+    let route: string | null = 'Max, sair';
+    const remote = async (_t: string, _e: string[], mode?: 'route') => {
+      calls++;
+      if (mode !== 'route') return null;
+      return route ? { route } : null;
+    };
+    const long = 'abrir aquela parte da minha conta onde fica tudo isso';
+    const check = (name: string, ok: boolean) => {
+      if (!ok) {
+        fail++;
+        console.log('FALHOU segunda opinião:', name);
+      }
+    };
+    let r = await think(long, almox, { memory: mem, remote });
+    check('IA corrige o palpite local', /Encerrando a sua sessão/.test(r.say) && calls === 1);
+    route = null;
+    r = await think(long, almox, { memory: mem, remote });
+    check('sem resposta da IA, vale o palpite local', /Minha conta/.test(r.say));
+    route = 'Max, frase que nenhuma habilidade entende xyz';
+    r = await think(long, almox, { memory: mem, remote });
+    check('rota inválida da IA é ignorada', /Minha conta/.test(r.say));
+    calls = 0;
+    await think('abrir minha conta', almox, { memory: mem, remote });
+    await think('quantos itens saíram do estoque do almoxarifado nas últimas 15 horas', almox, { memory: mem, remote });
+    check('frase curta ou com certeza não consulta a IA', calls === 0);
+  }
   const show = async (host: MaxHost, p: string) => console.log(`\n> ${p}\n  ${(await think(hear(p).command, host, { memory: mem })).say}`);
   if (process.argv.includes('--show')) {
+    await show(hub, 'Max quantos itens saíram do estoque do almoxarifado nas últimas 15 horas'); await show(almox, 'Max o que entrou no estoque ontem'); await show(almox, 'Max quantas botas saíram ontem'); await show(almox, 'Max quantas camisas saíram esta semana'); await show(almox, 'Max quantos coturnos saíram hoje'); await show(almox, 'Max métricas das últimas 15 horas'); await show(almox, 'Max o que saiu'); await show(almox, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor');
     await show(login, 'Max, apresente-se'); await show(login, 'Max, bom dia'); await show(login, 'Max boa noite'); await show(almox, 'Max, quanto tem de bota 42?');
     await show(almox, 'Max quantas botas temos'); await show(almox, 'Max, o que está com estoque baixo?'); await show(almox, 'Max, resumo do estoque'); await show(almox, 'Max tem solicitação nova?');
     await show(almox, 'Max qual foi a última solicitação'); await show(hub, 'Max, quantos usuários temos?'); await show(hub, 'Max em que setor está a Juliana'); await show(hub, 'Max novo usuário chamado Pedro Alves no financeiro');

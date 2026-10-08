@@ -74,7 +74,8 @@ export function LoginScreen() {
   }, []);
 
   /** Resposta livre (clima, câmbio, IA, Wikipédia) pela rota pública do login. */
-  const remote = useCallback(async (text: string, examples: string[]): Promise<RemoteAnswer | null> => {
+  const remote = useCallback(async (text: string, examples: string[], mode?: 'route'): Promise<RemoteAnswer | null> => {
+    if (mode === 'route') return null; // na tela de entrada não há comandos do sistema para conferir
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
     try {

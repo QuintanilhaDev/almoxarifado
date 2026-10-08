@@ -14,7 +14,7 @@ export const maxDuration = 20;
  * Só a frase da pessoa sai daqui; nenhum dado do sistema é enviado a terceiros.
  */
 export async function POST(req: Request) {
-  const body = await readJson<{ text?: unknown; examples?: unknown; scope?: unknown; sector?: unknown }>(req);
+  const body = await readJson<{ text?: unknown; examples?: unknown; scope?: unknown; sector?: unknown; mode?: unknown }>(req);
   const text = cleanText(body?.text);
   if (!text) return fail('Diga ou digite o pedido.');
   try {
@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       sectorName: sector?.name ?? null,
       scope: body?.scope === 'hub' ? 'hub' : 'sector',
       examples: cleanExamples(body?.examples),
+      routeOnly: body?.mode === 'route',
     });
     return NextResponse.json(ans);
   } catch (e) {

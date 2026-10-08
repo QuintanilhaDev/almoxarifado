@@ -9,6 +9,8 @@ export interface AnswerContext {
   sectorName: string | null;
   scope: 'login' | 'hub' | 'sector';
   examples: string[];
+  /** só a IA, só para dizer qual comando a frase quer (segunda opinião do motor local) */
+  routeOnly?: boolean;
 }
 
 export interface Answer {
@@ -31,6 +33,11 @@ export function cleanExamples(v: unknown): string[] {
 
 /** Clima → câmbio → IA opcional → Wikipédia. Só a frase da pessoa sai do servidor. */
 export async function answerRemote(text: string, ctx: AnswerContext): Promise<Answer> {
+  if (ctx.routeOnly) {
+    if (!llmConfigured()) return { source: 'nenhuma' };
+    const ans = await askLlm(text, ctx);
+    return ans?.route ? { route: ans.route, source: 'ia' } : { source: 'nenhuma' };
+  }
   if (isWeatherQuestion(text)) {
     const w = await weatherAnswer(text);
     if (w) return { ...w, source: 'clima' };

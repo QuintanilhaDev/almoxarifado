@@ -18,6 +18,16 @@ function saidPeriod(q: { any: (...t: string[]) => boolean }): DayPeriod | null {
   return null;
 }
 
+/** A pessoa quer encerrar a sessão (em qualquer lugar da frase, com as palavras que o reconhecimento de voz costuma escrever). */
+export function wantsLogout(q: { re: (r: RegExp) => RegExpMatchArray | null }): boolean {
+  if (q.re(/^(sair|quero sair|pode sair|encerrar|me tira daqui|sair daqui)$/)) return true;
+  return Boolean(
+    q.re(
+      /\b(deslog\w*|desconect\w+|log ?out|log ?off|sign ?out|sair d[oa] (minha |meu )?(conta|sistema|sessao|usuario|login|max hub|maxhub|hub|plataforma|painel)|sai d[oa] (minha |meu )?(conta|sistema|sessao|usuario)|encerr\w+ (a |minha |a minha )?sessao|finaliz\w+ (a |minha |a minha )?sessao|fech\w+ (a |minha |a minha )?sessao|me tir\w+ d[oa] (conta|sistema)|(volt\w+|ir|va|vai|lev\w+|mand\w+)( \w+){0,3} (a |para a |pra |pra a |na )?tela de (login|entrada)|trocar de (usuario|conta)|entrar com outr[oa] (usuario|conta))\b/,
+    ),
+  );
+}
+
 export function capabilities(host: MaxHost): string[] {
   if (host.scope === 'login') return ['Max, apresente-se', 'Max, que horas são?', 'Max, como faço para entrar?', 'Max, quero fazer uma solicitação'];
   if (host.scope === 'hub') return ['Max, quantos usuários temos?', 'Max, quem está no almoxarifado?', 'Max, criar usuário', 'Max, abrir o setor financeiro'];
@@ -298,8 +308,7 @@ export const coreSkills: Skill[] = [
     id: 'logout',
     scopes: ['hub', 'sector'],
     examples: ['Max, sair'],
-    match: (q) =>
-      q.re(/^(sair|sair do sistema|sair da conta|sair da minha conta|deslogar|desconectar|logout|log out|fazer logout|encerrar (a )?sessao|finalizar (a )?sessao|quero sair|me desloga|pode sair|encerrar)$/) ? 0.95 : 0,
+    match: (q) => (wantsLogout(q) ? 0.96 : 0),
     run: (_q, host) => ({ say: `Encerrando a sua sessão. Até logo${name(host)}!`, afterSpeech: () => host.logout() }),
   },
 
@@ -333,6 +342,7 @@ export const coreSkills: Skill[] = [
     scopes: ['hub', 'sector'],
     examples: ['Max, abrir minha conta'],
     match: (q, host) => {
+      if (wantsLogout(q)) return 0; // "deslogar da minha conta" não é "abrir Minha conta"
       const tab = host.tabs.find((t) => t.aliases.some((a) => q.any(a)) || q.any(t.label));
       if (!tab) return 0;
       if (q.any(...VERB_GO)) return 0.84;

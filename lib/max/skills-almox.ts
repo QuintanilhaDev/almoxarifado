@@ -4,6 +4,8 @@ import type { Posto, PostoStockLine, RequestStatus, StockItem } from '../almoxar
 import { maxEmit } from './bus';
 import { bestMatches, contentTokens, listJoin, normalize, plural, type Query } from './text';
 import type { MaxHost, MaxReply, Skill } from './types';
+import type { RangeData } from '../almoxarifado/range';
+import { windowIn, type TimeWindow } from './when';
 
 const SECTOR = 'almoxarifado';
 const fmt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
@@ -101,7 +103,174 @@ function requestCounts(host: MaxHost) {
   return { list, c };
 }
 
+/* ---------- movimentação em um período qualquer ---------- */
+const OUT_RE = /\b(sai|saiu|sairam|saindo|saida|saidas|enviad\w+|enviamos|enviou|enviaram|transferid\w+|transferimos|transferiu|transferiram|retirad\w+|retirou|retiraram|despachad\w+|distribuid\w+|entregues?|entregou|entregaram|entregamos)\b/;
+const IN_RE = /\b(entrou|entraram|entrando|entrada|entradas|recebid\w+|recebemos|recebeu|receberam|devolvid\w+|devolveu|devolveram|devolucao|devolucoes|repost\w+|repusemos|(chegou|chegaram) (no|ao|em) (estoque|almoxarifado))\b/;
+/** a frase fala de movimentação (algo que aconteceu), não do saldo de agora */
+export const aboutMoves = (q: Query) => OUT_RE.test(q.norm) || IN_RE.test(q.norm);
+
+async function getRange(w: TimeWindow): Promise<RangeData> {
+  return getJson<RangeData>(`/api/almoxarifado/metrics/range?from=${encodeURIComponent(new Date(w.fromMs).toISOString())}&to=${encodeURIComponent(new Date(w.toMs).toISOString())}`);
+}
+
+/** Item citado em uma pergunta de movimentação ("quantas botas saíram ontem" -> "botas"). */
+export function movedNeedle(q: Query): string | null {
+  const patterns: RegExp[] = [
+    /\bquant[oa]s? (?:unidades de |pecas de |itens de )?(.+?) (?:sai\w*|entr\w+|foram|foi|for|receb\w+|cheg\w+|devolv\w+|envi\w+|transfer\w+|retir\w+)\b/,
+    /\b(?:saidas?|entradas?|devoluc\w+) (?:de|do|da|dos|das) (.+)$/,
+    /\b(?:sai|saiu|sairam|entrou|entraram|enviad\w+|enviamos|transferid\w+|retirad\w+|recebid\w+|recebemos|devolvid\w+) (?:de |do |da |dos |das )?(.+)$/,
+  ];
+  for (const p of patterns) {
+    const m = q.norm.match(p);
+    if (!m) continue;
+    const cleaned = m[1]
+      .replace(/\b(n[oa]s?|d[oa]s?|de|em|ultim[oa]s?|\d+|horas?|dias?|semanas?|mes|meses|minutos?|hoje|ontem|anteontem|esta|essa|este|esse|nesta|nessa|neste|nesse|passad[oa]s?|desde|ate|agora|pra|para|ca|aos?|postos?|foram|foi|que|mais|menos|ja|meia)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const toks = contentTokens(cleaned);
+    if (toks.length && !toks.every((t) => GENERIC.has(t))) return toks.filter((t) => !GENERIC.has(t)).join(' ');
+  }
+  return null;
+}
+
+const movesSkill: Skill = {
+  id: 'almox-moves',
+  sector: SECTOR,
+  examples: ['Max, quantos itens saíram nas últimas 15 horas?', 'Max, o que entrou no estoque ontem?', 'Max, quantas botas saíram esta semana?'],
+  match: (q, host) => {
+    const out = OUT_RE.test(q.norm);
+    const inn = IN_RE.test(q.norm);
+    if (!out && !inn) return 0;
+    if (q.any(...REQ_WORDS)) return 0; // "quantas solicitações recebemos" é outra pergunta
+    if (host.scope === 'hub' && !q.any('almoxarifado', 'almox', 'estoque', 'itens', 'item', 'unidades')) return 0;
+    const asks = Boolean(q.re(/\b(quant[oa]s?|quais?|o que|que|teve|houve|tivemos|mostr\w+|ver|list\w+|total|resumo|me (diz|diga|fala|fale|informe))\b/));
+    if (!asks && !windowIn(q.norm)) return 0;
+    // entradas E saídas juntas, sem item: é o resumo das métricas
+    if (out && inn && !movedNeedle(q)) return 0;
+    return 0.94;
+  },
+  run: async (q, host) => {
+    if (!host.can('metricas') && !host.can('estoque')) return noAccess('Métricas');
+    const explicit = windowIn(q.norm);
+    const w: TimeWindow = explicit ?? { fromMs: Date.now() - 7 * 86_400_000, toMs: Date.now(), label: 'Nos últimos 7 dias', standard: 'ultima-semana' };
+    let data: RangeData;
+    try {
+      data = await getRange(w);
+    } catch (e) {
+      return { say: `Não consegui ler as movimentações agora. ${(e as Error).message}` };
+    }
+    const wantsOut = OUT_RE.test(q.norm);
+    const wantsIn = IN_RE.test(q.norm);
+    const dir: 'out' | 'in' = wantsOut || !wantsIn ? 'out' : 'in';
+    const t = data.totals;
+    const lead = w.label;
+    const noPeriod = explicit ? '' : ' Como você não disse o período, considerei os últimos 7 dias.';
+    const verb = (n: number) => (dir === 'out' ? (n === 1 ? 'saiu' : 'saíram') : n === 1 ? 'entrou' : 'entraram');
+    const place = dir === 'out' ? 'do almoxarifado' : 'no almoxarifado';
+    const act =
+      inSector(host) && w.standard && host.can('metricas')
+        ? () => {
+            host.goTab('metricas');
+            maxEmit('almox:metricas', { period: w.standard! });
+          }
+        : undefined;
+
+    // pergunta sobre um item específico
+    const needle = movedNeedle(q);
+    if (needle) {
+      const hits = bestMatches(needle, data.items, (i) => i.name, 0.6, 60);
+      const best = hits[0]?.score ?? 0;
+      const close = hits.filter((h) => h.score >= best - 0.08).map((h) => h.item);
+      const both = wantsOut && wantsIn;
+      const sum = (k: 'in' | 'out') => close.reduce((a, i) => a + i[k], 0);
+      if (!close.length || (!both && sum(dir) === 0)) {
+        return { say: `${lead} não ${dir === 'out' ? 'saiu' : 'entrou'} nenhuma unidade de “${needle}” ${place}.${noPeriod}`, act };
+      }
+      // um item só: fala o nome como está cadastrado
+      const moved = close.filter((i) => (both ? i.in + i.out : i[dir]) > 0);
+      const what = moved.length === 1 ? moved[0].name.replace(' · ', ' ') : `“${needle}”`;
+      const rows = moved
+        .sort((a, b) => b[dir] - a[dir])
+        .slice(0, 8)
+        .map((i) => ({ label: i.name, value: both ? `+${fmt(i.in)} / −${fmt(i.out)}` : fmt(i[dir]) }));
+      return {
+        say: both
+          ? `${lead}, de ${what}, entraram ${plural(sum('in'), 'unidade', 'unidades')} e saíram ${fmt(sum('out'))}.${noPeriod}`
+          : `${lead} ${verb(sum(dir))} ${plural(sum(dir), 'unidade', 'unidades')} de ${what} ${place}${rows.length > 1 ? `, em ${fmt(rows.length)} variações` : ''}.${noPeriod}`,
+        card: { kind: 'list', title: `${lead} · ${both ? 'entradas / saídas' : dir === 'out' ? 'saídas' : 'entradas'} de “${needle}”`, rows },
+        act,
+        source: 'metricas',
+      };
+    }
+
+    const units = dir === 'out' ? t.out : t.in;
+    const kinds = dir === 'out' ? t.itemsOut : t.itemsIn;
+    const moves = dir === 'out' ? t.outMoves : t.inMoves;
+    if (units === 0) {
+      return { say: `${lead} não ${dir === 'out' ? 'saiu' : 'entrou'} nenhum item ${place}.${noPeriod}`, act, source: 'metricas' };
+    }
+    const top = data.items.filter((i) => i[dir] > 0).sort((a, b) => b[dir] - a[dir]);
+    let say = `${lead} ${verb(units)} ${plural(units, 'unidade', 'unidades')} ${place}, de ${plural(kinds, 'item diferente', 'itens diferentes')}, em ${plural(moves, 'movimentação', 'movimentações')}.`;
+    if (dir === 'out' && t.toPostos > 0) say += t.toPostos === t.out ? ' Tudo foi para postos.' : ` ${fmt(t.toPostos)} ${t.toPostos === 1 ? 'foi' : 'foram'} para postos.`;
+    if (dir === 'in' && t.returned > 0) say += ` ${fmt(t.returned)} ${t.returned === 1 ? 'veio' : 'vieram'} de devolução de postos.`;
+    if (top[0]) say += ` O que mais ${dir === 'out' ? 'saiu' : 'entrou'} foi ${top[0].name.replace(' · ', ' ')}, com ${fmt(top[0][dir])}.`;
+    return {
+      say: say + noPeriod,
+      card: {
+        kind: 'list',
+        title: `${lead} · ${dir === 'out' ? 'saídas do almoxarifado' : 'entradas no almoxarifado'}`,
+        rows: top.slice(0, 6).map((i) => ({ label: i.name, value: fmt(i[dir]) })),
+        foot: `Total: ${plural(units, 'unidade', 'unidades')} · ${plural(kinds, 'item', 'itens')} · ${plural(moves, 'movimentação', 'movimentações')}${data.truncated ? ' (período muito grande: valores parciais)' : ''}`,
+      },
+      act,
+      chips: inSector(host) ? ['Max, o que entrou no estoque ontem?', 'Max, métricas da última semana'] : undefined,
+      source: 'metricas',
+    };
+  },
+};
+
+/** Resumo (entradas, saídas, solicitações) de um período fora dos botões da tela de Métricas. */
+async function customMetrics(w: TimeWindow): Promise<MaxReply> {
+  let data: RangeData;
+  try {
+    data = await getRange(w);
+  } catch (e) {
+    return { say: `Não consegui ler as métricas agora. ${(e as Error).message}` };
+  }
+  const t = data.totals;
+  const net = t.in - t.out;
+  const r = data.requests;
+  const open = r.nova + r.pendente;
+  let say: string;
+  if (t.in === 0 && t.out === 0 && r.total === 0) say = `${w.label} não houve movimentação no estoque nem solicitações.`;
+  else {
+    const netText = net === 0 ? 'saldo zerado' : net > 0 ? `saldo positivo de ${plural(net, 'unidade', 'unidades')}` : `saldo negativo de ${plural(-net, 'unidade', 'unidades')}`;
+    say = `${w.label} foram ${plural(t.in, 'entrada', 'entradas')} e ${plural(t.out, 'saída', 'saídas')} em unidades, com ${netText}.`;
+    say += r.total ? ` Chegaram ${plural(r.total, 'solicitação', 'solicitações')}${open ? `, ${open === 1 ? '1 ainda aberta' : `${fmt(open)} ainda abertas`}` : ', todas resolvidas'}.` : ' Nenhuma solicitação chegou no período.';
+    const top = data.items.filter((i) => i.out > 0).sort((a, b) => b.out - a.out)[0];
+    if (top) say += ` O item que mais saiu foi ${top.name.replace(' · ', ' ')}, com ${plural(top.out, 'unidade', 'unidades')}.`;
+  }
+  return {
+    say,
+    card: {
+      kind: 'stats',
+      title: w.label,
+      stats: [
+        { label: 'Entradas', value: fmt(t.in), tone: 'in' },
+        { label: 'Saídas', value: fmt(t.out), tone: 'out' },
+        { label: 'Saldo', value: (net > 0 ? '+' : '') + fmt(net), tone: net < 0 ? 'warn' : 'plain' },
+        { label: 'Solicitações', value: fmt(r.total) },
+        { label: 'Em aberto', value: fmt(open), tone: open ? 'warn' : 'plain' },
+        { label: 'Para postos', value: fmt(t.toPostos) },
+      ],
+      foot: 'Período personalizado: a tela de Métricas mostra só os períodos fixos.',
+    },
+    source: 'metricas',
+  };
+}
+
 export const almoxSkills: Skill[] = [
+  movesSkill,
   /* ---------- métricas ---------- */
   {
     id: 'almox-metrics',
@@ -110,19 +279,22 @@ export const almoxSkills: Skill[] = [
     match: (q, host) => {
       // no painel master, "métricas" sozinho é o resumo do hub; as do almoxarifado precisam ser pedidas pelo nome
       if (host.scope === 'hub' && !q.any('almoxarifado', 'almox', 'estoque')) return 0;
-      const period = periodIn(q);
+      const period = windowIn(q.norm);
       if (q.any('metrica', 'metricas', 'relatorio', 'relatorios', 'indicador', 'indicadores', 'desempenho', 'balanco', 'movimentacao', 'movimentacoes', 'estatistica', 'estatisticas', 'dashboard', 'grafico')) return 0.93;
       if (q.any('entrada', 'entradas', 'entrou', 'entraram') && q.any('saida', 'saidas', 'saiu', 'sairam')) return 0.92;
       if (period && q.any('entrada', 'entradas', 'saida', 'saidas', 'saiu', 'sairam', 'entrou', 'entraram', 'movimentou', 'movimento')) return 0.9;
       if (period && q.any('resumo', 'numeros', 'resultado', 'resultados', 'panorama', 'visao geral')) return 0.9;
-      if (period && period !== 'hoje' && q.any(...REQ_WORDS) && q.any('quantas', 'quantos', 'chegaram', 'recebemos', 'vieram', 'tivemos', 'foram')) return 0.91;
+      if (period && period.standard !== 'hoje' && q.any(...REQ_WORDS) && q.any('quantas', 'quantos', 'chegaram', 'recebemos', 'vieram', 'tivemos', 'foram')) return 0.91;
       const offTopic = q.any('tempo', 'clima', 'chuva', 'chover', 'temperatura', 'previsao', 'calor', 'frio', 'dolar', 'euro', 'transito', 'jogo', 'voce');
       if (period && !offTopic && q.re(/\b(como (foi|foram|esta|estao|ta|anda|andam)|me atualiz\w+|me da um resumo|o que aconteceu|o que rolou)\b/)) return 0.88;
       return 0;
     },
     run: async (q, host) => {
       if (!host.can('metricas')) return noAccess('Métricas');
-      const period = periodIn(q) ?? 'ultima-semana';
+      // período fora dos botões da tela ("últimas 15 horas", "ontem", "mês passado"…)
+      const w = windowIn(q.norm);
+      if (w && !w.standard) return customMetrics(w);
+      const period = w?.standard ?? periodIn(q) ?? 'ultima-semana';
       let data: MetricsData;
       try {
         data = (await getJson<{ data: MetricsData }>(`/api/almoxarifado/metrics?period=${period}`)).data;
@@ -183,7 +355,7 @@ export const almoxSkills: Skill[] = [
     id: 'almox-request-open',
     sector: SECTOR,
     examples: ['Max, abrir a solicitação 12'],
-    match: (q) => (q.any(...REQ_WORDS, 'protocolo') && q.numbers.length > 0 && !periodIn(q) ? 0.93 : 0),
+    match: (q) => (q.any(...REQ_WORDS, 'protocolo') && q.numbers.length > 0 && !windowIn(q.norm) ? 0.93 : 0),
     run: (q, host) => {
       if (!host.can('solicitacoes')) return noAccess('Solicitações');
       const list = host.almox?.requests();
@@ -317,6 +489,8 @@ export const almoxSkills: Skill[] = [
     sector: SECTOR,
     examples: ['Max, resumo do estoque'],
     match: (q) => {
+      // é o retrato de AGORA: pergunta com período ou sobre o que saiu/entrou não é com este resumo
+      if (aboutMoves(q) || windowIn(q.norm)) return 0;
       if (!q.any(...STOCK_WORDS, 'itens', 'item', 'unidades')) return 0;
       if (q.re(/\b(resumo|situacao|panorama|visao geral|como (esta|ta|anda)|valor (total|do|em)|quanto vale|quantos itens|quantas unidades|total de (itens|unidades)|tamanho do estoque)\b/)) return 0.88;
       return 0;
@@ -363,6 +537,7 @@ export const almoxSkills: Skill[] = [
     sector: SECTOR,
     examples: ['Max, quanto tem de bota 42?', 'Max, procurar camisa social'],
     match: (q, host) => {
+      if (aboutMoves(q)) return 0; // "quantas botas saíram ontem" é movimentação, não saldo
       const needle = stockNeedle(q);
       if (!needle) return 0;
       const toks = contentTokens(needle);
