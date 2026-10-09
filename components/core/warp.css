@@ -1,0 +1,66 @@
+/* Troca de tela pela Max: a esfera cresce, anuncia e toma a tela */
+.warp {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  overflow: hidden;
+  pointer-events: all;
+  cursor: progress;
+}
+.warp.is-reveal {
+  pointer-events: none;
+}
+.warp-dim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 46%, rgba(40, 26, 74, 0.9) 0%, rgba(12, 12, 14, 0.96) 62%);
+}
+.warp-flood {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  /* pequena e ampliada 8x por transformação (cobre a tela com folga sem pesar na placa de vídeo) */
+  width: 34vmax;
+  height: 34vmax;
+  margin: -17vmax 0 0 -17vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f3ebff 0%, #d9c4ff 16%, #c6a8ff 30%, #8f63f5 46%, #3a2470 60%, #16121f 72%, #0c0c0e 82%);
+  will-change: transform, opacity;
+}
+.warp-orb {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  line-height: 0;
+  will-change: transform, opacity;
+}
+.warp-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  padding: 0 20px;
+}
+.warp-label small {
+  display: block;
+  color: var(--muted);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.warp-label strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-top: 4px;
+  color: var(--white);
+}
+/* durante a troca, a Max do canto some (ela é a que está no meio da tela) */
+.is-warping .max-dock {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}

@@ -1,0 +1,34 @@
+{
+  "name": "max-hub",
+  "version": "2.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx tests/max-nlu.test.ts && tsx --conditions=react-server tests/max-remote.test.ts && tsx --conditions=react-server tests/max-agent.test.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
+    "framer-motion": "^14.0.0",
+    "jose": "^6.2.12",
+    "lucide-react": "^1.52.0",
+    "next": "^15.5.27",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=18.18"
+  }
+}
