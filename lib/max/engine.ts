@@ -1,9 +1,11 @@
 import { almoxSkills } from './skills-almox';
 import { capabilities, coreSkills } from './skills-core';
 import { emptySectorSkills, hubSkills } from './skills-hub';
-import { makeQuery, normalize, stripWake, type Query } from './text';
+import { makeQuery, normalize, stripWake, wantsChange, type Query } from './text';
+export { wantsChange };
 import { BLOCKED_REPLY, isBlocked } from './moderation';
 import type { MaxHost, MaxMemory, MaxReply, PendingAction, Skill } from './types';
+import { gaveUp, recall, type Learned } from './learn';
 
 const ALL: Skill[] = [...coreSkills, ...almoxSkills, ...hubSkills, ...emptySectorSkills];
 
@@ -12,6 +14,13 @@ export const CONFIDENT = 0.6;
 /** A partir disto a habilidade local responde direto, sem pedir segunda opinião à IA. */
 export const SURE = 0.9;
 const LONG_PHRASE = 7;
+/**
+ * Em frase longa as palavras-chave enganam mais ("quem é o supervisor do posto 01" tem "posto 01",
+ * mas não quer o estoque do posto). Havendo IA, ela confere o sentido; a leitura local vai como pista
+ * e continua valendo se a IA falhar, desistir ou estiver no limite.
+ */
+const LONG_SURE = 0.95;
+const sureFor = (tokens: number) => (tokens >= LONG_PHRASE ? LONG_SURE : SURE);
 
 function available(host: MaxHost): Skill[] {
   return ALL.filter((s) => {
@@ -128,17 +137,15 @@ export interface AgentAnswer {
   route?: string;
   pending?: PendingAction[];
   source?: string;
-}
-
-/** A frase pede para ALTERAR algo (registrar, cadastrar, excluir, mudar…), e não só consultar. */
-export function wantsChange(norm: string): boolean {
-  return /\b(registr\w+|lance|lanca|lancar|(de|da|dar|deem) (uma |a )?(entrada|saida|baixa)|adicion\w+|acrescent\w+|inclua|incluir|cadastre|cadastra|cadastrar|crie|cria|criar|exclua|excluir|exclui|apague|apaga|apagar|delete|deleta|deletar|remova|remove|remover|marque|marca|marcar|mude|muda|mudar|altere|altera|alterar|troque|troca|trocar|atualize|atualiza|atualizar|transfira|transferir|envie|enviar|mande|mandar|devolva|devolver|autorize|autoriza|autorizar|desautoriz\w+|desative|desativa|desativar|reative|reativar|ative|ativar|bloqueie|bloquear|promova|promover|rebaixe|rebaixar|defina|definir|ajuste|ajusta|ajustar|zere|zerar|renomeie|renomear|coloque|colocar|tire|tirar|faca|resolva|resolver|conclua|concluir|finalize|finalizar|aloque|alocar|mova|mover|libere|liberar|redefin\w+|reset\w+)\b/.test(
-    norm,
-  );
+  /** a IA disse que não sabe/não consegue */
+  gaveUp?: boolean;
 }
 
 /** Comandos locais que continuam valendo mesmo quando a frase tem verbo de ação ("desative a voz", "trocar minha senha"). */
 const SAFE_LOCAL = new Set(['stop', 'repeat', 'voice-off', 'voice-on', 'logout', 'go-tab', 'go-sector', 'hub-create-user', 'calc', 'almox-form-link', 'download-metrics', 'say-hello']);
+
+/** comandos que nunca são disparados pela memória (a pessoa precisa pedir com clareza) */
+const NO_RECALL = new Set(['logout', 'stop', 'bye', 'voice-off', 'voice-on', 'say-hello', 'go-sector', 'hub-create-user']);
 
 const YES_RE = /^(sim|s|isso|isso mesmo|confirm\w*|pode|pode sim|pode fazer|pode confirmar|pode registrar|ok|okay|certo|claro|com certeza|positivo|manda|manda ver|faz|faca|execute|exato|correto|bora|vai|afirmativo|autorizo|autorizado)( sim| pode| confirmar| confirmo| confirmado| por favor| max| isso| faz| manda)*$/;
 const NO_RE = /^(nao|n|cancel\w*|deixa|deixa pra la|esquece|esqueca|negativo|para|pare|melhor nao|errado|nada|desist\w*)\b/;
@@ -147,7 +154,7 @@ const NO_RE = /^(nao|n|cancel\w*|deixa|deixa pra la|esquece|esqueca|negativo|par
 async function executePending(list: PendingAction[]): Promise<MaxReply> {
   const done: string[] = [];
   for (const a of list) {
-    if (!/^\/api\/(almoxarifado|hub|setor)\//.test(a.path)) continue; // só rotas internas conhecidas
+    if (!/^\/api\/(almoxarifado|hub|setor)\//.test(a.path) && a.path !== '/api/max/memoria') continue; // só rotas internas conhecidas
     let error = '';
     try {
       const r = await fetch(a.path, {
@@ -175,7 +182,11 @@ export interface ThinkOptions {
   /** a frase original, como foi ouvida/digitada (o `command` chega sem acentos nem maiúsculas) */
   raw?: string;
   /** agente do servidor: IA com ferramentas (consulta, altera com confirmação, pesquisa na web). Só para quem está logado. */
-  agent?: (text: string, examples: string[]) => Promise<AgentAnswer | null>;
+  agent?: (text: string, examples: string[], hint?: string) => Promise<AgentAnswer | null>;
+  /** comandos que a Max já aprendeu com o uso (pedido muito parecido é atendido na hora, sem IA) */
+  learned?: Learned[];
+  /** avisa o servidor: pedido não entendido, ou um aprendizado que não funcionou */
+  report?: (e: { type: 'falha'; reason: 'nao_entendeu' | 'desistiu'; answer?: string } | { type: 'feedback'; good: false }) => void;
   /**
    * consulta o servidor (clima, câmbio, IA, Wikipédia).
    * mode 'route' = só pede à IA para dizer qual comando a frase quer (segunda opinião).
@@ -221,17 +232,29 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
 
   const { q, top: best } = understand(command, host);
 
+  // Memória: um pedido praticamente igual já foi resolvido antes por um comando da tela.
+  if (opts.learned?.length && !(best && best.score >= sureFor(q.tokens.length)) && !wantsChange(q.norm)) {
+    const hit = recall(command, opts.learned);
+    if (hit) {
+      const routed = understand(hear(hit.route).command, host);
+      if (routed.top && routed.top.score >= CONFIDENT && !NO_RECALL.has(routed.top.skill.id)) {
+        const r = await runSkill(routed.top, routed.q, host, mem);
+        return { ...r, source: r.source ?? 'memoria' };
+      }
+    }
+  }
+
   // Agente (IA com ferramentas): entra quando o pedido é de alteração, quando nenhuma habilidade
   // local entende, ou quando a frase é longa e a habilidade local não tem tanta certeza.
   let agentTried = false;
   if (opts.agent) {
     const safeLocal = Boolean(best && SAFE_LOCAL.has(best.skill.id) && best.score >= 0.8);
-    const go = wantsChange(q.norm) ? !safeLocal : !best || best.score < CONFIDENT || (best.score < SURE && q.tokens.length >= LONG_PHRASE);
+    const go = wantsChange(q.norm) ? !safeLocal : !best || best.score < CONFIDENT || (best.score < LONG_SURE && q.tokens.length >= LONG_PHRASE);
     if (go) {
       agentTried = true;
       let ans: AgentAnswer | null = null;
       try {
-        ans = await opts.agent(command, examplesFor(host));
+        ans = await opts.agent(command, examplesFor(host), best && best.score >= 0.5 ? best.skill.examples?.[0] : undefined);
       } catch {
         ans = null;
       }
@@ -242,8 +265,14 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
       if (ans?.route) {
         const routed = understand(hear(ans.route).command, host);
         if (routed.top && routed.top.score >= CONFIDENT) return runSkill(routed.top, routed.q, host, mem);
+        opts.report?.({ type: 'feedback', good: false }); // a IA apontou um comando que não existe: desaprende
       }
-      if (ans?.say) return { say: ans.say, text: ans.text, source: ans.source };
+      if (ans?.say) {
+        if (!(ans.gaveUp || gaveUp(ans.say))) return { say: ans.say, text: ans.text, source: ans.source };
+        // a IA desistiu, mas a leitura local tem um palpite: ele vale mais do que um "não sei"
+        if (best && best.score >= 0.5) return runSkill(best, q, host, mem);
+        return { say: ans.say, text: ans.text, source: ans.source, chips: capabilities(host), unknown: true };
+      }
       if (ans?.source === 'limite' && !(best && best.score >= CONFIDENT)) {
         return { say: 'A inteligência artificial atingiu o limite de uso por agora. Tente de novo em um minuto; os comandos prontos continuam funcionando.', chips: capabilities(host), unknown: true };
       }
@@ -285,6 +314,7 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
   // palpite local com menos certeza ainda é melhor do que "não entendi"
   if (best && best.score >= 0.5) return runSkill(best, q, host, opts.memory);
 
+  opts.report?.({ type: 'falha', reason: 'nao_entendeu' });
   return {
     say: host.scope === 'login' ? 'Essa eu ainda não sei responder por aqui. Entre com seu usuário e senha, que lá dentro eu ajudo com o seu setor.' : 'Ainda não sei responder isso. Veja alguns pedidos que eu entendo.',
     chips: capabilities(host),

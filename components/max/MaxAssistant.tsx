@@ -1,11 +1,12 @@
 'use client';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Keyboard, Mic, SendHorizontal, Square, Volume2, VolumeX, X } from 'lucide-react';
+import { Keyboard, Mic, SendHorizontal, Square, ThumbsDown, ThumbsUp, Volume2, VolumeX, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { speak, stopSpeaking, loadVoices } from '@/lib/voice';
 import { capabilities } from '@/lib/max/skills-core';
 import { examplesFor, hear, think, type AgentAnswer, type RemoteAnswer } from '@/lib/max/engine';
 import { Listener, listenSupported, type ListenState } from '@/lib/max/speech';
+import { signatureKey, type Learned } from '@/lib/max/learn';
 
 /** quanto ela espera alguém falar: depois do clique · depois de uma resposta (para continuar a conversa) */
 const WAIT_MS = 14000;
@@ -22,10 +23,13 @@ interface Entry {
   card?: MaxCard;
   chips?: string[];
   source?: string;
+  /** pedido que gerou esta resposta (para o 👍/👎) */
+  asked?: string;
+  rated?: 'up' | 'down';
 }
 
 const VOICE_PREF = 'maxhub:voz';
-const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipédia', clima: 'Open-Meteo', cambio: 'cotação online', ia: 'IA', web: 'pesquisa na web' };
+const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipédia', clima: 'Open-Meteo', cambio: 'cotação online', ia: 'IA', web: 'pesquisa na web', memoria: 'aprendido com o uso' };
 
 /**
  * A Max nas ferramentas dos setores: a esfera no canto inferior direito.
@@ -107,9 +111,34 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
     }
   }, []);
 
+  /** O que a Max já aprendeu nesta tela (pedidos resolvidos antes viram resposta na hora). */
+  const learned = useRef<Learned[]>([]);
+  const place = () => {
+    const h = hostRef.current;
+    return { scope: h.scope, sector: h.sector?.slug ?? null };
+  };
+  const loadLearned = useCallback(async () => {
+    const { scope, sector } = place();
+    if (scope === 'login') return;
+    try {
+      const r = await fetch(`/api/max/memoria?scope=${scope}&sector=${sector ?? ''}`, { cache: 'no-store', credentials: 'same-origin' });
+      if (!r.ok) return;
+      const j = (await r.json()) as { learned?: Learned[] };
+      if (Array.isArray(j.learned)) learned.current = j.learned;
+    } catch {
+      /* sem memória: segue normal */
+    }
+  }, []);
+  useEffect(() => {
+    void loadLearned();
+  }, [loadLearned, host.scope, host.sector?.slug]);
+  const tell = useCallback((body: Record<string, unknown>) => {
+    void fetch('/api/max/memoria', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...place(), ...body }) }).catch(() => undefined);
+  }, []);
+
   /** Agente do servidor: IA com ferramentas (consulta, prepara alterações, pesquisa na web). */
   const history = useRef<{ role: 'user' | 'assistant'; content: string }[]>([]);
-  const agent = useCallback(async (text: string, examples: string[]): Promise<AgentAnswer | null> => {
+  const agent = useCallback(async (text: string, examples: string[], hint?: string): Promise<AgentAnswer | null> => {
     const h = hostRef.current;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 55000);
@@ -118,16 +147,18 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: ctrl.signal,
-        body: JSON.stringify({ text, examples, scope: h.scope, sector: h.sector?.slug ?? null, history: history.current.slice(-6) }),
+        body: JSON.stringify({ text, examples, hint, scope: h.scope, sector: h.sector?.slug ?? null, history: history.current.slice(-6) }),
       });
       if (!r.ok) return null;
-      return (await r.json()) as AgentAnswer;
+      const ans = (await r.json()) as AgentAnswer;
+      if (ans.route) setTimeout(() => void loadLearned(), 1500); // acabou de aprender um comando: atualiza a memória
+      return ans;
     } catch {
       return null;
     } finally {
       clearTimeout(timer);
     }
-  }, []);
+  }, [loadLearned]);
 
   const close = useCallback(() => {
     seq.current++;
@@ -156,7 +187,20 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       setStatus('thinking');
       let reply: MaxReply;
       try {
-        reply = await think(command, hostRef.current, { memory: memory.current, remote, agent, raw: shown });
+        reply = await think(command, hostRef.current, {
+          memory: memory.current,
+          remote,
+          agent,
+          raw: shown,
+          learned: learned.current,
+          report: (e) => {
+            if (e.type === 'feedback') {
+              const k = signatureKey(shown);
+              learned.current = learned.current.filter((l) => signatureKey(l.phrase) !== k);
+            }
+            tell({ ...e, phrase: shown });
+          },
+        });
       } catch {
         reply = { say: 'Tive um problema para responder. Tente de novo.' };
       }
@@ -165,7 +209,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       memory.current.last = reply;
       memory.current.lastInput = shown;
       history.current = [...history.current, { role: 'user' as const, content: shown }, { role: 'assistant' as const, content: reply.say || reply.text || '' }].filter((m) => m.content).slice(-8);
-      push({ who: 'max', text: reply.text ?? reply.say, card: reply.card, chips: reply.chips, source: reply.source });
+      push({ who: 'max', text: reply.text ?? reply.say, card: reply.card, chips: reply.chips, source: reply.source, asked: reply.source === 'bloqueio' || reply.source === 'stop' ? undefined : shown });
       try {
         await reply.act?.();
       } catch (e) {
@@ -193,7 +237,21 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
         },
       });
     },
-    [close, push, remote, agent],
+    [close, push, remote, agent, tell],
+  );
+
+  /** 👍/👎: é assim que a Max aprende o que acertou e o que errou. */
+  const rate = useCallback(
+    (e: Entry, good: boolean) => {
+      if (!e.asked || e.rated) return;
+      setFeed((f) => f.map((x) => (x.id === e.id ? { ...x, rated: good ? 'up' : 'down' } : x)));
+      if (!good) {
+        const k = signatureKey(e.asked);
+        learned.current = learned.current.filter((l) => signatureKey(l.phrase) !== k);
+      }
+      tell({ type: 'feedback', good, phrase: e.asked, answer: e.text });
+    },
+    [tell],
   );
 
   const startListening = useCallback((follow = false) => {
@@ -346,6 +404,22 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
                   {e.text ? <p>{e.text}</p> : null}
                   {e.card ? <Card card={e.card} /> : null}
                   {e.source && SOURCE_LABEL[e.source] ? <small className="max-source">Fonte: {SOURCE_LABEL[e.source]}</small> : null}
+                  {e.who === 'max' && e.asked ? (
+                    <div className={`max-rate${e.rated ? ' is-rated' : ''}`}>
+                      {e.rated ? (
+                        <small>{e.rated === 'up' ? 'Obrigada! Guardei que acertei.' : 'Anotado. Vou melhorar nisso.'}</small>
+                      ) : (
+                        <>
+                          <button onClick={() => rate(e, true)} aria-label="Resposta certa" title="Acertou">
+                            <ThumbsUp size={13} />
+                          </button>
+                          <button onClick={() => rate(e, false)} aria-label="Resposta errada" title="Errou">
+                            <ThumbsDown size={13} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                   {e.chips?.length ? (
                     <div className="max-chips">
                       {e.chips.map((c) => (
@@ -450,7 +524,7 @@ function Card({ card }: { card: MaxCard }) {
         {card.title ? <b className="max-card-title">{card.title}</b> : null}
         <div className="max-stats">
           {card.stats.map((s) => (
-            <div key={s.label} className={`max-stat ${s.tone ?? 'plain'}`}>
+            <div key={s.label} className={`max-stat ${s.tone ?? 'plain'}${s.value.length > 8 ? ' is-long' : ''}`}>
               <strong>{s.value}</strong>
               <span>{s.label}</span>
             </div>

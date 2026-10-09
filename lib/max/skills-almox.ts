@@ -11,6 +11,12 @@ import { categoryInPhrase, countCategories, hasCategory } from '../almoxarifado/
 const SECTOR = 'almoxarifado';
 const fmt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+/** valor para a voz: "124.982 reais e 21 centavos" */
+const reais = (n: number) => {
+  const int = Math.floor(n + 1e-9);
+  const cents = Math.round((n - int) * 100);
+  return `${fmt(int)} ${int === 1 ? 'real' : 'reais'}${cents ? ` e ${cents} ${cents === 1 ? 'centavo' : 'centavos'}` : ''}`;
+};
 const itemLabel = (i: { name: string; size: string | null }) => i.name + (i.size ? ` · ${i.size}` : '');
 const isLow = (i: StockItem) => i.min_quantity > 0 && i.quantity <= i.min_quantity;
 /** quantidade para falar: "zerado" soa melhor do que "com 0" */
@@ -585,7 +591,7 @@ export const almoxSkills: Skill[] = [
       if (q.re(/\b(resumo|situacao|panorama|visao geral|como (esta|ta|anda)|valor (total|do|em)|quanto vale|quantos itens|quantas unidades|total de (itens|unidades)|tamanho do estoque)\b/)) return 0.88;
       return 0;
     },
-    run: (_q, host) => {
+    run: (q, host) => {
       if (!host.can('estoque')) return noAccess('Estoque');
       const items = host.almox?.items();
       if (!items) return loading('o estoque');
@@ -601,8 +607,13 @@ export const almoxSkills: Skill[] = [
         if (isLow(i)) low++;
         if (i.quantity === 0) zero++;
       }
+      // responde primeiro o que foi perguntado: valor, quantidade de itens ou de unidades
+      const noCost = items.filter((i) => i.cost === null && i.quantity > 0).length;
+      const lead = q.re(/\b(valor|vale|valem|custa|custam|dinheiro|grana|reais|investid\w+|patrimonio)\b/)
+        ? `O estoque do almoxarifado vale ${reais(value)}, somando ${plural(units, 'unidade', 'unidades')} de ${plural(items.length, 'item', 'itens')}.${noCost ? ` ${plural(noCost, 'item com saldo está', 'itens com saldo estão')} sem custo cadastrado e não ${noCost === 1 ? 'entra' : 'entram'} nessa conta.` : ''} `
+        : '';
       return {
-        say: `O estoque tem ${plural(items.length, 'item cadastrado', 'itens cadastrados')}, com ${plural(units, 'unidade', 'unidades')} no almoxarifado e ${fmt(atPostos)} nos postos. ${low ? `${plural(low, 'item está', 'itens estão')} com estoque baixo` : 'Nenhum item com estoque baixo'}${zero ? ` e ${plural(zero, 'está sem saldo', 'estão sem saldo')}` : ''}.`,
+        say: lead ? lead.trim() : `O estoque tem ${plural(items.length, 'item cadastrado', 'itens cadastrados')}, com ${plural(units, 'unidade', 'unidades')} no almoxarifado e ${fmt(atPostos)} nos postos. ${low ? `${plural(low, 'item está', 'itens estão')} com estoque baixo` : 'Nenhum item com estoque baixo'}${zero ? ` e ${plural(zero, 'está sem saldo', 'estão sem saldo')}` : ''}.`,
         card: {
           kind: 'stats',
           title: 'Estoque agora',

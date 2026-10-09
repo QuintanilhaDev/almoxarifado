@@ -266,6 +266,48 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
     chk('dois nomes', await say('Max diga olá para Júnior e Suzana'), new RegExp(`^${G}, Júnior, Suzana e a todos que estão presentes!$`));
     chk('todos', await say('Max diga olá para todos'), new RegExp(`^${G} a todos que estão presentes! `));
   }
+  // ---- arbitragem com a IA e memória de aprendizado ----
+  {
+    const check = (name: string, cond: boolean, extra?: unknown) => { if (!cond) { fail++; console.log('FALHOU ', name, JSON.stringify(extra)?.slice(0, 300)); } };
+    const m2: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () => undefined };
+    const asked = 'por favor, fale para mim qual o valor total que tem no estoque do almoxarifado?';
+    let calls = 0;
+    let hint: string | undefined;
+    let r = await think(hear('Max, ' + asked).command, almox, { memory: m2, agent: async (_t, _e, h) => { calls++; hint = h; return { say: 'Essa função ainda não existe no Max Hub.', source: 'ia', gaveUp: true }; } });
+    check('IA desistiu mas a habilidade local sabia: vale a local (caso do print)', calls === 1 && /^O estoque do almoxarifado vale 1\.850 reais/.test(r.say) && r.card?.kind === 'stats' && hint === 'Max, resumo do estoque', [r.say, hint]);
+    r = await think(hear('Max, ' + asked).command, almox, { memory: m2, agent: async () => ({ say: 'Não consigo acessar isso.', source: 'ia' }) });
+    check('desistência sem a marca do servidor também é reconhecida', /^O estoque do almoxarifado vale/.test(r.say), r.say);
+    r = await think(hear('Max, ' + asked).command, almox, { memory: m2, agent: async () => ({ say: 'O estoque vale mil reais.', source: 'ia' }) });
+    check('resposta de verdade da IA continua valendo', r.say === 'O estoque vale mil reais.', r.say);
+    const reports: unknown[] = [];
+    r = await think('faz um cafe pra mim ai por favor agora', almox, { memory: m2, report: (e) => reports.push(e), agent: async () => ({ say: 'Não consigo fazer café.', source: 'ia', gaveUp: true }) });
+    check('desistência sem palpite local: mostra a resposta e oferece ajuda', r.unknown === true && r.say === 'Não consigo fazer café.' && (r.chips?.length ?? 0) > 0, r);
+    r = await think('xpto blablabla', almox, { memory: m2, report: (e) => reports.push(e) });
+    check('pedido não entendido é avisado ao servidor', r.unknown === true && JSON.stringify(reports).includes('nao_entendeu'), reports);
+
+    const learned = [{ phrase: 'quanto dinheiro temos parado em material', route: 'Max, resumo do estoque' }, { phrase: 'me tira daqui agora mesmo', route: 'Max, sair' }, { phrase: 'quanto sobrou daquela bota 42', route: 'Max, quanto tem de bota 42?' }];
+    calls = 0;
+    const ag = async () => { calls++; return { say: 'IA', source: 'ia' }; };
+    r = await think(hear('Max, pode me dizer quanto dinheiro temos parados em materiais?').command, almox, { memory: m2, learned, agent: ag });
+    check('pedido já aprendido é atendido na hora, sem gastar a IA', calls === 0 && /^O estoque tem 11 itens/.test(r.say) && r.source === 'memoria', [calls, r.say, r.source]);
+    r = await think('quanto dinheiro temos parado em viaturas', almox, { memory: m2, learned, agent: ag });
+    check('pedido só parecido NÃO usa a memória (vai para a IA)', calls === 1 && r.say === 'IA', [calls, r.say]);
+    calls = 0;
+    r = await think('quanto sobrou daquela bota 44', almox, { memory: m2, learned, agent: ag });
+    check('número diferente não reaproveita o aprendizado', !/Bota de segurança, tamanho 42/.test(r.say), r.say);
+    let out = false;
+    r = await think('me tira daqui agora mesmo', { ...almox, logout: () => { out = true; } }, { memory: m2, learned, agent: ag });
+    r.afterSpeech?.();
+    check('sair da conta nunca é disparado pela memória', !out && r.say === 'IA', [out, r.say]);
+    calls = 0;
+    r = await think('registre a saida de 5 bones', almox, { memory: m2, learned: [{ phrase: 'registre a saida de 5 bones', route: 'Max, resumo do estoque' }], agent: async () => { calls++; return { say: 'Vou registrar: saída. Confirma?', pending: [{ method: 'POST', path: '/api/almoxarifado/stock/move', what: 'saída' }], source: 'ia' }; } });
+    check('pedido de alteração nunca é atalho da memória', calls === 1 && m2.pending?.length === 1, r.say);
+    m2.pending = null;
+    const bad: unknown[] = [];
+    r = await think('quero uma coisa bem diferente do normal agora', almox, { memory: m2, report: (e) => bad.push(e), agent: async () => ({ route: 'Max, comando que não existe xyz', source: 'ia' }) });
+    check('comando inventado pela IA é desaprendido', JSON.stringify(bad).includes('"good":false'), bad);
+  }
+
   const show = async (host: MaxHost, p: string) => console.log(`\n> ${p}\n  ${(await think(hear(p).command, host, { memory: mem })).say}`);
   if (process.argv.includes('--show')) {
     await show(hub, 'Max quantos itens saíram do estoque do almoxarifado nas últimas 15 horas'); await show(almox, 'Max o que entrou no estoque ontem'); await show(almox, 'Max quantas botas saíram ontem'); await show(almox, 'Max quantas camisas saíram esta semana'); await show(almox, 'Max quantos coturnos saíram hoje'); await show(almox, 'Max métricas das últimas 15 horas'); await show(almox, 'Max o que saiu'); await show(almox, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor');

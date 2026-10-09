@@ -16,7 +16,7 @@ export const maxDuration = 60;
  * da pessoa, pelas rotas normais do sistema.
  */
 export async function POST(req: Request) {
-  const body = await readJson<{ text?: unknown; examples?: unknown; scope?: unknown; sector?: unknown; history?: unknown }>(req);
+  const body = await readJson<{ text?: unknown; examples?: unknown; scope?: unknown; sector?: unknown; history?: unknown; hint?: unknown }>(req);
   const text = cleanText(body?.text);
   if (!text) return fail('Diga ou digite o pedido.');
   try {
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
           .filter((h) => h.content && !isBlocked(h.content))
       : [];
     const sector = getSector(typeof body?.sector === 'string' ? body.sector : null);
-    const ans = await runAgent(user, { text, scope: body?.scope === 'hub' ? 'hub' : 'sector', sector: sector?.slug ?? null, examples: cleanExamples(body?.examples), history });
+    const ans = await runAgent(user, { text, scope: body?.scope === 'hub' ? 'hub' : 'sector', sector: sector?.slug ?? null, examples: cleanExamples(body?.examples), history, hint: cleanText(body?.hint, 120) || undefined });
     return NextResponse.json(ans, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);

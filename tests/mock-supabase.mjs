@@ -35,6 +35,7 @@ const db = {
     admin('inativo', 'Usuário Inativo', { sector: 'financeiro', active: false }),
   ],
   hub_meta: [],
+  ...(process.env.NOMEM === '1' ? {} : { max_learned: [], max_notes: [], max_misses: [] }),
   authorized_emails: [{ id: randomUUID(), email: 'sup1@empresa.com.br', supervisor_name: 'Marcos', posto: 'Posto 01', created_by: 'Neilton', created_at: iso(8000) }],
   form_config: [],
   requests: [req(1, 'resolvida', 'Ana Lima', 'Posto 01', 6000), req(2, 'pendente', 'Bruno Reis', 'Posto 02', 2800), req(3, 'nova', 'Caio Melo', 'Shopping Barra', 300), req(4, 'nova', 'Dani Rocha', 'Posto 01', 40), req(12, 'pendente', 'Edu Santos', 'Hospital Aliança', 1500)],
@@ -64,6 +65,7 @@ function filterRows(rows, params) {
     else if (op === 'neq') out = out.filter((r) => cmp(r[k]) !== val);
     else if (op === 'gte') out = out.filter((r) => cmp(r[k]) >= val);
     else if (op === 'lte') out = out.filter((r) => cmp(r[k]) <= val);
+    else if (op === 'not') { const [o2, v2] = [val.slice(0, val.indexOf('.')), val.slice(val.indexOf('.') + 1)]; if (o2 === 'is') out = out.filter((r) => (r[k] ?? null) !== cast(v2)); }
     else if (op === 'is') out = out.filter((r) => (r[k] ?? null) === cast(val));
     else if (op === 'in') {
       const set = val.replace(/^\(|\)$/g, '').split(',').map((x) => x.replace(/^"|"$/g, ''));
@@ -152,12 +154,12 @@ http
       if (bad) return send(res, 400, { code: 'PGRST204', message: `Could not find the '${bad}' column of '${table}' in the schema cache` });
       const created = [];
       for (const row of list) {
-        const unique = table === 'admins' ? 'username' : table === 'authorized_emails' ? 'email' : null;
+        const unique = table === 'admins' ? 'username' : table === 'authorized_emails' ? 'email' : table === 'max_learned' ? 'key' : null;
         if (unique && db[table].some((r) => r[unique] === row[unique])) {
           if (prefer.includes('ignore-duplicates')) continue;
           return send(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint' });
         }
-        const full = { id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(table === 'admins' && !LEGACY ? { is_master: false, sector: null, sector_role: 'member', permissions: {}, active: true, last_login_at: null } : {}), ...(table === 'stock_items' ? { ref: db.stock_items.length + 1, unit: 'Cada', quantity: 0, min_quantity: 0, cost: null, name_key: String(row.name || '').toLowerCase(), size_key: String(row.size || '').toLowerCase(), ...(NOCAT ? {} : { categories: [] }) } : {}), ...row };
+        const full = { id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(table === 'admins' && !LEGACY ? { is_master: false, sector: null, sector_role: 'member', permissions: {}, active: true, last_login_at: null } : {}), ...(table === 'max_learned' ? { hits: 1, good: 0, bad: 0, route: null, tool: null, args: null } : {}), ...(table === 'stock_items' ? { ref: db.stock_items.length + 1, unit: 'Cada', quantity: 0, min_quantity: 0, cost: null, name_key: String(row.name || '').toLowerCase(), size_key: String(row.size || '').toLowerCase(), ...(NOCAT ? {} : { categories: [] }) } : {}), ...row };
         db[table].push(full);
         created.push(full);
       }

@@ -298,3 +298,11 @@ export function listJoin(parts: string[]): string {
   if (parts.length <= 1) return parts.join('');
   return parts.slice(0, -1).join(', ') + ' e ' + parts[parts.length - 1];
 }
+
+/** A frase pede para ALTERAR algo (registrar, cadastrar, excluir, mudar…), e não só consultar. */
+export function wantsChange(norm: string): boolean {
+  return /\b(registr\w+|lance|lanca|lancar|(de|da|dar|deem) (uma |a )?(entrada|saida|baixa)|adicion\w+|acrescent\w+|inclua|incluir|cadastre|cadastra|cadastrar|crie|cria|criar|exclua|excluir|exclui|apague|apaga|apagar|delete|deleta|deletar|remova|remove|remover|marque|marca|marcar|mude|muda|mudar|altere|altera|alterar|troque|troca|trocar|atualize|atualiza|atualizar|transfira|transferir|envie|enviar|mande|mandar|devolva|devolver|autorize|autoriza|autorizar|desautoriz\w+|desative|desativa|desativar|reative|reativar|ative|ativar|bloqueie|bloquear|promova|promover|rebaixe|rebaixar|defina|definir|ajuste|ajusta|ajustar|zere|zerar|renomeie|renomear|coloque|colocar|tire|tirar|faca|resolva|resolver|conclua|concluir|finalize|finalizar|aloque|alocar|mova|mover|libere|liberar|redefin\w+|reset\w+|lembre|lembre-se|anote|anota|anotar|memorize|memorizar|aprenda|guarde)\b/.test(
+    norm,
+  );
+}
+

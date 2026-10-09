@@ -126,6 +126,25 @@ Como funciona, e por que é seguro:
 
 **Limite do plano gratuito:** a cota gratuita da Groq é contada em tokens por minuto e por dia (confira a sua em console.groq.com → Settings → Limits). Um pedido ao agente gasta bem mais do que uma pergunta simples, e uma pesquisa na web gasta ainda mais. Se o limite estourar, a Max avisa e os comandos prontos continuam funcionando; o limite volta sozinho no minuto seguinte.
 
+### Como a Max pensa e aprende
+
+Cada pedido passa por camadas, da mais rápida para a mais capaz:
+
+1. **Habilidades locais** (instantâneas, sem custo): saldo, estoque baixo, categorias, métricas, telas, usuários.
+2. **Memória de aprendizado:** se um pedido praticamente igual já foi resolvido antes, ela repete a solução na hora, sem chamar a IA.
+3. **IA com ferramentas (Groq):** entende o pedido pelo sentido. Recebe um *retrato do sistema* (totais do estoque, valor, categorias, solicitações, postos, usuários — só o que a pessoa pode ver), as *anotações* ensinadas e os *pedidos parecidos já resolvidos* como guia.
+4. **Arbitragem:** em frase longa a IA confere a leitura local. Se a IA disser que "não sabe" ou "não existe", ganha uma segunda chance; se insistir, vale a resposta local. Um "não sei" só aparece quando nenhuma camada tem resposta.
+
+**O que é o aprendizado (e o que não é):** não há rede neural treinada no seu servidor; isso exigiria máquina e custo. É um classificador por *vizinho mais próximo*: cada pedido resolvido vira um exemplo ("frase" → comando ou ferramenta), e pedidos novos são comparados pelos radicais das palavras e trigramas de letras (aguenta erro de voz, plural, ordem e cortesias). Muito parecido = executa na hora; parecido = vira exemplo no pedido à IA.
+
+- **👍 / 👎** embaixo de cada resposta: 👎 aposenta o aprendizado daquele pedido e manda a frase para a lista do master.
+- **Ensinar:** "Max, lembre que o fornecedor de botas é a Casa do Vigilante" (master do setor ou master geral; pede confirmação). A anotação passa a valer para todo o setor.
+- **Painel master → Aprendizado da Max:** pedidos que ela não soube atender (com quem pediu e o que ela respondeu), anotações e tudo o que aprendeu, com botão de apagar. É por essa lista que se descobre o que falta ensinar ou criar.
+- **Privacidade:** argumentos de alterações e de usuários (senhas) nunca vão para a memória; aprendizado de um setor não aparece em outro.
+- **Cota gratuita:** perguntas de consulta vão só com as ferramentas de consulta (pedido ~40% menor), e quando o modelo principal atinge o limite entra o **modelo reserva** (`openai/gpt-oss-20b` ↔ `120b` na Groq, cada um com cota própria). `MAX_LLM_FALLBACK_MODEL` troca a reserva; `off` desliga.
+
+**Ativar a memória:** rode `supabase/max_aprendizado.sql` no SQL Editor (cria 3 tabelas novas; não mexe nas existentes). Sem ele a Max funciona igual, só não guarda o que aprende.
+
 ### IA opcional da Max
 
 Sem ela, frases muito fora do previsto recebem “ainda não sei responder isso”. Com ela, a Max entende pedidos livres (“como tá a saída de bota esse mês?”) e responde perguntas gerais.
@@ -159,7 +178,7 @@ Os setores ficam em `lib/sectors.ts`. A tela padrão é `components/setores/Sect
 
 Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
-1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql`, `supabase/maxhub.sql` e `supabase/categorias.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
+1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql`, `supabase/maxhub.sql`, `supabase/categorias.sql` e `supabase/max_aprendizado.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
 2. **GitHub:** crie um repositório **privado** e envie o conteúdo deste projeto.
 3. **Vercel:** importe o repositório e cadastre as variáveis do arquivo `.env.example` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`). Clique em **Deploy**.
 4. Os usuários iniciais são `master` (senha `berrythedev45`), `neilton` e `juliana` (senha `123456`). Entre com `master`, troque as senhas e ajuste os acessos no painel master.
@@ -333,7 +352,8 @@ lib/
 supabase/
   maxhub.sql               login global, setores e permissões  ← novo
   schema.sql  estoque.sql  seed_estoque.sql  baixa_e_usuarios.sql
-  categorias.sql           categorias dos itens do estoque  ← novo
+  categorias.sql           categorias dos itens do estoque
+  max_aprendizado.sql      memória de aprendizado da Max  ← novo
 tests/                     testes da Max, banco de mentira e teste no navegador
 middleware.ts              barra quem não está logado
 ```
@@ -352,6 +372,7 @@ middleware.ts              barra quem não está logado
 | Estoque ou Postos mostram "Não foi possível carregar" | Rode `supabase/estoque.sql` no SQL Editor e recarregue a página. |
 | Alguém esqueceu a senha | O master geral abre **Painel master → Usuários**, clica na pessoa e define uma **Nova senha**. |
 | O master geral esqueceu a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'mateus';`. A senha volta a ser `123456`; troque em seguida. |
+| "O aprendizado da Max ainda não foi ativado no banco" | Rode `supabase/max_aprendizado.sql` no SQL Editor. |
 | "As categorias ainda não foram ativadas no banco" | Rode `supabase/categorias.sql` no SQL Editor. |
 | "Falta rodar o arquivo supabase/maxhub.sql" | Rode `supabase/maxhub.sql` no SQL Editor (passo 1 da atualização). |
 | Entrei e caí em "Quase lá" | O usuário não tem setor. O master geral aloca em **Usuários**. |

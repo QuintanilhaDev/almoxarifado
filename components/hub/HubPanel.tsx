@@ -1,5 +1,5 @@
 'use client';
-import { Building, UserRound, UsersRound } from 'lucide-react';
+import { Brain, Building, UserRound, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -13,13 +13,15 @@ import { useHashTab, useSession } from '@/lib/useSession';
 import type { MaxHost } from '@/lib/max/types';
 import { SectorsOverview } from './SectorsOverview';
 import { UsersAdmin } from './UsersAdmin';
+import { MaxLearning } from './MaxLearning';
 import './hub.css';
 
-type Tab = 'setores' | 'usuarios' | 'conta';
-const VALID: Tab[] = ['setores', 'usuarios', 'conta'];
+type Tab = 'setores' | 'usuarios' | 'max' | 'conta';
+const VALID: Tab[] = ['setores', 'usuarios', 'max', 'conta'];
 const TABS: FrameTab[] = [
   { id: 'setores', label: 'Setores', short: 'Setores', icon: Building },
   { id: 'usuarios', label: 'Usuários', short: 'Usuários', icon: UsersRound },
+  { id: 'max', label: 'Aprendizado da Max', short: 'Max', icon: Brain },
   { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
 ];
 
@@ -100,6 +102,7 @@ function Shell() {
       tabs: [
         { id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral', 'inicio', 'pagina inicial'] },
         { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas', 'cadastro de usuarios', 'acessos'] },
+        { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max', 'o que voce aprendeu'] },
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
       tab,
@@ -128,6 +131,7 @@ function Shell() {
       <AppFrame sub="Painel master" tabs={TABS} tab={tab} onTab={(t) => setTab(t as Tab)} user={user} onLogout={logout} intro={intro} onIntroEnd={endIntro}>
         {tab === 'setores' && <SectorsOverview me={user} users={users} failed={failed} retry={loadUsers} onSeeTeam={() => setTab('usuarios')} />}
         {tab === 'usuarios' && <UsersAdmin me={user} users={users} setUsers={setUsers} failed={failed} reload={loadUsers} />}
+        {tab === 'max' && <MaxLearning />}
         {tab === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
       </AppFrame>
       <MaxAssistant host={host} />

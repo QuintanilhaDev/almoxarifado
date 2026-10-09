@@ -269,3 +269,86 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- aprendizado da Max ---------- */
+.learn-block {
+  margin-top: 26px;
+}
+.learn-block .sec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.learn-block .sec-title .btn {
+  margin-left: auto;
+}
+.learn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+.learn-row > div {
+  min-width: 0;
+}
+.learn-row b {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.learn-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.learn-row.is-off {
+  opacity: 0.55;
+}
+.learn-block .empty-line {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+}
+.learn-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 4px;
+}
+.learn-stat {
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  min-width: 0;
+}
+.learn-stat small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+.learn-stat b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+@media (max-width: 760px) {
+  .learn-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

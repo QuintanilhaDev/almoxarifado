@@ -333,3 +333,45 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
+
+/* 👍 / 👎 — é assim que ela aprende */
+.max-rate {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.max-msg:hover .max-rate,
+.max-rate:focus-within,
+.max-rate.is-rated {
+  opacity: 1;
+}
+.max-rate button {
+  width: 26px;
+  height: 24px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: rgba(246, 244, 251, 0.06);
+  transition: color 0.2s, background 0.2s;
+}
+.max-rate button:hover {
+  color: var(--white);
+  background: rgba(246, 244, 251, 0.14);
+}
+.max-rate small {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+/* valores compridos (R$ 124.982,21) ocupam duas colunas em vez de quebrar no meio */
+.max-stat.is-long {
+  grid-column: span 2;
+}
+.max-stat.is-long strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
