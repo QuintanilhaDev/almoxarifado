@@ -6,6 +6,7 @@ import { AppFrame, type FrameTab } from '../core/AppFrame';
 import { api } from '../core/api';
 import { TeamManager } from '../core/TeamManager';
 import { ToastProvider, useToast } from '../core/Toasts';
+import { useWarp } from '../core/Warp';
 import { MaxAssistant } from '../max/MaxAssistant';
 import { useRealtime } from '@/lib/realtime';
 import { chime } from '@/lib/chime';
@@ -48,6 +49,7 @@ export function Dashboard() {
 function Shell() {
   const toast = useToast();
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(SLUG));
+  const warp = useWarp();
   const [tab, setTabState] = useState<Tab | null>(null);
   const [requests, setRequests] = useState<RequestRow[] | null>(null);
   const [emails, setEmails] = useState<AuthorizedEmail[] | null>(null);
@@ -255,9 +257,7 @@ function Shell() {
       tab: current,
       goTab: (id) => setTab(id as Tab),
       can,
-      navigate: (path) => {
-        window.location.href = path;
-      },
+      navigate: (path, opts) => warp.go(path, opts),
       logout,
       almox: {
         requests: () => (permsRef.current.requests ? dataRef.current.requests : null),
@@ -266,7 +266,7 @@ function Shell() {
         emailsCount: () => dataRef.current.emails?.length ?? null,
       },
     }),
-    [user, moduleTabs, perms.manager, current, setTab, can, logout],
+    [user, moduleTabs, perms.manager, current, setTab, can, logout, warp],
   );
 
   const readOnly = (m: ModuleTab) => !perms.edit(m);

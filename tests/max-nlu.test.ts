@@ -285,6 +285,20 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
     r = await think('xpto blablabla', almox, { memory: m2, report: (e) => reports.push(e) });
     check('pedido não entendido é avisado ao servidor', r.unknown === true && JSON.stringify(reports).includes('nao_entendeu'), reports);
 
+    calls = 0;
+    let went = '';
+    const hubNav = { ...hub, navigate: (p: string) => { went = p; } };
+    const sorry = async () => { calls++; return { say: 'Desculpe, não há um comando pronto para abrir o setor do almoxarifado. Posso ajudar com outra consulta ou ação?', source: 'ia' }; };
+    r = await think(hear('Max abre o setor do almoxarifado, por favor.').command, hubNav, { memory: m2, agent: sorry });
+    await r.act?.();
+    check('abrir setor no painel master é local, mesmo com "por favor" (caso do print)', calls === 0 && r.say === 'Abrindo o setor Almoxarifado.' && went === '/setor/almoxarifado', [calls, r.say, went]);
+    went = '';
+    r = await think(hear('Max eu gostaria muito que você abrisse para mim agora o setor do almoxarifado').command, hubNav, { memory: m2, agent: sorry });
+    await r.act?.();
+    check('frase longa: comando de tela claro não passa pela IA', calls === 0 && went === '/setor/almoxarifado', [calls, r.say, went]);
+    r = await think('como estao as coisas la no setor do almoxarifado hoje em dia', hubNav, { memory: m2, agent: sorry });
+    check('pedido de desculpas da IA conta como desistência', r.unknown === true || !/^Desculpe/.test(r.say), r.say);
+
     const learned = [{ phrase: 'quanto dinheiro temos parado em material', route: 'Max, resumo do estoque' }, { phrase: 'me tira daqui agora mesmo', route: 'Max, sair' }, { phrase: 'quanto sobrou daquela bota 42', route: 'Max, quanto tem de bota 42?' }];
     calls = 0;
     const ag = async () => { calls++; return { say: 'IA', source: 'ia' }; };

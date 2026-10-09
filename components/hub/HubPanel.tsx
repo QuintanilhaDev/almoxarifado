@@ -14,6 +14,7 @@ import type { MaxHost } from '@/lib/max/types';
 import { SectorsOverview } from './SectorsOverview';
 import { UsersAdmin } from './UsersAdmin';
 import { MaxLearning } from './MaxLearning';
+import { useWarp } from '../core/Warp';
 import './hub.css';
 
 type Tab = 'setores' | 'usuarios' | 'max' | 'conta';
@@ -37,6 +38,7 @@ export function HubPanel() {
 function Shell() {
   const { user, setUser, refresh, intro, endIntro, logout } = useSession('/hub');
   const [tab, setTab] = useHashTab<Tab>(VALID, 'setores');
+  const warp = useWarp();
   const [users, setUsers] = useState<HubUserRow[] | null>(null);
   const [failed, setFailed] = useState('');
   const usersRef = useRef<HubUserRow[] | null>(null);
@@ -111,9 +113,7 @@ function Shell() {
         if (VALID.includes(id as Tab)) setTab(id as Tab);
       },
       can: () => true,
-      navigate: (path) => {
-        window.location.href = path;
-      },
+      navigate: (path, opts) => warp.go(path, opts),
       logout,
       hub: { users: () => usersRef.current },
       almox: {
@@ -123,7 +123,7 @@ function Shell() {
         emailsCount: () => almoxRef.current.emails,
       },
     }),
-    [user, tab, setTab, logout],
+    [user, tab, setTab, logout, warp],
   );
 
   return (

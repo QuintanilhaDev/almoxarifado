@@ -104,5 +104,5 @@ export function nearest(text: string, learned: Learned[], max = 4): (Learned & {
 
 /** A resposta é uma desistência ("não existe", "não consigo", "não sei")? */
 export const GAVE_UP_RE =
-  /\b(funcao|funcionalidade|recurso|ferramenta|opcao|isso|isto)\b[^.]{0,40}\b(ainda )?nao (existe|esta disponivel|e possivel)\b|\b(ainda )?nao (consigo|sei|posso)\b|\bnao (tenho|possuo) (acesso|essa informacao|como|ferramenta|essa funcao|esse dado)\b|\bnao (encontrei|ha) (uma |nenhuma )?(ferramenta|funcao)\b|\bfora do meu alcance\b/;
+  /\b(funcao|funcionalidade|recurso|ferramenta|opcao|isso|isto)\b[^.]{0,40}\b(ainda )?nao (existe|esta disponivel|e possivel)\b|\b(ainda )?nao (consigo|sei|posso)\b|\bnao (tenho|possuo) (acesso|essa informacao|como|ferramenta|essa funcao|esse dado)\b|\bnao (encontrei|ha) (uma |nenhuma )?(ferramenta|funcao)\b|\bfora do meu alcance\b|^(desculp\w+|sinto muito|infelizmente|lamento)\b|\bnao (ha|existe|encontrei|tenho) (um |uma |nenhum |nenhuma )?(comando|ferramenta|funcao|opcao|forma|maneira|jeito)\b/;
 export const gaveUp = (say: string | null | undefined) => Boolean(say) && GAVE_UP_RE.test(normalize(say!));

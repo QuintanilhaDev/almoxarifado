@@ -5,6 +5,7 @@ import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
 import { TeamManager } from '../core/TeamManager';
 import { ToastProvider } from '../core/Toasts';
+import { useWarp } from '../core/Warp';
 import { MaxAssistant } from '../max/MaxAssistant';
 import { canManageSector } from '@/lib/permissions';
 import { useRealtime } from '@/lib/realtime';
@@ -32,6 +33,7 @@ function Shell({ slug }: { slug: string }) {
   const sector = getSector(slug)!;
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(slug));
   const [tab, setTab] = useHashTab<Tab>(VALID, 'inicio');
+  const warp = useWarp();
   const [teamVersion, setTeamVersion] = useState(0);
   const manager = canManageSector(user, slug);
 
@@ -69,12 +71,10 @@ function Shell({ slug }: { slug: string }) {
       tab: current,
       goTab: (id) => setTab(id as Tab),
       can: () => false,
-      navigate: (path) => {
-        window.location.href = path;
-      },
+      navigate: (path, opts) => warp.go(path, opts),
       logout,
     }),
-    [sector, user, manager, current, setTab, logout],
+    [sector, user, manager, current, setTab, logout, warp],
   );
 
   return (

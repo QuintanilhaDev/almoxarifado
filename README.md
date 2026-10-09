@@ -126,6 +126,10 @@ Como funciona, e por que é seguro:
 
 **Limite do plano gratuito:** a cota gratuita da Groq é contada em tokens por minuto e por dia (confira a sua em console.groq.com → Settings → Limits). Um pedido ao agente gasta bem mais do que uma pergunta simples, e uma pesquisa na web gasta ainda mais. Se o limite estourar, a Max avisa e os comandos prontos continuam funcionando; o limite volta sozinho no minuto seguinte.
 
+### Troca de tela pela Max
+
+No painel master, **Abrir ferramenta** (ou "Max, abrir o setor almoxarifado") não recarrega mais o site: a Max sai do canto, cresce no meio da tela, diz "Abrindo o setor …", toma a tela inteira e revela a ferramenta. O mesmo vale para **Painel master** (voltar) e para ir de um setor a outro pela voz. Ctrl/⌘+clique continua abrindo em outra aba; o botão Voltar do navegador funciona normalmente; com "reduzir movimento" ligado no sistema a troca vira um esmaecimento simples. Código: `components/core/Warp.tsx`.
+
 ### Como a Max pensa e aprende
 
 Cada pedido passa por camadas, da mais rápida para a mais capaz:

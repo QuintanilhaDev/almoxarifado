@@ -1,7 +1,7 @@
 import { almoxSkills } from './skills-almox';
 import { capabilities, coreSkills } from './skills-core';
 import { emptySectorSkills, hubSkills } from './skills-hub';
-import { makeQuery, normalize, stripWake, wantsChange, type Query } from './text';
+import { makeQuery, normalize, stripWake, tokenize, wantsChange, type Query } from './text';
 export { wantsChange };
 import { BLOCKED_REPLY, isBlocked } from './moderation';
 import type { MaxHost, MaxMemory, MaxReply, PendingAction, Skill } from './types';
@@ -231,9 +231,11 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
   }
 
   const { q, top: best } = understand(command, host);
+  // tamanho do pedido sem as cortesias ("por favor", "você pode…"): elas não tornam a frase mais difícil
+  const words = Math.min(q.tokens.length, tokenize(politeTrim(q.norm)).length || q.tokens.length);
 
   // Memória: um pedido praticamente igual já foi resolvido antes por um comando da tela.
-  if (opts.learned?.length && !(best && best.score >= sureFor(q.tokens.length)) && !wantsChange(q.norm)) {
+  if (opts.learned?.length && !(best && best.score >= sureFor(words)) && !wantsChange(q.norm)) {
     const hit = recall(command, opts.learned);
     if (hit) {
       const routed = understand(hear(hit.route).command, host);
@@ -249,7 +251,10 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
   let agentTried = false;
   if (opts.agent) {
     const safeLocal = Boolean(best && SAFE_LOCAL.has(best.skill.id) && best.score >= 0.8);
-    const go = wantsChange(q.norm) ? !safeLocal : !best || best.score < CONFIDENT || (best.score < LONG_SURE && q.tokens.length >= LONG_PHRASE);
+    // comando de tela reconhecido com clareza (abrir setor, trocar de aba, sair, baixar…) é da Max local:
+    // a IA não executa nada na tela e só atrapalharia
+    const clearAction = Boolean(best && SAFE_LOCAL.has(best.skill.id) && best.score >= SURE);
+    const go = wantsChange(q.norm) ? !safeLocal : !best || best.score < CONFIDENT || (!clearAction && best.score < LONG_SURE && words >= LONG_PHRASE);
     if (go) {
       agentTried = true;
       let ans: AgentAnswer | null = null;
@@ -282,7 +287,7 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
   if (best && best.score >= CONFIDENT) {
     // Frase longa em que a habilidade local não tem tanta certeza: palavras-chave soltas enganam
     // ("deslogar da minha conta" tem "minha conta"). Se houver IA configurada, ela confere o pedido.
-    if (opts.remote && !agentTried && best.score < SURE && q.tokens.length >= LONG_PHRASE) {
+    if (opts.remote && !agentTried && best.score < SURE && words >= LONG_PHRASE) {
       let second: RemoteAnswer | null = null;
       try {
         second = await opts.remote(command, examplesFor(host), 'route');

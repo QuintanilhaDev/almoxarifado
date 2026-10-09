@@ -191,6 +191,8 @@ try {
   await page.waitForURL(B + '/setor/rh', { timeout: 8000 });
   await page.waitForSelector('.blank-tool');
   ok(true, 'Max levou o master ao setor RH');
+  await page.waitForSelector('.warp', { state: 'detached', timeout: 20000 });
+  await page.waitForSelector('.side-back', { timeout: 8000 }).catch(() => undefined);
   ok(await page.locator('.side-back').count() === 1, 'atalho de volta ao painel master');
   await page.waitForTimeout(900);
   await page.screenshot({ path: SHOTS + '/08-rh.png' });

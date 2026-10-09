@@ -45,7 +45,8 @@ export interface MaxHost {
   goTab: (id: string) => void;
   can: (moduleId: string, level?: Exclude<Level, 'none'>) => boolean;
   /** vai para outra página do Max Hub */
-  navigate: (path: string) => void;
+  /** `spoken`: a Max já está dizendo para onde vai (a animação de troca não repete a frase) */
+  navigate: (path: string, opts?: { spoken?: boolean }) => void;
   logout: () => void;
   almox?: {
     requests: () => RequestRow[] | null;

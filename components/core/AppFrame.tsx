@@ -1,4 +1,5 @@
 'use client';
+import { useWarp } from './Warp';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, LogOut, type LucideIcon } from 'lucide-react';
 import { useEffect } from 'react';
@@ -56,13 +57,19 @@ export function AppFrame({
   const role = user?.is_master ? 'Master geral' : user?.sector_role === 'master' ? 'Master do setor' : null;
   // master geral visitando a ferramenta de um setor: atalho de volta
   const backToHub = Boolean(user?.is_master) && sub !== 'Painel master';
+  const warp = useWarp();
+  const backClick = (e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    warp.go('/hub');
+  };
 
   return (
     <div className="dash">
       <aside className="side">
         <Brand sub={sub} />
         {backToHub ? (
-          <a className="side-back" href="/hub">
+          <a className="side-back" href="/hub" onClick={backClick}>
             <ArrowLeft size={15} /> Painel master
           </a>
         ) : null}
@@ -96,7 +103,7 @@ export function AppFrame({
         <Brand sub={sub} />
         <div className="mobile-top-actions">
           {backToHub ? (
-            <a className="icon-btn" href="/hub" aria-label="Voltar ao painel master" title="Painel master">
+            <a className="icon-btn" href="/hub" onClick={backClick} aria-label="Voltar ao painel master" title="Painel master">
               <ArrowLeft size={18} />
             </a>
           ) : null}

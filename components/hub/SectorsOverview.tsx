@@ -2,6 +2,7 @@
 import { ArrowUpRight, Briefcase, Crown, HandCoins, Package, ShieldCheck, TriangleAlert, UsersRound, type LucideIcon } from 'lucide-react';
 import { greetingFor } from '@/lib/format';
 import type { HubUser, HubUserRow } from '@/lib/permissions';
+import { useWarp } from '../core/Warp';
 import { SECTORS, sectorPath, type SectorSlug } from '@/lib/sectors';
 import { firstName } from '@/lib/max/clock';
 import { listJoin } from '@/lib/max/text';
@@ -28,6 +29,7 @@ export function SectorsOverview({
   retry: () => void;
   onSeeTeam: () => void;
 }) {
+  const warp = useWarp();
   const active = (users ?? []).filter((u) => u.active);
   const unassigned = active.filter((u) => !u.is_master && !u.sector);
   const mastersCount = active.filter((u) => u.is_master).length;
@@ -120,7 +122,16 @@ export function SectorsOverview({
                   </div>
                 </dl>
                 <footer>
-                  <a className="btn btn-primary btn-sm" href={sectorPath(s.slug)}>
+                  <a
+                    className="btn btn-primary btn-sm"
+                    href={sectorPath(s.slug)}
+                    onClick={(e) => {
+                      // clique normal: a Max faz a troca na mesma página · Ctrl/⌘+clique continua abrindo em outra aba
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                      e.preventDefault();
+                      warp.go(sectorPath(s.slug));
+                    }}
+                  >
                     Abrir ferramenta <ArrowUpRight size={15} />
                   </a>
                   <button className="btn btn-ghost btn-sm" onClick={() => seeTeam(s.slug)}>

@@ -455,10 +455,10 @@ export const coreSkills: Skill[] = [
     },
     run: (q, host) => {
       if (q.re(/\b(painel (master|principal|geral|administrativo)|tela (master|principal|inicial)|pagina (inicial|principal)|hub)\b/) && !SECTORS.some((s) => s.aliases.some((a) => q.any(a)))) {
-        return { say: 'Voltando ao painel master.', afterSpeech: () => host.navigate('/hub') };
+        return { say: 'Voltando ao painel master.', act: () => host.navigate('/hub', { spoken: true }) };
       }
       const target = SECTORS.find((s) => s.aliases.some((a) => q.any(a)) || q.any(s.name))!;
-      return { say: `Abrindo o setor ${target.name}.`, afterSpeech: () => host.navigate(sectorPath(target.slug)) };
+      return { say: `Abrindo o setor ${target.name}.`, act: () => host.navigate(sectorPath(target.slug), { spoken: true }) };
     },
   },
   {
