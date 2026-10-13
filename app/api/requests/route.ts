@@ -7,6 +7,8 @@ import { isAuthorizedEmail } from '@/lib/almoxarifado/emails';
 import { broadcast } from '@/lib/broadcast';
 import { answerToText } from '@/lib/format';
 import type { Attachment } from '@/lib/almoxarifado/types';
+import { getConfig } from '@/lib/pedidos/server';
+import { orderFromRequest } from '@/lib/pedidos/fromRequest';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,11 +62,21 @@ export async function POST(req: Request) {
         answers: answers.filter((a) => a.fieldId !== emailField?.id),
         attachments,
       })
-      .select('id, protocol, collaborator')
+      .select('id, protocol, collaborator, posto, email, answers')
       .single();
     if (error) throw error;
 
     await broadcast('request:new', { id: data.id, protocol: data.protocol, collaborator: data.collaborator });
+    // Projeto 3: com o roteamento ligado, a solicitação vira pedido e vai primeiro para a Operação conferir.
+    // Se algo falhar aqui, a solicitação continua valendo na Caixa de entrada do Almoxarifado.
+    try {
+      if ((await getConfig()).routing) {
+        const order = await orderFromRequest(data, { by: 'Formulário dos supervisores', stage: 'solicitado' });
+        await broadcast('order:new', { id: order.id, number: order.number, origin: order.origin, stage: order.stage, by: 'Formulário' });
+      }
+    } catch (e) {
+      if ((e as { code?: string }).code !== 'NOITEMS') console.error('roteamento do pedido', e);
+    }
     return NextResponse.json({ id: data.id, protocol: data.protocol });
   } catch (e) {
     return serverError(e);

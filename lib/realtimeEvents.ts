@@ -11,4 +11,5 @@ export type RealtimeEvent =
   | 'purchase:update'
   | 'order:new'
   | 'order:update'
-  | 'note:update';
+  | 'note:update'
+  | 'collab:update';

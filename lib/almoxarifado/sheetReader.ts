@@ -642,3 +642,19 @@ export function classify(
     }),
   };
 }
+
+/** Planilha de colaboradores (RH). */
+export const COLLAB_SCHEMA: SchemaSpec = {
+  fields: [
+    { key: 'matricula', kind: 'text', synonyms: ['matricula', 'mat', 're', 'registro', 'chapa', 'codigo do colaborador', 'cod colaborador'] },
+    { key: 'camisa', kind: 'text', synonyms: ['tamanho camisa', 'tam camisa', 'camisa', 'tamanho da camisa', 'blusa', 'tamanho roupa', 'tamanho do fardamento'] },
+    { key: 'calca', kind: 'text', synonyms: ['tamanho calca', 'tam calca', 'calca', 'tamanho da calca'] },
+    { key: 'calcado', kind: 'text', synonyms: ['tamanho calcado', 'calcado', 'numero calcado', 'bota', 'sapato', 'tamanho bota', 'numero do calcado'] },
+    { key: 'role', kind: 'text', synonyms: ['funcao', 'cargo', 'ocupacao'] },
+    { key: 'posto', kind: 'text', synonyms: ['posto', 'posto de trabalho', 'lotacao', 'local de trabalho', 'unidade'] },
+    { key: 'company', kind: 'text', synonyms: ['empresa', 'razao social', 'cnpj empresa'] },
+    { key: 'admissao', kind: 'text', synonyms: ['admissao', 'data de admissao', 'data admissao', 'inicio', 'data de inicio'] },
+    { key: 'telefone', kind: 'text', synonyms: ['telefone', 'celular', 'fone', 'whatsapp'] },
+    { key: 'name', kind: 'text', synonyms: ['nome do colaborador', 'colaborador', 'nome completo', 'nome', 'funcionario', 'vigilante'] },
+  ],
+};

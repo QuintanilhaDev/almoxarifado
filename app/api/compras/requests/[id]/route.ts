@@ -19,12 +19,22 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function PATCH(req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return fail('Solicitação não encontrada.', 404);
-  const body = await readJson<{ status?: unknown; response?: unknown; expected?: unknown }>(req);
+  const body = await readJson<{ status?: unknown; response?: unknown; expected?: unknown; supplier?: unknown; order_ref?: unknown; expected_date?: unknown }>(req);
   if (!body) return fail('Dados inválidos.');
   const status = body.status;
   if (status !== undefined && !isPurchaseStatus(status)) return fail('Status inválido.');
   const hasResponse = 'response' in body;
-  if (status === undefined && !hasResponse) return fail('Nada para alterar.');
+  // Projeto 3: fornecedor, nº do pedido de compra e previsão de entrega (Compras preenche)
+  const info: Record<string, string | null> = {};
+  if ('supplier' in body) info.supplier = str(body.supplier, 120);
+  if ('order_ref' in body) info.order_ref = str(body.order_ref, 60);
+  if ('expected_date' in body) {
+    const d = typeof body.expected_date === 'string' ? body.expected_date : '';
+    if (d && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(Date.parse(d)))) return fail('Data de previsão inválida.');
+    info.expected_date = d || null;
+  }
+  const hasInfo = Object.keys(info).length > 0;
+  if (status === undefined && !hasResponse && !hasInfo) return fail('Nada para alterar.');
   try {
     const user = await requireUser();
     if (!canSeePurchases(user)) throw new AccessError(403, 'Você não tem acesso às solicitações de compra.');
@@ -61,15 +71,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
         patch.response = note;
       }
       patch.handled_by = user.display_name;
+      Object.assign(patch, info);
     }
     const changed = next !== row.status;
-    if (!changed && !hasResponse) return NextResponse.json({ request: row });
+    if (!changed && !hasResponse && !hasInfo) return NextResponse.json({ request: row });
     if (changed) patch.status = next;
-    patch.history = [...row.history, { at: patch.updated_at, by: user.display_name, status: next, note }].slice(-60);
+    if (changed || hasResponse) patch.history = [...row.history, { at: patch.updated_at, by: user.display_name, status: next, note }].slice(-60);
 
     // grava só se ninguém mexeu desde a leitura (duas pessoas ao mesmo tempo não se atropelam)
     const { data, error } = await db().from('purchase_requests').update(patch).eq('id', id).eq('updated_at', (cur as { updated_at: string }).updated_at).select(COLS).maybeSingle();
-    if (error) throw error;
+    if (error) {
+      if (hasInfo && ['42703', 'PGRST204'].includes(error.code ?? '')) return fail('Fornecedor e previsão de entrega ainda não foram ativados no banco. Rode o supabase/projeto3.sql.', 409);
+      throw error;
+    }
     if (!data) return fail('Outra pessoa acabou de alterar esta solicitação. Confira e tente de novo.', 409);
     const out = toRequest(data as Record<string, unknown>);
     await broadcast('purchase:update', { id, number: out.number, status: out.status, by: user.display_name, changed });

@@ -2,7 +2,8 @@ import 'server-only';
 import { fail } from '../http';
 import type { PurchaseRequest } from './types';
 
-export const COLS = 'id, number, from_sector, status, priority, reason, needed_by, items, requested_by, handled_by, response, history, created_at, updated_at';
+/** '*' para trazer também as colunas do Projeto 3 (fornecedor, previsão) quando já existirem */
+export const COLS = '*';
 
 /** A tabela ainda não existe (falta rodar o supabase/compras.sql)? */
 export function missingTable(e: unknown): boolean {

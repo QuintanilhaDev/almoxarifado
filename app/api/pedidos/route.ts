@@ -7,6 +7,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { UUID_RE, loadItems, str } from '@/lib/almoxarifado/stockData';
 import { colabAccess, opOrders, originsOf, rhOrders, scopeAllowed, type OrderScope } from '@/lib/pedidos/access';
 import { ORDER_COLS, duplicityFlags, event, getConfig, lineFor, missingP3, p3Fail, toOrder } from '@/lib/pedidos/server';
+import { cleanSizes, kitFor, kitLines, loadKits } from '@/lib/pedidos/rh';
 import { LIMITS, orderLabel, type OrderItem, type OrderOrigin, type OrderStage } from '@/lib/pedidos/types';
 
 export const dynamic = 'force-dynamic';
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
     }
     // admissão de alguém que ainda não está cadastrado: o cadastro é criado junto (com os tamanhos)
     if (!collab.id && collab.name && type === 'rh_admissao' && (colabAccess(user, 'edit') || rhOrders(user, 'edit'))) {
-      const sizes = b.sizes && typeof b.sizes === 'object' && !Array.isArray(b.sizes) ? Object.fromEntries(Object.entries(b.sizes as Record<string, unknown>).map(([k, v]) => [k.slice(0, 20), String(v ?? '').slice(0, 10)]).filter(([, v]) => v)) : {};
+      const sizes = cleanSizes(b.sizes);
       const { data: nc, error } = await db()
         .from('collaborators')
         .insert({ name: collab.name, matricula: collab.matricula, role: collab.role, posto_id: collab.posto_id, posto_name: collab.posto_name, company: collab.company, admitted_at: dates.start_date, sizes, created_by: user.display_name })
@@ -123,6 +124,17 @@ export async function POST(req: Request) {
     }
 
     // ----- itens -----
+    // admissão sem itens: usa o kit da função com os tamanhos do colaborador
+    if (type === 'rh_admissao' && (!Array.isArray(b.items) || !b.items.length)) {
+      const kit = kitFor(await loadKits(), collab.role);
+      if (!kit) return fail(collab.role ? `A função "${collab.role}" ainda não tem kit cadastrado. Adicione os itens à mão ou cadastre o kit em Colaboradores.` : 'Informe a função para usar o kit, ou adicione os itens.');
+      let sizes = cleanSizes(b.sizes);
+      if (!Object.keys(sizes).length && collab.id) {
+        const { data: c } = await db().from('collaborators').select('sizes').eq('id', collab.id).maybeSingle();
+        sizes = cleanSizes(c?.sizes);
+      }
+      b.items = kitLines(kit, sizes, await loadItems()).map((l) => (l.item_id ? { item_id: l.item_id, qty: l.qty } : { name: l.name, size: l.size, qty: l.qty, note: l.note }));
+    }
     if (!Array.isArray(b.items) || !b.items.length) return fail('Adicione pelo menos um item.');
     if (b.items.length > LIMITS.items) return fail(`No máximo ${LIMITS.items} itens por pedido.`);
     const stock = await loadItems();

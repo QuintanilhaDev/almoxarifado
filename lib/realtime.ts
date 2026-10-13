@@ -33,7 +33,7 @@ export function useRealtime(handler: Handler, onTick?: () => void, pollMs = 1500
     const sb = browserSupabase();
     const channel = sb?.channel(REALTIME_CHANNEL, { config: { broadcast: { self: false } } });
     if (channel) {
-      (['request:new', 'request:update', 'form:update', 'emails:update', 'admins:update', 'stock:update', 'postos:update', 'purchase:new', 'purchase:update', 'order:new', 'order:update', 'note:update'] as RealtimeEvent[]).forEach(
+      (['request:new', 'request:update', 'form:update', 'emails:update', 'admins:update', 'stock:update', 'postos:update', 'purchase:new', 'purchase:update', 'order:new', 'order:update', 'note:update', 'collab:update'] as RealtimeEvent[]).forEach(
         (ev) => channel.on('broadcast', { event: ev }, (msg) => h.current(ev, (msg.payload ?? {}) as Record<string, unknown>)),
       );
       channel.subscribe();
