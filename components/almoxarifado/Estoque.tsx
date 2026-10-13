@@ -17,6 +17,9 @@ import {
   SlidersHorizontal,
   Trash2,
   X,
+  Wand2,
+  ClipboardCheck,
+  PackageX,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Posto, StockItem, StockMovement } from '@/lib/almoxarifado/types';
@@ -31,6 +34,8 @@ import { ItemFormModal, QtyModal, SendModal, type QtyKind } from './StockModals'
 import { CategoryPicker } from './CategoryPicker';
 import { categoryKey, categoryOptions, countCategories, findCategory, hasCategory } from '@/lib/almoxarifado/categories';
 import { useMaxBus } from '@/lib/max/bus';
+import { ClassifySheet, InventorySheet, WriteoffSheet, groupName, useCatalog } from './CatalogTools';
+import { categoryName } from '@/lib/catalog';
 import './estoque.css';
 
 type Filter = 'todos' | 'baixo' | 'zerado' | 'postos';
@@ -66,9 +71,12 @@ export function Estoque({
   version,
   failed,
   onPurchase,
+  canInventory,
 }: {
   /** abre o pedido de compra já com este item (quem pode pedir compras) */
   onPurchase?: (itemId: string) => void;
+  /** inventário (contagem geral): só o master do Almoxarifado */
+  canInventory?: boolean;
   items: StockItem[] | null;
   postos: Posto[] | null;
   reload: () => Promise<void>;
@@ -88,6 +96,10 @@ export function Estoque({
   const [importing, setImporting] = useState(false);
   const [del, setDel] = useState<StockItem | null>(null);
   const [delBusy, setDelBusy] = useState(false);
+  const [classify, setClassify] = useState(false);
+  const [inventory, setInventory] = useState(false);
+  const [writeoff, setWriteoff] = useState<StockItem | null>(null);
+  const catalog = useCatalog();
   const toast = useToast();
 
   // pedidos da Max: "o que está com estoque baixo", "quanto tem de bota 42"
@@ -138,7 +150,7 @@ export function Estoque({
       if (filter === 'zerado' && i.quantity !== 0) return false;
       if (filter === 'postos' && i.at_postos <= 0) return false;
       if (!t) return true;
-      return fold(`${i.name} ${i.size ?? ''} ${i.unit} ${refLabel(i.ref)} ${i.categories.join(' ')}`).includes(t);
+      return fold(`${i.name} ${i.size ?? ''} ${i.unit} ${refLabel(i.ref)} ${i.code ?? ''} ${i.brand ?? ''} ${i.location ?? ''} ${i.categories.join(' ')}`).includes(t);
     });
     const cmp: Record<SortKey, (a: StockItem, b: StockItem) => number> = {
       nome: compareItems,
@@ -154,6 +166,7 @@ export function Estoque({
 
   const exportCsv = () => {
     const rows = [...list].sort(compareItems).map((i) => [
+      i.code ?? '',
       refLabel(i.ref),
       i.name,
       i.size ?? '',
@@ -165,8 +178,13 @@ export function Estoque({
       i.min_quantity,
       i.cost === null ? '' : String(i.cost).replace('.', ','),
       i.cost === null ? '' : String(Math.round(i.quantity * i.cost * 100) / 100).replace('.', ','),
+      i.reserved,
+      i.quantity - i.reserved,
+      i.brand ?? '',
+      i.ca_number ?? '',
+      i.location ?? '',
     ]);
-    downloadCsv(`estoque-${new Date().toISOString().slice(0, 10)}.csv`, ['Ref', 'Item', 'Tamanho', 'Categorias', 'Unidade', 'Almoxarifado', 'Nos postos', 'Total', 'Mínimo', 'Custo unitário', 'Valor em estoque'], rows);
+    downloadCsv(`estoque-${new Date().toISOString().slice(0, 10)}.csv`, ['Código', 'Ref', 'Item', 'Tamanho', 'Categorias', 'Unidade', 'Almoxarifado', 'Nos postos', 'Total', 'Mínimo', 'Custo unitário', 'Valor em estoque', 'Reservado', 'Disponível', 'Marca/modelo', 'CA', 'Localização'], rows);
   };
 
   const openItem = openId ? list.find((i) => i.id === openId) ?? null : null;
@@ -193,6 +211,16 @@ export function Estoque({
             <p>Tudo o que está no almoxarifado e o que já foi enviado aos postos, em um só lugar.</p>
           </div>
           <div className="head-actions">
+            {catalog.ready && list.some((i) => !i.code) ? (
+              <button className="btn btn-ghost edit-only" onClick={() => setClassify(true)} title="Sugere categoria e grupo e gera os códigos CC-GG-NNNN">
+                <Wand2 size={18} /> Classificar ({num(list.filter((i) => !i.code).length)})
+              </button>
+            ) : null}
+            {canInventory && catalog.ready ? (
+              <button className="btn btn-ghost edit-only" onClick={() => setInventory(true)} disabled={!items?.length}>
+                <ClipboardCheck size={18} /> Inventário
+              </button>
+            ) : null}
             <button className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>
               <FileUp size={18} /> Importar planilha
             </button>
@@ -331,9 +359,12 @@ export function Estoque({
                 {shown.slice(0, limit).map((i) => (
                   <button key={i.id} className="stock-row" onClick={() => setOpenId(i.id)} aria-label={`Abrir ${itemLabel(i)}`}>
                     <span className="stock-name">
-                      <b title={i.name}>{i.name}</b>
+                      <b title={i.name}>
+                        {i.name}
+                        {i.active === false ? <em className="cat-tag" style={{ marginLeft: 6 }}>inativo</em> : null}
+                      </b>
                       <small>
-                        {[i.size ? `Tam. ${i.size}` : null, i.unit, `Ref. ${refLabel(i.ref)}`].filter(Boolean).join(' · ')}
+                        {[i.code, i.size ? `Tam. ${i.size}` : null, i.unit, i.code ? null : `Ref. ${refLabel(i.ref)}`, i.reserved ? `${num(i.reserved)} reservado(s) · disponível ${num(i.quantity - i.reserved)}` : null].filter(Boolean).join(' · ')}
                       </small>
                       <CategoryTags list={i.categories} />
                     </span>
@@ -389,7 +420,9 @@ export function Estoque({
             onEdit={() => setForm({ item: openItem })}
             onDelete={() => setDel(openItem)}
             onPurchase={onPurchase ? () => onPurchase(openItem.id) : undefined}
-            modalOpen={Boolean(form || qty || send || importing || del)}
+            onWriteoff={catalog.ready ? () => setWriteoff(openItem) : undefined}
+            groupLabel={openItem.cat_code ? `${categoryName(openItem.cat_code) ?? ''} › ${groupName(catalog.groups, openItem.cat_code, openItem.grp_code) ?? ''}` : null}
+            modalOpen={Boolean(form || qty || send || importing || del || writeoff)}
           />
         ) : null}
       </AnimatePresence>
@@ -403,6 +436,9 @@ export function Estoque({
           <SendModal key="send" items={items} postos={postos} initialItemId={send.itemId} onClose={() => setSend(null)} onSaved={reload} />
         ) : null}
         {importing ? <ImportDialog key="imp" kind="itens" onClose={() => setImporting(false)} onDone={reload} /> : null}
+        {classify && items ? <ClassifySheet key="cls" items={items} onClose={() => setClassify(false)} onDone={() => { setClassify(false); reload(); }} /> : null}
+        {inventory && items ? <InventorySheet key="inv" items={items} onClose={() => setInventory(false)} onDone={() => { setInventory(false); reload(); }} /> : null}
+        {writeoff ? <WriteoffSheet key="wo" item={writeoff} onClose={() => setWriteoff(null)} onDone={() => { setWriteoff(null); reload(); }} /> : null}
       </AnimatePresence>
 
       <ConfirmModal
@@ -451,9 +487,13 @@ function ItemDrawer({
   onEdit,
   onDelete,
   onPurchase,
+  onWriteoff,
+  groupLabel,
   modalOpen,
 }: {
   onPurchase?: () => void;
+  onWriteoff?: () => void;
+  groupLabel?: string | null;
   item: StockItem;
   options: string[];
   reload: () => Promise<void>;
@@ -526,7 +566,8 @@ function ItemDrawer({
           <div style={{ minWidth: 0 }}>
             <h2>{item.name}</h2>
             <p>
-              {[item.size ? `Tam. ${item.size}` : null, item.unit, `Ref. ${refLabel(item.ref)}`].filter(Boolean).join(' · ')}
+              {[item.code, item.size ? `Tam. ${item.size}` : null, item.unit, `Ref. ${refLabel(item.ref)}`].filter(Boolean).join(' · ')}
+              {item.active === false ? <span className="badge"> Inativo</span> : null}
               {low ? (
                 <>
                   {' '}
@@ -552,10 +593,15 @@ function ItemDrawer({
               <b>{num(item.at_postos)}</b>
             </div>
             <div>
-              <small>Total</small>
-              <b>{num(item.quantity + item.at_postos)}</b>
+              <small>{item.reserved ? 'Disponível' : 'Total'}</small>
+              <b>{num(item.reserved ? item.quantity - item.reserved : item.quantity + item.at_postos)}</b>
             </div>
           </div>
+          {item.reserved ? (
+            <p className="help" style={{ margin: '-6px 0 0' }}>
+              {num(item.reserved)} {item.reserved === 1 ? 'unidade reservada' : 'unidades reservadas'} para pedidos de material (ainda no almoxarifado, mas já separadas).
+            </p>
+          ) : null}
 
           <div className="drawer-actions edit-only">
             <button className="btn btn-primary btn-sm" onClick={onSend} disabled={item.quantity < 1}>
@@ -570,6 +616,11 @@ function ItemDrawer({
             <button className="btn btn-ghost btn-sm" onClick={() => onQty('ajuste')}>
               <SlidersHorizontal size={15} /> Ajustar saldo
             </button>
+            {onWriteoff ? (
+              <button className="btn btn-ghost btn-sm" onClick={onWriteoff} disabled={item.quantity - item.reserved < 1}>
+                <PackageX size={15} /> Baixa (perda ou fornecedor)
+              </button>
+            ) : null}
           </div>
           {onPurchase ? (
             <div className="drawer-actions">
@@ -594,10 +645,34 @@ function ItemDrawer({
 
           <div>
             <h3 className="sec-title">Dados</h3>
+            {item.code ? (
+              <div className="kv-row">
+                <span>Código</span>
+                <b>
+                  {item.code}
+                  {groupLabel ? <small style={{ display: 'block', color: 'var(--muted)', fontWeight: 500 }}>{groupLabel}</small> : null}
+                </b>
+              </div>
+            ) : null}
             <div className="kv-row">
               <span>Estoque mínimo</span>
               <b>{item.min_quantity ? num(item.min_quantity) : 'Não definido'}</b>
             </div>
+            {[
+              ['Estoque máximo', item.max_quantity != null ? num(item.max_quantity) : null],
+              ['Prazo de reposição', item.lead_days != null ? `${item.lead_days} dias` : null],
+              ['Estoque de segurança', item.safety_qty != null ? num(item.safety_qty) : null],
+              ['Marca/modelo', item.brand],
+              ['CA (EPI)', item.ca_number],
+              ['Localização', item.location],
+            ]
+              .filter(([, v]) => v)
+              .map(([k, v]) => (
+                <div className="kv-row" key={k as string}>
+                  <span>{k}</span>
+                  <b>{v}</b>
+                </div>
+              ))}
             <div className="kv-row">
               <span>Custo unitário</span>
               <b>{money(item.cost)}</b>
@@ -639,6 +714,23 @@ function ItemDrawer({
             <button className="btn btn-ghost btn-sm" onClick={onEdit}>
               <Pencil size={15} /> Editar dados
             </button>
+            {onWriteoff ? (
+              <button
+                className="btn btn-ghost btn-sm"
+                title={item.active === false ? 'Volta a aparecer nos pedidos e nas buscas' : 'Some dos pedidos e das buscas, mas o histórico fica'}
+                onClick={async () => {
+                  try {
+                    await api(`/api/almoxarifado/stock/${item.id}`, { method: 'PATCH', json: { active: item.active === false } });
+                    toast({ kind: 'success', title: item.active === false ? 'Item reativado' : 'Item desativado', text: itemLabel(item) });
+                    await reload();
+                  } catch (err) {
+                    toast({ kind: 'error', title: 'Não foi possível', text: (err as Error).message });
+                  }
+                }}
+              >
+                {item.active === false ? 'Reativar item' : 'Desativar item'}
+              </button>
+            ) : null}
             <button className="btn btn-danger btn-sm" onClick={onDelete}>
               <Trash2 size={15} /> Excluir item
             </button>

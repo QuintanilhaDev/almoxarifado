@@ -35,6 +35,8 @@ import {
 } from '@/lib/compras/types';
 import '../almoxarifado/estoque.css';
 import './compras.css';
+import '../pedidos/pedidos.css';
+import { ReplenishSheet, useReplenishCount } from './Replenish';
 
 export type BoardMode = 'almox' | 'compras';
 type Filter = 'abertas' | 'novas' | 'andamento' | 'concluidas' | 'todas';
@@ -89,6 +91,8 @@ export function PurchaseBoard({
   const [filter, setFilter] = useState<Filter>('abertas');
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState<{ itemId?: string } | null>(null);
+  const [replenish, setReplenish] = useState(false);
+  const repCount = useReplenishCount(mode === 'almox' && canEdit, requests);
 
   useEffect(() => {
     if (prefill && canEdit && mode === 'almox' && items?.length) {
@@ -152,6 +156,9 @@ export function PurchaseBoard({
           </div>
           {mode === 'almox' ? (
             <div className="head-actions">
+              <button className="btn btn-ghost edit-only" onClick={() => setReplenish(true)} disabled={!canEdit}>
+                <PackagePlus size={18} /> Reposição sugerida{repCount ? ` (${repCount})` : ''}
+              </button>
               <button className="btn btn-primary edit-only" onClick={() => setCreating({})} disabled={!canEdit}>
                 <Plus size={18} /> Nova solicitação de compra
               </button>
@@ -159,6 +166,17 @@ export function PurchaseBoard({
           ) : null}
         </div>
 
+        {mode === 'almox' && canEdit && repCount ? (
+          <div className="banner">
+            <AlertTriangle size={20} color="var(--amber)" />
+            <span>
+              {repCount === 1 ? '1 item chegou' : `${repCount} itens chegaram`} ao ponto de reposição (consumo médio × prazo, já descontando o que está para chegar).
+            </span>
+            <button className="btn btn-ghost btn-sm" onClick={() => setReplenish(true)}>
+              Ver sugestão
+            </button>
+          </div>
+        ) : null}
         <div className="toolbar">
           <div className="filter-seg" role="tablist" aria-label="Filtrar solicitações de compra">
             {filters.map((f) => (
@@ -232,6 +250,18 @@ export function PurchaseBoard({
         {open ? <PurchaseDrawer key={open.id} mode={mode} req={open} canEdit={canEdit} onClose={() => setOpenId(null)} reload={reload} modalOpen={Boolean(creating)} /> : null}
       </AnimatePresence>
       <AnimatePresence>
+        {replenish ? (
+          <ReplenishSheet
+            key="rep"
+            onClose={() => setReplenish(false)}
+            onSaved={async (id) => {
+              setReplenish(false);
+              setFilter('abertas');
+              await reload();
+              setOpenId(id);
+            }}
+          />
+        ) : null}
         {creating ? (
           <NewPurchase
             key="n"
@@ -357,6 +387,13 @@ function PurchaseDrawer({
             </div>
           </div>
 
+          {req.supplier || req.expected_date || req.order_ref ? (
+            <div className="p-answer" style={{ fontSize: 14 }}>
+              {req.supplier ? <div>Fornecedor: <b>{req.supplier}</b></div> : null}
+              {req.order_ref ? <div>Pedido de compra: <b>{req.order_ref}</b></div> : null}
+              {req.expected_date ? <div>Previsão de entrega: <b>{dateBR(req.expected_date)}</b></div> : null}
+            </div>
+          ) : null}
           {req.reason ? (
             <div>
               <h3 className="sec-title">Motivo</h3>
@@ -375,6 +412,7 @@ function PurchaseDrawer({
                       {i.item_id ? (i.stock !== null ? `Saldo no pedido: ${num(i.stock)}${i.min ? ` · mín. ${num(i.min)}` : ''}` : 'Item do estoque') : 'Item novo (fora do estoque)'}
                       {i.note ? ` · ${i.note}` : ''}
                     </small>
+                    {(i as { orders?: { number: number }[] }).orders?.length ? <small className="o-buy">para o pedido de material {(i as { orders?: { number: number }[] }).orders!.map((o) => '#' + String(o.number).padStart(4, '0')).join(', ')}</small> : null}
                   </span>
                   <strong>
                     {num(i.quantity)} <small>{i.unit}</small>
@@ -401,6 +439,7 @@ function PurchaseDrawer({
                   </button>
                 ))}
               </div>
+              <PurchaseInfoFields req={req} disabled={Boolean(busy)} onSave={(body) => send(body, 'Dados da compra salvos')} />
               <label className="label" htmlFor="p-resp" style={{ marginTop: 14 }}>
                 Resposta para o Almoxarifado <span className="opt-tag">(opcional)</span>
               </label>
@@ -704,6 +743,46 @@ function LineRow({ n, line, items, taken, onChange, onRemove }: { n: number; lin
       ) : (
         <span className="p-line-gap" />
       )}
+    </div>
+  );
+}
+
+/** Compras informa fornecedor, nº do pedido de compra e previsão: o Almoxarifado e os pedidos ligados veem na hora. */
+function PurchaseInfoFields({ req, disabled, onSave }: { req: PurchaseRequest; disabled: boolean; onSave: (b: Record<string, unknown>) => void }) {
+  const [supplier, setSupplier] = useState(req.supplier ?? '');
+  const [ref, setRef] = useState(req.order_ref ?? '');
+  const [date, setDate] = useState(req.expected_date ?? '');
+  useEffect(() => {
+    setSupplier(req.supplier ?? '');
+    setRef(req.order_ref ?? '');
+    setDate(req.expected_date ?? '');
+  }, [req.supplier, req.order_ref, req.expected_date]);
+  const dirty = supplier !== (req.supplier ?? '') || ref !== (req.order_ref ?? '') || date !== (req.expected_date ?? '');
+  return (
+    <div className="sx-grid" style={{ marginTop: 14 }}>
+      <div>
+        <label className="label" htmlFor="p-sup">
+          Fornecedor
+        </label>
+        <input id="p-sup" className="input" value={supplier} maxLength={120} onChange={(e) => setSupplier(e.target.value)} />
+      </div>
+      <div>
+        <label className="label" htmlFor="p-ref">
+          Nº do pedido de compra
+        </label>
+        <input id="p-ref" className="input" value={ref} maxLength={60} onChange={(e) => setRef(e.target.value)} />
+      </div>
+      <div>
+        <label className="label" htmlFor="p-exp">
+          Previsão de entrega
+        </label>
+        <input id="p-exp" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+      </div>
+      <div style={{ alignSelf: 'end' }}>
+        <button className="btn btn-ghost btn-sm" disabled={disabled || !dirty} onClick={() => onSave({ supplier, order_ref: ref, expected_date: date })}>
+          Salvar dados da compra
+        </button>
+      </div>
     </div>
   );
 }

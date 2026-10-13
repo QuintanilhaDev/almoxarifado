@@ -14,6 +14,8 @@ export interface MaxEvents {
   /** aviso falado pela Max (ex.: nova solicitação de compra); tone alert = pisca em amarelo */
   /** abre uma solicitação de compra na tela (Almoxarifado ou Compras) */
   'compras:open': { id: string };
+  /** Projeto 3: abre um pedido de material / filtra o painel */
+  'pedidos:open': { id?: string; number?: number; filter?: string; query?: string };
   'max:announce': { text: string; tone?: 'alert' };
   'hub:users': { create?: { name?: string; sector?: string; master?: boolean }; sector?: string; query?: string };
 }

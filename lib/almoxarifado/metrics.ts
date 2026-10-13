@@ -121,11 +121,11 @@ export interface MetricsData {
   truncated: boolean;
 }
 
-export const IN_KINDS = ['entrada', 'devolucao'];
-export const OUT_KINDS = ['saida', 'transferencia'];
+export const IN_KINDS = ['entrada', 'devolucao', 'devolucao_colaborador'];
+export const OUT_KINDS = ['saida', 'transferencia', 'entrega', 'perda', 'devolucao_fornecedor', 'estorno'];
 const NOT_MOVES = ['criacao', 'exclusao'];
 
-export const KIND_ORDER = ['entrada', 'devolucao', 'saida', 'transferencia', 'ajuste', 'baixa_posto', 'criacao', 'exclusao'];
+export const KIND_ORDER = ['entrada', 'devolucao', 'devolucao_colaborador', 'saida', 'entrega', 'transferencia', 'ajuste', 'inventario', 'baixa_posto', 'perda', 'devolucao_fornecedor', 'estorno', 'criacao', 'exclusao'];
 export const KIND_LABEL: Record<string, string> = {
   entrada: 'Entrada',
   devolucao: 'Devolução de posto',
@@ -135,6 +135,12 @@ export const KIND_LABEL: Record<string, string> = {
   baixa_posto: 'Consumo no posto',
   criacao: 'Item criado',
   exclusao: 'Item excluído',
+  entrega: 'Entrega com termo',
+  devolucao_colaborador: 'Devolução de colaborador',
+  inventario: 'Inventário',
+  perda: 'Perda ou avaria',
+  devolucao_fornecedor: 'Devolução ao fornecedor',
+  estorno: 'Estorno de nota',
 };
 
 const HOUR = 3600_000;

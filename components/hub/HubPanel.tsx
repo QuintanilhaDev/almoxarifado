@@ -1,5 +1,5 @@
 'use client';
-import { Brain, Building, UserRound, UsersRound } from 'lucide-react';
+import { BarChart3, Brain, Building, UserRound, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -14,13 +14,15 @@ import type { MaxHost } from '@/lib/max/types';
 import { SectorsOverview } from './SectorsOverview';
 import { UsersAdmin } from './UsersAdmin';
 import { MaxLearning } from './MaxLearning';
+import { Gestao } from './Gestao';
 import { useWarp } from '../core/Warp';
 import './hub.css';
 
-type Tab = 'setores' | 'usuarios' | 'max' | 'conta';
-const VALID: Tab[] = ['setores', 'usuarios', 'max', 'conta'];
+type Tab = 'setores' | 'gestao' | 'usuarios' | 'max' | 'conta';
+const VALID: Tab[] = ['setores', 'gestao', 'usuarios', 'max', 'conta'];
 const TABS: FrameTab[] = [
   { id: 'setores', label: 'Setores', short: 'Setores', icon: Building },
+  { id: 'gestao', label: 'Gestão', short: 'Gestão', icon: BarChart3 },
   { id: 'usuarios', label: 'Usuários', short: 'Usuários', icon: UsersRound },
   { id: 'max', label: 'Aprendizado da Max', short: 'Max', icon: Brain },
   { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
@@ -81,11 +83,18 @@ function Shell() {
     loadAlmox();
   }, [loadAlmox]);
 
+  const [gestaoVersion, setGestaoVersion] = useState(0);
+  const gestaoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useRealtime(
     (ev) => {
       if (ev === 'admins:update') {
         refresh();
         loadUsers();
+      }
+      // os números da Gestão se atualizam sozinhos (com um respiro para juntar vários avisos)
+      if (['order:new', 'order:update', 'stock:update', 'purchase:new', 'purchase:update', 'note:update'].includes(ev)) {
+        if (gestaoTimer.current) clearTimeout(gestaoTimer.current);
+        gestaoTimer.current = setTimeout(() => setGestaoVersion((v) => v + 1), 2500);
       }
     },
     () => {
@@ -103,6 +112,7 @@ function Shell() {
       user,
       tabs: [
         { id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral', 'inicio', 'pagina inicial'] },
+        { id: 'gestao', label: 'Gestão', aliases: ['gestao', 'indicadores', 'painel da gestao', 'relatorios', 'dashboard'] },
         { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas', 'cadastro de usuarios', 'acessos'] },
         { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max', 'o que voce aprendeu'] },
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
@@ -130,6 +140,7 @@ function Shell() {
     <>
       <AppFrame sub="Painel master" tabs={TABS} tab={tab} onTab={(t) => setTab(t as Tab)} user={user} onLogout={logout} intro={intro} onIntroEnd={endIntro}>
         {tab === 'setores' && <SectorsOverview me={user} users={users} failed={failed} retry={loadUsers} onSeeTeam={() => setTab('usuarios')} />}
+        {tab === 'gestao' && <Gestao version={gestaoVersion} />}
         {tab === 'usuarios' && <UsersAdmin me={user} users={users} setUsers={setUsers} failed={failed} reload={loadUsers} />}
         {tab === 'max' && <MaxLearning />}
         {tab === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}

@@ -1,5 +1,5 @@
 'use client';
-import { BarChart3, Boxes, Building2, Eye, Inbox as InboxIcon, ListChecks, Lock, MailCheck, ShoppingCart, UserRound, UsersRound } from 'lucide-react';
+import { BarChart3, Boxes, Building2, ClipboardList, Eye, Inbox as InboxIcon, ListChecks, Lock, MailCheck, Receipt, ShoppingCart, UserRound, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -27,14 +27,22 @@ import { Metricas } from './Metricas';
 import { PurchaseBoard } from '../compras/PurchaseBoard';
 import { usePurchases } from '../compras/usePurchases';
 import { STATUS_SPOKEN, purchaseLabel } from '@/lib/compras/types';
+import { OrdersPanel } from '../pedidos/OrdersPanel';
+import { usePedidos } from '../pedidos/usePedidos';
+import { NotasPanel } from '../notas/NotasPanel';
+import { maxEmit } from '@/lib/max/bus';
+import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/types';
+import type { PickItem } from '../pedidos/ui';
 
 const SLUG = 'almoxarifado';
-type ModuleTab = 'solicitacoes' | 'estoque' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'compras';
+type ModuleTab = 'solicitacoes' | 'pedidos' | 'estoque' | 'notas' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'compras';
 export type Tab = ModuleTab | 'equipe' | 'conta' | 'inicio';
 
 const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[] })[] = [
   { id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon, aliases: ['solicitacoes', 'pedidos', 'caixa de entrada', 'requisicoes'] },
+  { id: 'pedidos', label: 'Pedidos de material', short: 'Pedidos', icon: ClipboardList, aliases: ['pedidos de material', 'pedidos da operacao', 'pedidos do rh', 'admissoes', 'trocas', 'entregas', 'reservas'] },
   { id: 'estoque', label: 'Estoque', short: 'Estoque', icon: Boxes, aliases: ['estoque', 'itens', 'inventario', 'produtos'] },
+  { id: 'notas', label: 'Entradas (NF)', short: 'Entradas', icon: Receipt, aliases: ['entradas', 'notas fiscais', 'nota fiscal', 'notas', 'nf', 'xml', 'recebimento'] },
   { id: 'postos', label: 'Postos', short: 'Postos', icon: Building2, aliases: ['postos'] },
   { id: 'metricas', label: 'Métricas', short: 'Métricas', icon: BarChart3, aliases: ['metricas', 'relatorios', 'graficos'] },
   { id: 'formulario', label: 'Formulário', short: 'Formulário', icon: ListChecks, aliases: ['formulario', 'editor do formulario', 'perguntas'] },
@@ -141,6 +149,49 @@ function Shell() {
     if (permsRef.current.view('compras')) void reloadPurchases();
   }, [reloadPurchases]);
 
+  /* ---------- pedidos de material (Operação e RH/DP) ---------- */
+  const [orderOpen, setOrderOpen] = useState<string | null>(null);
+  const announceOrders = useCallback(
+    (list: MaterialOrder[]) => {
+      if (!list.length || !permsRef.current.view('pedidos')) return;
+      chime();
+      const o = list[0];
+      toast(
+        {
+          kind: 'info',
+          title: list.length > 1 ? `${list.length} pedidos de material chegaram` : `Pedido ${orderLabel(o.number)} · ${ORIGIN_LABEL[o.origin]}${o.priority === 'urgente' ? ' · URGENTE' : ''}`,
+          text: list.length > 1 ? undefined : `${o.collaborator_name ?? o.posto_name ?? o.requester} · ${o.items.length} ${o.items.length === 1 ? 'item' : 'itens'}`,
+          action: { label: 'Ver', onClick: () => { setTabRef.current('pedidos'); setOrderOpen(o.id); } },
+        },
+        15000,
+      );
+      const who = o.collaborator_name ? ` de ${o.collaborator_name}` : o.posto_name ? ` do ${o.posto_name}` : '';
+      maxEmit('max:announce', {
+        text:
+          list.length > 1
+            ? `Atenção, Almoxarifado: chegaram ${list.length} pedidos de material.`
+            : `Atenção, Almoxarifado: ${o.origin === 'rh_admissao' ? `o RH pediu o kit de admissão${who}` : o.origin === 'rh_troca' ? `a troca de fardamento${who} foi validada` : o.origin === 'rh_extra' ? `o RH pediu uma troca extraordinária${who}` : `a Operação encaminhou um pedido${who}`}${o.priority === 'urgente' ? '. É urgente' : ''}.`,
+        tone: 'alert',
+      });
+    },
+    [toast],
+  );
+  const pedidos = usePedidos('almox', {
+    onNew: (fresh) => announceOrders(fresh.filter((o) => o.stage === 'encaminhado')),
+    onChange: (changed) => announceOrders(changed.filter((c) => c.order.stage === 'encaminhado' && c.from.stage !== 'encaminhado').map((c) => c.order)),
+  });
+  const reloadPedidos = pedidos.reload;
+  const loadPedidos = useCallback(() => {
+    if (permsRef.current.view('pedidos')) void reloadPedidos();
+  }, [reloadPedidos]);
+  const pedidosDataRef = useRef(pedidos.data);
+  pedidosDataRef.current = pedidos.data;
+  useMaxBus('pedidos:open', (p) => {
+    setTabRef.current('pedidos');
+    const id = p.id ?? (p.number ? pedidosDataRef.current?.orders.find((o) => o.number === p.number)?.id : undefined);
+    if (id) setOrderOpen(id);
+  });
+
   /* ---------- dados ---------- */
   const loadRequests = useCallback(async () => {
     if (!permsRef.current.requests) return;
@@ -208,7 +259,8 @@ function Shell() {
     loadItems();
     loadPostos();
     loadPurchases();
-  }, [loadRequests, loadEmails, loadItems, loadPostos, loadPurchases]);
+    loadPedidos();
+  }, [loadRequests, loadEmails, loadItems, loadPostos, loadPurchases, loadPedidos]);
 
   // carrega quando a pessoa (e o que ela pode ver) é conhecida ou muda
   useEffect(() => {
@@ -233,13 +285,19 @@ function Shell() {
         setAdminsVersion((v) => v + 1);
       }
       if (ev === 'stock:update') {
+        loadPedidos();
         loadItems();
         loadPostos();
         setStockVersion((v) => v + 1);
         const by = String(payload.by || '');
         if (by && by !== userRef.current?.display_name && permsRef.current.stock) toast({ kind: 'info', title: `${by} atualizou o estoque` });
       }
-      if (ev === 'purchase:new' || ev === 'purchase:update') loadPurchases();
+      if (ev === 'purchase:new' || ev === 'purchase:update') {
+        loadPurchases();
+        loadPedidos();
+      }
+      if (ev === 'order:new' || ev === 'order:update') loadPedidos();
+      if (ev === 'note:update') window.dispatchEvent(new Event('maxhub:notes'));
       if (ev === 'postos:update') {
         loadPostos();
         setStockVersion((v) => v + 1);
@@ -254,6 +312,8 @@ function Shell() {
 
   const lowCount = useMemo(() => (perms.view('estoque') ? (items || []).filter(isLow).length : 0), [items, perms]);
   const newCount = useMemo(() => (perms.requests ? (requests || []).filter((r) => r.status === 'nova').length : 0), [requests, perms]);
+  const toSeparate = useMemo(() => (perms.view('pedidos') ? (pedidos.data?.orders ?? []).filter((o) => o.stage === 'encaminhado' && o.items.some((l) => l.reserved + l.delivered < l.qty && !l.purchase_id)).length : 0), [pedidos.data, perms]);
+  const pickItems = useMemo<PickItem[] | null>(() => (items ? items.filter((i) => i.active !== false).map((i) => ({ id: i.id, code: i.code, name: i.name, size: i.size, unit: i.unit, available: Math.max(0, i.quantity - i.reserved) })) : null), [items]);
   useEffect(() => {
     document.title = newCount ? `(${newCount}) Almoxarifado · Max Hub` : 'Almoxarifado · Max Hub';
   }, [newCount]);
@@ -266,14 +326,14 @@ function Shell() {
         label: t.label,
         short: t.short,
         icon: t.icon,
-        badge: t.id === 'solicitacoes' ? newCount : t.id === 'estoque' ? lowCount : 0,
+        badge: t.id === 'solicitacoes' ? newCount : t.id === 'estoque' ? lowCount : t.id === 'pedidos' ? toSeparate : 0,
         badgeTone: t.id === 'estoque' ? ('warn' as const) : undefined,
-        badgeTitle: t.id === 'estoque' ? 'Itens com estoque baixo' : undefined,
+        badgeTitle: t.id === 'estoque' ? 'Itens com estoque baixo' : t.id === 'pedidos' ? 'Pedidos para separar' : undefined,
       })),
       ...(perms.manager ? [{ id: 'equipe', label: 'Equipe', short: 'Equipe', icon: UsersRound }] : []),
       { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
     ],
-    [moduleTabs, newCount, lowCount, perms.manager, user],
+    [moduleTabs, newCount, lowCount, toSeparate, perms.manager, user],
   );
 
   const emailMap = useMemo(() => {
@@ -284,6 +344,8 @@ function Shell() {
 
   /* ---------- Max ---------- */
   const dataRef = useRef({ requests, items, postos, emails });
+  const ordersRef = useRef(pedidos.data?.orders ?? null);
+  ordersRef.current = pedidos.data?.orders ?? null;
   const purchasesRef = useRef(purchases.requests);
   purchasesRef.current = purchases.requests;
   dataRef.current = { requests, items, postos, emails };
@@ -310,6 +372,7 @@ function Shell() {
         emailsCount: () => dataRef.current.emails?.length ?? null,
       },
       compras: { requests: () => (permsRef.current.view('compras') ? purchasesRef.current : null) },
+      pedidos: { scope: 'almox', orders: () => (permsRef.current.view('pedidos') ? ordersRef.current : null) },
     }),
     [user, moduleTabs, perms.manager, current, setTab, can, logout, warp],
   );
@@ -357,6 +420,7 @@ function Shell() {
                 version={stockVersion}
                 failed={stockFailed && items === null}
                 onPurchase={perms.edit('compras') ? (id) => { setPurchasePrefill(id); setTab('compras'); } : undefined}
+                canInventory={perms.manager}
               />
             )}
             {current === 'compras' && (
@@ -372,6 +436,12 @@ function Shell() {
                 openId={purchaseOpen}
                 setOpenId={setPurchaseOpen}
               />
+            )}
+            {current === 'pedidos' && (
+              <OrdersPanel scope="almox" user={user} data={pedidos.data} failed={pedidos.failed} setup={pedidos.setup} reload={pedidos.reload} canEdit={perms.edit('pedidos')} openId={orderOpen} setOpenId={setOrderOpen} stockItems={pickItems} />
+            )}
+            {current === 'notas' && (
+              <NotasPanel mode="almox" canEdit={perms.edit('notas')} items={pickItems} onOrders={(id) => { setTab('pedidos'); if (id) setOrderOpen(id); }} />
             )}
             {current === 'postos' && <Postos postos={postos} items={items} reload={reloadStock} version={stockVersion} failed={stockFailed && postos === null} />}
             {current === 'metricas' && <Metricas version={stockVersion + detailVersion} />}

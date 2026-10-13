@@ -53,6 +53,8 @@ export interface RequestRow {
   updated_at: string;
   /** baixas de estoque registradas pelo "Responder" (existe após rodar baixa_e_usuarios.sql) */
   stock_applications?: StockApplication[];
+  /** pedido de material criado a partir desta solicitação (Projeto 3) */
+  order_id?: string | null;
 }
 
 export interface AuthorizedEmail {
@@ -175,7 +177,14 @@ export type MovementKind =
   | 'devolucao'
   | 'baixa_posto'
   | 'criacao'
-  | 'exclusao';
+  | 'exclusao'
+  /* Projeto 3 */
+  | 'entrega'
+  | 'estorno'
+  | 'perda'
+  | 'devolucao_fornecedor'
+  | 'inventario'
+  | 'devolucao_colaborador';
 
 export interface StockMovement {
   id: string;
@@ -201,6 +210,12 @@ export const MOVEMENT_LABEL: Record<MovementKind, string> = {
   baixa_posto: 'Baixa no posto',
   criacao: 'Item cadastrado',
   exclusao: 'Item excluído',
+  entrega: 'Entregue ao colaborador (termo)',
+  estorno: 'Estorno de nota fiscal',
+  perda: 'Baixa por perda ou avaria',
+  devolucao_fornecedor: 'Devolvido ao fornecedor',
+  inventario: 'Ajuste de inventário',
+  devolucao_colaborador: 'Devolvido pelo colaborador',
 };
 
 /** Resultado da leitura de uma planilha (pré-visualização antes de importar). */

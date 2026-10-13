@@ -1,3 +1,4 @@
+import type { MaterialOrder } from '../pedidos/types';
 import type { HubUser, HubUserRow, Level } from '../permissions';
 import type { SectorDef } from '../sectors';
 import type { Posto, RequestRow, StockItem } from '../almoxarifado/types';
@@ -61,6 +62,11 @@ export interface MaxHost {
   /** solicitações de compra (Almoxarifado ⇄ Compras), para a Max responder */
   compras?: {
     requests: () => PurchaseRequest[] | null;
+  };
+  /** pedidos de material (Projeto 3) do painel desta área */
+  pedidos?: {
+    scope: 'almox' | 'operacao' | 'rh';
+    orders: () => MaterialOrder[] | null;
   };
 }
 

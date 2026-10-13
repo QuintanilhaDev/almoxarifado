@@ -8,6 +8,11 @@ import {
   SlidersHorizontal,
   Trash2,
   Undo2,
+  UserCheck,
+  RotateCcw,
+  PackageX,
+  Truck,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -25,6 +30,12 @@ const ICON: Record<MovementKind, { Icon: LucideIcon; tone: '' | 'in' | 'out' }> 
   baixa_posto: { Icon: PackageMinus, tone: 'out' },
   criacao: { Icon: PackagePlus, tone: 'in' },
   exclusao: { Icon: Trash2, tone: 'out' },
+  entrega: { Icon: UserCheck, tone: 'out' },
+  estorno: { Icon: RotateCcw, tone: 'out' },
+  perda: { Icon: PackageX, tone: 'out' },
+  devolucao_fornecedor: { Icon: Truck, tone: 'out' },
+  inventario: { Icon: ClipboardCheck, tone: '' },
+  devolucao_colaborador: { Icon: Undo2, tone: 'in' },
 };
 
 function amount(m: StockMovement) {
@@ -36,10 +47,18 @@ function amount(m: StockMovement) {
     case 'saida':
     case 'baixa_posto':
     case 'exclusao':
+    case 'entrega':
+    case 'estorno':
+    case 'perda':
+    case 'devolucao_fornecedor':
       return `−${num(m.quantity)}`;
+    case 'devolucao_colaborador':
+      return m.after_qty !== null && m.before_qty !== null && m.after_qty > m.before_qty ? `+${num(m.quantity)}` : `${num(m.quantity)} (descartado)`;
     case 'transferencia':
       return `→ ${num(m.quantity)}`;
     case 'ajuste':
+    case 'inventario':
+    default:
       return m.before_qty !== null && m.after_qty !== null ? `${num(m.before_qty)} → ${num(m.after_qty)}` : num(m.quantity);
   }
 }
@@ -65,7 +84,7 @@ export function MovementRow({ m, showItem = true }: { m: StockMovement; showItem
       </div>
       <div className="move-qty">
         {amount(m)}
-        {m.after_qty !== null && m.kind !== 'ajuste' && m.kind !== 'exclusao' ? <small>saldo {num(m.after_qty)}</small> : null}
+        {m.after_qty !== null && m.kind !== 'ajuste' && m.kind !== 'inventario' && m.kind !== 'exclusao' ? <small>saldo {num(m.after_qty)}</small> : null}
       </div>
     </div>
   );
