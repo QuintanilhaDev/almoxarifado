@@ -1,5 +1,5 @@
 'use client';
-import { ArrowUpRight, Briefcase, Crown, HandCoins, Package, ShieldCheck, TriangleAlert, UsersRound, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, Briefcase, Crown, HandCoins, Package, ShieldCheck, ShoppingCart, TriangleAlert, UsersRound, type LucideIcon } from 'lucide-react';
 import { greetingFor } from '@/lib/format';
 import type { HubUser, HubUserRow } from '@/lib/permissions';
 import { useWarp } from '../core/Warp';
@@ -14,6 +14,7 @@ const ICON: Record<SectorSlug, LucideIcon> = {
   operacional: ShieldCheck,
   financeiro: HandCoins,
   comercial: Briefcase,
+  compras: ShoppingCart,
 };
 
 export function SectorsOverview({

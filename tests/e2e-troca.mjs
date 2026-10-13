@@ -122,6 +122,21 @@ try {
   ok(page.url() === B + '/setor/rh', 'clique duplo: vale só o primeiro destino');
   await page.context().close();
 
+  console.log('\n[4b] Setor Compras');
+  page = await newPage(browser);
+  await login(page);
+  ok((await page.locator('.hub-card').count()) === 6 && (await page.locator('.hub-card:has-text("Compras")').count()) === 1, 'o painel master mostra o setor Compras (6 setores)');
+  await page.locator('.hub-card:has-text("Compras") a:has-text("Abrir ferramenta")').click();
+  await page.waitForSelector('.warp.is-rise');
+  await page.waitForTimeout(900);
+  ok((await page.locator('.warp-label').textContent()) === 'Abrindo o setorCompras', 'a Max anuncia "Abrindo o setor Compras"');
+  await page.waitForURL(B + '/setor/compras', { timeout: 10000 });
+  await page.waitForSelector('.warp', { state: 'detached', timeout: 20000 });
+  await page.waitForSelector('.blank-tool', { timeout: 8000 });
+  ok(/Compras/.test(await page.locator('.blank-tool').textContent()), 'a ferramenta do setor Compras abre (tela em preparação)');
+  await page.screenshot({ path: SHOTS + '/t5-compras.png' });
+  await page.context().close();
+
   console.log('\n[5] Celular e movimento reduzido');
   page = await newPage(browser, true);
   await login(page);

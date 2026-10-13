@@ -3,7 +3,7 @@
  * Para criar um setor novo: acrescente uma entrada aqui. Ele ganha, sozinho, a tela
  * padrão (/setor/<slug>), a aba Equipe, as permissões e a assistente Max.
  */
-export type SectorSlug = 'almoxarifado' | 'rh' | 'operacional' | 'financeiro' | 'comercial';
+export type SectorSlug = 'almoxarifado' | 'rh' | 'operacional' | 'financeiro' | 'comercial' | 'compras';
 
 export interface SectorModule {
   /** id usado nas permissões (não mude depois de criado) */
@@ -81,6 +81,15 @@ export const SECTORS: SectorDef[] = [
     description: 'Propostas, contratos, clientes e oportunidades.',
     ready: false,
     aliases: ['comercial', 'vendas', 'contratos'],
+    modules: [],
+  },
+  {
+    slug: 'compras',
+    name: 'Compras',
+    short: 'Compras',
+    description: 'Pedidos de compra, cotações, fornecedores e acompanhamento das entregas.',
+    ready: false,
+    aliases: ['compras', 'setor de compras', 'suprimentos', 'aquisicoes', 'cotacoes'],
     modules: [],
   },
 ];

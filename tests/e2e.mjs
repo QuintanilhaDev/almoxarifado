@@ -117,7 +117,7 @@ try {
   await page.waitForURL(B + '/hub', { timeout: 15000 });
   await page.waitForSelector('.hub-card');
   await page.waitForTimeout(1800);
-  ok(await page.locator('.hub-card').count() === 5, 'cinco setores no painel master');
+  ok(await page.locator('.hub-card').count() === 6, 'seis setores no painel master');
   ok(!(await page.evaluate(() => document.documentElement.classList.contains('intro'))), 'transição de entrada terminou');
   await page.screenshot({ path: SHOTS + '/04-hub.png' });
   let r = await ask(page, 'Max, quantos usuários temos?');

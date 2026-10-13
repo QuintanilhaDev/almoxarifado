@@ -102,6 +102,9 @@ const CASES: Case[] = [
   // "diga olá para…"
   [login, 'Max, diga olá para Fernanda', 'say-hello'], [login, 'Max diga oi pro Júnior', 'say-hello'], [login, 'Max, diga olá para Fernanda, Junior, Suzana', 'say-hello'], [login, 'Max dê bom dia para a Suzana', 'say-hello'],
   [login, 'Max cumprimente o Carlos', 'say-hello'], [login, 'Max manda um alô pra galera', 'say-hello'], [almox, 'Max diga olá para o Neilton', 'say-hello'], [login, 'Max, bom dia', 'greet'], [login, 'Max olá', 'greet'],
+  // setor Compras
+  [hub, 'Max abrir o setor de compras', 'go-sector'], [hub, 'Max abrir o setor de suprimentos', 'go-sector'], [hub, 'Max quem está no setor de compras', 'hub-users-of-sector'],
+  [hub, 'Max criar usuário no setor compras', 'hub-create-user'], [almox, 'Max lista de compras', 'almox-stock-low'], [almox, 'Max o que precisa comprar', 'almox-stock-low'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];
