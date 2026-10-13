@@ -12,6 +12,7 @@ import { signatureKey, type Learned } from '@/lib/max/learn';
 const WAIT_MS = 14000;
 const FOLLOW_MS = 8000;
 import { sfx } from '@/lib/max/sfx';
+import { useMaxBus } from '@/lib/max/bus';
 import type { MaxCard, MaxHost, MaxMemory, MaxReply } from '@/lib/max/types';
 import { MaxOrb, type OrbState } from './MaxOrb';
 import './max.css';
@@ -29,7 +30,7 @@ interface Entry {
 }
 
 const VOICE_PREF = 'maxhub:voz';
-const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipédia', clima: 'Open-Meteo', cambio: 'cotação online', ia: 'IA', web: 'pesquisa na web', memoria: 'aprendido com o uso' };
+const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipédia', clima: 'Open-Meteo', cambio: 'cotação online', ia: 'IA', web: 'pesquisa na web', memoria: 'aprendido com o uso', aviso: 'aviso do sistema' };
 
 /**
  * A Max nas ferramentas dos setores: a esfera no canto inferior direito.
@@ -159,6 +160,56 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       clearTimeout(timer);
     }
   }, [loadLearned]);
+
+  /* ---------- avisos (ex.: "chegou uma solicitação de compra") ---------- */
+  const [alert, setAlert] = useState(false);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const announceQueue = useRef<{ text: string; at: number }[]>([]);
+  const announcing = useRef(false);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runAnnounce = useCallback(() => {
+    if (announcing.current || retry.current) return;
+    const nextOne = announceQueue.current[0];
+    if (!nextOne) return;
+    const st = statusRef.current;
+    // no meio de uma conversa: espera a resposta terminar (até 60 s pensando, 25 s falando)
+    const waited = Date.now() - nextOne.at;
+    if ((st === 'thinking' && waited < 60_000) || (st === 'speaking' && waited < 25_000)) {
+      retry.current = setTimeout(() => {
+        retry.current = null;
+        runAnnounce();
+      }, 1200);
+      return;
+    }
+    announceQueue.current.shift();
+    announcing.current = true;
+    if (st === 'listening') {
+      // estava só ouvindo: o aviso tem prioridade (a pessoa fala de novo depois)
+      seq.current++;
+      listener.current?.stop();
+      setInterim('');
+    }
+    setAlert(true);
+    setStatus('speaking');
+    push({ who: 'max', text: nextOne.text, source: 'aviso' });
+    const my = seq.current;
+    const finish = () => {
+      announcing.current = false;
+      setAlert(false);
+      // só volta ao repouso se ninguém começou outra coisa (clicar para falar, digitar) durante o aviso
+      if (seq.current === my) setStatus((s) => (s === 'speaking' ? 'idle' : s));
+      if (announceQueue.current.length) setTimeout(runAnnounce, 400);
+    };
+    if (memory.current.voiceOn) speak(nextOne.text, { onEnd: () => setTimeout(finish, 300) });
+    else setTimeout(finish, 4000); // voz desligada: só pisca
+  }, [push]);
+  useMaxBus('max:announce', (p) => {
+    // mesmo aviso repetido (tempo real + consulta) não é falado duas vezes
+    if (announceQueue.current.some((q) => q.text === p.text)) return;
+    announceQueue.current.push({ text: p.text, at: Date.now() });
+    runAnnounce();
+  });
 
   const close = useCallback(() => {
     seq.current++;
@@ -505,7 +556,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       </AnimatePresence>
 
       <button
-        className={`max-fab is-${status}`}
+        className={`max-fab is-${status}${alert ? ' is-alert' : ''}`}
         onClick={orbClick}
         aria-label={open ? (status === 'listening' ? 'Max está ouvindo. Clique para parar' : 'Falar com a Max') : 'Abrir a Max, assistente virtual'}
         aria-expanded={open}

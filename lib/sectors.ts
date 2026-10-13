@@ -45,6 +45,7 @@ export const SECTORS: SectorDef[] = [
       { id: 'metricas', label: 'Métricas', hint: 'Só leitura: ver e baixar os relatórios' },
       { id: 'formulario', label: 'Formulário', hint: 'Alterar as perguntas do formulário dos supervisores' },
       { id: 'emails', label: 'E-mails autorizados', hint: 'Liberar e remover e-mails de supervisores' },
+      { id: 'compras', label: 'Compras', hint: 'Pedir compras ao setor de Compras e cancelar pedidos ainda novos' },
     ],
   },
   {
@@ -88,9 +89,9 @@ export const SECTORS: SectorDef[] = [
     name: 'Compras',
     short: 'Compras',
     description: 'Pedidos de compra, cotações, fornecedores e acompanhamento das entregas.',
-    ready: false,
+    ready: true,
     aliases: ['compras', 'setor de compras', 'suprimentos', 'aquisicoes', 'cotacoes'],
-    modules: [],
+    modules: [{ id: 'solicitacoes', label: 'Solicitações', hint: 'Mudar o andamento e responder os pedidos de compra' }],
   },
 ];
 

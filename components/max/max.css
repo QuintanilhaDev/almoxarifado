@@ -375,3 +375,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* aviso importante (ex.: nova solicitação de compra): a Max pisca em amarelo enquanto fala */
+.max-fab.is-alert {
+  animation: max-alert 0.9s ease-in-out infinite;
+}
+@keyframes max-alert {
+  0%,
+  100% {
+    filter: hue-rotate(150deg) saturate(1.8) brightness(1.12) drop-shadow(0 0 22px rgba(255, 205, 64, 0.85));
+  }
+  50% {
+    filter: hue-rotate(150deg) saturate(1.3) brightness(0.95) drop-shadow(0 0 6px rgba(255, 205, 64, 0.35));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .max-fab.is-alert {
+    animation: none;
+    filter: hue-rotate(150deg) saturate(1.6) drop-shadow(0 0 16px rgba(255, 205, 64, 0.7));
+  }
+}

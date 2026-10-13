@@ -2,6 +2,7 @@ import type { HubUser, HubUserRow, Level } from '../permissions';
 import type { SectorDef } from '../sectors';
 import type { Posto, RequestRow, StockItem } from '../almoxarifado/types';
 import type { Query } from './text';
+import type { PurchaseRequest } from '../compras/types';
 
 /** Cartão mostrado junto com a resposta da Max. */
 export type MaxCard =
@@ -56,6 +57,10 @@ export interface MaxHost {
   };
   hub?: {
     users: () => HubUserRow[] | null;
+  };
+  /** solicitações de compra (Almoxarifado ⇄ Compras), para a Max responder */
+  compras?: {
+    requests: () => PurchaseRequest[] | null;
   };
 }
 

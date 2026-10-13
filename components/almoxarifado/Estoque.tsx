@@ -13,6 +13,7 @@ import {
   Plus,
   Search,
   Send,
+  ShoppingCart,
   SlidersHorizontal,
   Trash2,
   X,
@@ -64,7 +65,10 @@ export function Estoque({
   reload,
   version,
   failed,
+  onPurchase,
 }: {
+  /** abre o pedido de compra já com este item (quem pode pedir compras) */
+  onPurchase?: (itemId: string) => void;
   items: StockItem[] | null;
   postos: Posto[] | null;
   reload: () => Promise<void>;
@@ -384,6 +388,7 @@ export function Estoque({
             onSend={() => setSend({ itemId: openItem.id })}
             onEdit={() => setForm({ item: openItem })}
             onDelete={() => setDel(openItem)}
+            onPurchase={onPurchase ? () => onPurchase(openItem.id) : undefined}
             modalOpen={Boolean(form || qty || send || importing || del)}
           />
         ) : null}
@@ -445,8 +450,10 @@ function ItemDrawer({
   onSend,
   onEdit,
   onDelete,
+  onPurchase,
   modalOpen,
 }: {
+  onPurchase?: () => void;
   item: StockItem;
   options: string[];
   reload: () => Promise<void>;
@@ -564,6 +571,13 @@ function ItemDrawer({
               <SlidersHorizontal size={15} /> Ajustar saldo
             </button>
           </div>
+          {onPurchase ? (
+            <div className="drawer-actions">
+              <button className={`btn btn-sm ${low ? 'btn-primary' : 'btn-ghost'}`} onClick={onPurchase}>
+                <ShoppingCart size={15} /> Pedir compra deste item
+              </button>
+            </div>
+          ) : null}
 
           <div>
             <h3 className="sec-title">Categorias</h3>

@@ -6,6 +6,7 @@ import { bestMatches, contentTokens, listJoin, normalize, plural, type Query } f
 import type { MaxHost, MaxReply, Skill } from './types';
 import type { RangeData } from '../almoxarifado/range';
 import { windowIn, type TimeWindow } from './when';
+import { aboutPurchase } from './skills-compras';
 import { categoryInPhrase, countCategories, hasCategory } from '../almoxarifado/categories';
 
 const SECTOR = 'almoxarifado';
@@ -365,7 +366,7 @@ export const almoxSkills: Skill[] = [
     id: 'almox-request-open',
     sector: SECTOR,
     examples: ['Max, abrir a solicitação 12'],
-    match: (q) => (q.any(...REQ_WORDS, 'protocolo') && q.numbers.length > 0 && !windowIn(q.norm) ? 0.93 : 0),
+    match: (q) => (!aboutPurchase(q) && q.any(...REQ_WORDS, 'protocolo') && q.numbers.length > 0 && !windowIn(q.norm) ? 0.93 : 0),
     run: (q, host) => {
       if (!host.can('solicitacoes')) return noAccess('Solicitações');
       const list = host.almox?.requests();
@@ -388,7 +389,7 @@ export const almoxSkills: Skill[] = [
     id: 'almox-request-latest',
     sector: SECTOR,
     examples: ['Max, qual foi a última solicitação?'],
-    match: (q) => (q.any(...REQ_WORDS) && q.re(/\b(ultim[oa]|mais recente|mais nov[oa]|acabou de chegar|chegou agora|recente)\b/) && !q.re(/\bultim[oa]s? (semana|mes|dia|dias|horas)\b/) ? 0.92 : 0),
+    match: (q) => (!aboutPurchase(q) && q.any(...REQ_WORDS) && q.re(/\b(ultim[oa]|mais recente|mais nov[oa]|acabou de chegar|chegou agora|recente)\b/) && !q.re(/\bultim[oa]s? (semana|mes|dia|dias|horas)\b/) ? 0.92 : 0),
     run: (_q, host) => {
       if (!host.can('solicitacoes')) return noAccess('Solicitações');
       const list = host.almox?.requests();
@@ -411,7 +412,7 @@ export const almoxSkills: Skill[] = [
     sector: SECTOR,
     examples: ['Max, tem solicitação nova?', 'Max, quantas solicitações pendentes?'],
     match: (q) => {
-      if (!q.any(...REQ_WORDS)) return 0;
+      if (!q.any(...REQ_WORDS) || aboutPurchase(q)) return 0;
       if (q.any('quantas', 'quantos', 'tem', 'temos', 'ha', 'existe', 'existem', 'chegou', 'chegaram', 'nova', 'novas', 'novo', 'novos', 'pendente', 'pendentes', 'resolvida', 'resolvidas', 'aberta', 'abertas', 'aberto', 'atrasada', 'atrasadas', 'situacao', 'status', 'resumo', 'fila', 'mostrar', 'mostre', 'mostra', 'ver', 'listar', 'liste')) return 0.89;
       return 0;
     },

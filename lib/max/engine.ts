@@ -1,13 +1,14 @@
 import { almoxSkills } from './skills-almox';
 import { capabilities, coreSkills } from './skills-core';
 import { emptySectorSkills, hubSkills } from './skills-hub';
+import { comprasSkills } from './skills-compras';
 import { makeQuery, normalize, stripWake, tokenize, wantsChange, type Query } from './text';
 export { wantsChange };
 import { BLOCKED_REPLY, isBlocked } from './moderation';
 import type { MaxHost, MaxMemory, MaxReply, PendingAction, Skill } from './types';
 import { gaveUp, recall, type Learned } from './learn';
 
-const ALL: Skill[] = [...coreSkills, ...almoxSkills, ...hubSkills, ...emptySectorSkills];
+const ALL: Skill[] = [...coreSkills, ...almoxSkills, ...comprasSkills, ...hubSkills, ...emptySectorSkills];
 
 /** Abaixo disto a Max não tem certeza e passa a pergunta adiante (IA/Wikipedia) ou admite que não sabe. */
 export const CONFIDENT = 0.6;

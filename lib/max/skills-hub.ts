@@ -125,14 +125,14 @@ export const hubSkills: Skill[] = [
     scopes: ['hub'],
     match: (q) => {
       const s = sectorIn(q);
-      if (!s || s.ready) return 0;
+      if (!s || s.metrics) return 0;
       return q.any('metrica', 'metricas', 'relatorio', 'relatorios', 'indicador', 'indicadores', 'desempenho', 'resumo', 'numeros', 'dados', 'dashboard', 'grafico', 'resultado', 'resultados', 'balanco', 'movimentacao') ? 0.91 : 0;
     },
     run: (q, host) => {
       const s = sectorIn(q)!;
       const team = (host.hub?.users() ?? []).filter((u) => u.sector === s.slug && !u.is_master);
       return {
-        say: `A ferramenta do setor ${s.name} ainda está em preparação, então não há métricas por enquanto. Hoje o setor tem ${plural(team.length, 'pessoa alocada', 'pessoas alocadas')}.`,
+        say: `${s.ready ? `O setor ${s.name} ainda não tem métricas.` : `A ferramenta do setor ${s.name} ainda está em preparação, então não há métricas por enquanto.`} Hoje o setor tem ${plural(team.length, 'pessoa alocada', 'pessoas alocadas')}.`,
         chips: ['Max, métricas do almoxarifado', `Max, quem está no ${s.short}?`],
       };
     },
@@ -174,11 +174,13 @@ export const emptySectorSkills: Skill[] = [
     id: 'sector-not-ready',
     scopes: ['sector'],
     match: (q, host) => {
-      if (!host.sector || host.sector.ready) return 0;
+      if (!host.sector || host.sector.metrics) return 0;
       return q.any('metrica', 'metricas', 'relatorio', 'relatorios', 'indicador', 'indicadores', 'desempenho', 'resumo', 'numeros', 'dados', 'dashboard', 'grafico', 'estatistica', 'estatisticas') ? 0.9 : 0;
     },
     run: (_q, host) => ({
-      say: `A ferramenta do setor ${host.sector!.name} ainda está em preparação, então não há métricas por enquanto. Assim que as funções entrarem, eu passo a acompanhar tudo por aqui.`,
+      say: host.sector!.ready
+        ? `O setor ${host.sector!.name} ainda não tem métricas. Caso queira que esse setor obtenha uma contagem de métricas, contate Mateus na sede.`
+        : `A ferramenta do setor ${host.sector!.name} ainda está em preparação, então não há métricas por enquanto. Assim que as funções entrarem, eu passo a acompanhar tudo por aqui.`,
       chips: ['Max, que dia é hoje?', 'Max, abrir minha conta'],
     }),
   },

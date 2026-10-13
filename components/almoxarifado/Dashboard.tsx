@@ -1,5 +1,5 @@
 'use client';
-import { BarChart3, Boxes, Building2, Eye, Inbox as InboxIcon, ListChecks, Lock, MailCheck, UserRound, UsersRound } from 'lucide-react';
+import { BarChart3, Boxes, Building2, Eye, Inbox as InboxIcon, ListChecks, Lock, MailCheck, ShoppingCart, UserRound, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -9,6 +9,7 @@ import { ToastProvider, useToast } from '../core/Toasts';
 import { useWarp } from '../core/Warp';
 import { MaxAssistant } from '../max/MaxAssistant';
 import { useRealtime } from '@/lib/realtime';
+import { useMaxBus } from '@/lib/max/bus';
 import { chime } from '@/lib/chime';
 import { protocolLabel } from '@/lib/format';
 import { canManageSector, hasLevel } from '@/lib/permissions';
@@ -23,9 +24,12 @@ import { EmailsManager } from './EmailsManager';
 import { Estoque } from './Estoque';
 import { Postos } from './Postos';
 import { Metricas } from './Metricas';
+import { PurchaseBoard } from '../compras/PurchaseBoard';
+import { usePurchases } from '../compras/usePurchases';
+import { STATUS_SPOKEN, purchaseLabel } from '@/lib/compras/types';
 
 const SLUG = 'almoxarifado';
-type ModuleTab = 'solicitacoes' | 'estoque' | 'postos' | 'metricas' | 'formulario' | 'emails';
+type ModuleTab = 'solicitacoes' | 'estoque' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'compras';
 export type Tab = ModuleTab | 'equipe' | 'conta' | 'inicio';
 
 const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[] })[] = [
@@ -35,6 +39,7 @@ const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[] })[] = [
   { id: 'metricas', label: 'Métricas', short: 'Métricas', icon: BarChart3, aliases: ['metricas', 'relatorios', 'graficos'] },
   { id: 'formulario', label: 'Formulário', short: 'Formulário', icon: ListChecks, aliases: ['formulario', 'editor do formulario', 'perguntas'] },
   { id: 'emails', label: 'E-mails autorizados', short: 'E-mails', icon: MailCheck, aliases: ['emails', 'e-mails', 'emails autorizados', 'supervisores'] },
+  { id: 'compras', label: 'Compras', short: 'Compras', icon: ShoppingCart, aliases: ['compras', 'pedidos de compra', 'solicitacoes de compra', 'aba compras'] },
 ];
 const ALL_TABS: Tab[] = [...MODULE_TABS.map((t) => t.id), 'equipe', 'conta', 'inicio'];
 
@@ -61,6 +66,8 @@ function Shell() {
   const [detailVersion, setDetailVersion] = useState(0);
   const [adminsVersion, setAdminsVersion] = useState(0);
   const knownIds = useRef<Set<string> | null>(null);
+  const [purchaseOpen, setPurchaseOpen] = useState<string | null>(null);
+  const [purchasePrefill, setPurchasePrefill] = useState<string | null>(null);
   const userRef = useRef(user);
   userRef.current = user;
 
@@ -100,6 +107,39 @@ function Shell() {
     setTabState(t);
     history.replaceState(null, '', '#' + t);
   }, []);
+  const setTabRef = useRef(setTab);
+  setTabRef.current = setTab;
+
+  /* ---------- compras (pedidos ao setor de Compras) ---------- */
+  const purchases = usePurchases({
+    onChange: (changes) => {
+      // avisa quando Compras mexe em um pedido (quem mexeu aqui mesmo já viu)
+      const others = changes.filter((c) => {
+        const last = c.req.history[c.req.history.length - 1];
+        return last && last.by !== userRef.current?.display_name && c.req.status !== 'cancelada';
+      });
+      if (!others.length) return;
+      const c = others[0];
+      const last = c.req.history[c.req.history.length - 1];
+      toast(
+        {
+          kind: 'info',
+          title: others.length > 1 ? `${others.length} solicitações de compra atualizadas` : `Compras ${c.from !== c.req.status ? `marcou ${purchaseLabel(c.req.number)} como ${STATUS_SPOKEN[c.req.status]}` : `respondeu ${purchaseLabel(c.req.number)}`}`,
+          text: others.length > 1 ? undefined : last.note ? `“${last.note}” — ${last.by}` : last.by,
+          action: { label: 'Ver', onClick: () => { setTabRef.current('compras'); setPurchaseOpen(c.req.id); } },
+        },
+        9000,
+      );
+    },
+  });
+  useMaxBus('compras:open', (p) => {
+    setTabRef.current('compras');
+    setPurchaseOpen(p.id);
+  });
+  const reloadPurchases = purchases.reload; // estável (useCallback sem dependências)
+  const loadPurchases = useCallback(() => {
+    if (permsRef.current.view('compras')) void reloadPurchases();
+  }, [reloadPurchases]);
 
   /* ---------- dados ---------- */
   const loadRequests = useCallback(async () => {
@@ -167,12 +207,13 @@ function Shell() {
     loadEmails();
     loadItems();
     loadPostos();
-  }, [loadRequests, loadEmails, loadItems, loadPostos]);
+    loadPurchases();
+  }, [loadRequests, loadEmails, loadItems, loadPostos, loadPurchases]);
 
   // carrega quando a pessoa (e o que ela pode ver) é conhecida ou muda
   useEffect(() => {
     if (user) loadAll();
-  }, [user, perms.requests, perms.emails, perms.stock, loadAll]);
+  }, [user, perms.requests, perms.emails, perms.stock, perms, loadAll]);
 
   useRealtime(
     (ev, payload) => {
@@ -198,6 +239,7 @@ function Shell() {
         const by = String(payload.by || '');
         if (by && by !== userRef.current?.display_name && permsRef.current.stock) toast({ kind: 'info', title: `${by} atualizou o estoque` });
       }
+      if (ev === 'purchase:new' || ev === 'purchase:update') loadPurchases();
       if (ev === 'postos:update') {
         loadPostos();
         setStockVersion((v) => v + 1);
@@ -242,6 +284,8 @@ function Shell() {
 
   /* ---------- Max ---------- */
   const dataRef = useRef({ requests, items, postos, emails });
+  const purchasesRef = useRef(purchases.requests);
+  purchasesRef.current = purchases.requests;
   dataRef.current = { requests, items, postos, emails };
   const current: Tab = tab ?? firstTab;
   const host = useMemo<MaxHost>(
@@ -265,6 +309,7 @@ function Shell() {
         postos: () => dataRef.current.postos,
         emailsCount: () => dataRef.current.emails?.length ?? null,
       },
+      compras: { requests: () => (permsRef.current.view('compras') ? purchasesRef.current : null) },
     }),
     [user, moduleTabs, perms.manager, current, setTab, can, logout, warp],
   );
@@ -304,7 +349,30 @@ function Shell() {
             {current === 'solicitacoes' && (
               <Inbox requests={requests} setRequests={setRequests} reload={loadRequests} emailMap={emailMap} detailVersion={detailVersion} me={user} />
             )}
-            {current === 'estoque' && <Estoque items={items} postos={postos} reload={reloadStock} version={stockVersion} failed={stockFailed && items === null} />}
+            {current === 'estoque' && (
+              <Estoque
+                items={items}
+                postos={postos}
+                reload={reloadStock}
+                version={stockVersion}
+                failed={stockFailed && items === null}
+                onPurchase={perms.edit('compras') ? (id) => { setPurchasePrefill(id); setTab('compras'); } : undefined}
+              />
+            )}
+            {current === 'compras' && (
+              <PurchaseBoard
+                mode="almox"
+                requests={purchases.requests}
+                failed={purchases.failed}
+                canEdit={perms.edit('compras')}
+                reload={purchases.reload}
+                items={items}
+                prefill={purchasePrefill}
+                onPrefillUsed={() => setPurchasePrefill(null)}
+                openId={purchaseOpen}
+                setOpenId={setPurchaseOpen}
+              />
+            )}
             {current === 'postos' && <Postos postos={postos} items={items} reload={reloadStock} version={stockVersion} failed={stockFailed && postos === null} />}
             {current === 'metricas' && <Metricas version={stockVersion + detailVersion} />}
             {current === 'formulario' && <FormEditor version={formVersion} me={user} />}

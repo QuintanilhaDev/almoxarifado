@@ -16,6 +16,9 @@ import { llmConfigured } from './llm';
 import { isWeatherQuestion, weatherAnswer } from './weather';
 import { gaveUp, nearest, signature } from '../learn';
 import { addNote, learnedFor, logMiss, notesFor, remember } from './memory';
+import { canSeePurchases } from '../../compras/access';
+import { COLS as PURCHASE_COLS, toRequest } from '../../compras/server';
+import { STATUS_LABEL } from '../../compras/types';
 
 /**
  * A Max como agente: a IA recebe FERRAMENTAS (consultar estoque, movimentar, criar usuário,
@@ -583,6 +586,27 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'compras_consultar',
+    description: 'Solicitações de compra do Almoxarifado para o setor de Compras: quantas há por andamento (nova, em cotação, comprada, entregue, recusada, cancelada) e as mais recentes. Com "numero", o conteúdo completo (itens, quantidades, motivo, resposta de Compras e histórico).',
+    params: { numero: { type: 'number' }, status: { type: 'string', enum: ['nova', 'em_cotacao', 'comprada', 'entregue', 'recusada', 'cancelada'] } },
+    when: (c) => canSeePurchases(c.user),
+    run: async (a) => {
+      const { data, error } = await db().from('purchase_requests').select(PURCHASE_COLS).order('created_at', { ascending: false }).limit(300);
+      if (error) throw new ToolError('As solicitações de compra ainda não foram ativadas no banco (falta o supabase/compras.sql). Avise a pessoa.');
+      const rows = (data ?? []).map((r) => toRequest(r as Record<string, unknown>));
+      const num = int(a.numero);
+      if (Number.isFinite(num) && num > 0) {
+        const r = rows.find((x) => x.number === num);
+        if (!r) throw new ToolError(`Não existe a solicitação de compra número ${num}. Avise a pessoa.`);
+        return { data: { numero: r.number, andamento: STATUS_LABEL[r.status], prioridade: r.priority, pedida_por: r.requested_by, em: r.created_at, precisa_ate: r.needed_by, motivo: r.reason, itens: r.items.map((i) => ({ item: label(i), quantidade: i.quantity, saldo_no_pedido: i.stock })), resposta_de_compras: r.response, cuidado_por: r.handled_by, historico: r.history.slice(-8) } };
+      }
+      const count: Record<string, number> = {};
+      rows.forEach((r) => (count[STATUS_LABEL[r.status]] = (count[STATUS_LABEL[r.status]] ?? 0) + 1));
+      const list = rows.filter((r) => !a.status || r.status === a.status);
+      return { data: { total_por_andamento: count, encontradas: list.length, recentes: list.slice(0, 10).map((r) => ({ numero: r.number, andamento: STATUS_LABEL[r.status], prioridade: r.priority, pedida_por: r.requested_by, itens: r.items.map((i) => `${label(i)} (${i.quantity})`).join(', ') })) } };
+    },
+  },
+  {
     name: 'memoria_guardar',
     description: 'Guarda uma anotação permanente que a pessoa pediu para você lembrar ("lembre que…", "anote que…", "aprenda que…"). Ex.: fornecedores, regras da casa, contatos, prazos. Não use para dados que já estão no sistema.',
     params: { texto: { type: 'string', description: 'a informação, em uma frase completa' }, alcance: { type: 'string', enum: ['setor', 'todos'] } },
@@ -647,7 +671,7 @@ async function snapshot(c: Ctx): Promise<string> {
 }
 
 /** ferramentas que só consultam (as demais preparam alterações) */
-const READ_ONLY = new Set(['comando_max', 'pesquisar_web', 'estoque_consultar', 'estoque_listar', 'movimentacoes_consultar', 'solicitacoes_consultar', 'postos_consultar', 'usuarios_consultar']);
+const READ_ONLY = new Set(['compras_consultar', 'comando_max', 'pesquisar_web', 'estoque_consultar', 'estoque_listar', 'movimentacoes_consultar', 'solicitacoes_consultar', 'postos_consultar', 'usuarios_consultar']);
 const NEED_WRITE = 'PRECISO_ALTERAR';
 const needsWrite = (raw: string | null | undefined) => /PRECISO[\s_-]?ALTERAR/i.test(raw ?? '');
 

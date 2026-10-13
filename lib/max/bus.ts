@@ -11,6 +11,10 @@ export interface MaxEvents {
   'almox:estoque': { filter?: 'todos' | 'baixo' | 'zerado' | 'postos'; query?: string; openId?: string; category?: string };
   'almox:metricas': { period: 'ultimo-dia' | 'hoje' | 'ultima-semana' | 'ultimo-mes' };
   'almox:postos': { query?: string; openId?: string };
+  /** aviso falado pela Max (ex.: nova solicitação de compra); tone alert = pisca em amarelo */
+  /** abre uma solicitação de compra na tela (Almoxarifado ou Compras) */
+  'compras:open': { id: string };
+  'max:announce': { text: string; tone?: 'alert' };
   'hub:users': { create?: { name?: string; sector?: string; master?: boolean }; sector?: string; query?: string };
 }
 

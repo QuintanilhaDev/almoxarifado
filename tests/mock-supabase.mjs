@@ -32,9 +32,12 @@ const db = {
     admin('juliana', 'Juliana Souza', { sector: 'almoxarifado', permissions: { ...full, estoque: 'view', postos: 'none', formulario: 'none', emails: 'none' } }),
     admin('carla', 'Carla Dias', { sector: 'rh', sector_role: 'master' }),
     admin('pedro', 'Pedro Alves', {}),
+    admin('carlos', 'Carlos Compras', { sector: 'compras', sector_role: 'master' }),
+    admin('lucas', 'Lucas Compras', { sector: 'compras', permissions: { solicitacoes: 'view' } }),
     admin('inativo', 'Usuário Inativo', { sector: 'financeiro', active: false }),
   ],
   hub_meta: [],
+  ...(process.env.NOCOMPRAS === '1' ? {} : { purchase_requests: [] }),
   ...(process.env.NOMEM === '1' ? {} : { max_learned: [], max_notes: [], max_misses: [] }),
   authorized_emails: [{ id: randomUUID(), email: 'sup1@empresa.com.br', supervisor_name: 'Marcos', posto: 'Posto 01', created_by: 'Neilton', created_at: iso(8000) }],
   form_config: [],
@@ -159,7 +162,7 @@ http
           if (prefer.includes('ignore-duplicates')) continue;
           return send(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint' });
         }
-        const full = { id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(table === 'admins' && !LEGACY ? { is_master: false, sector: null, sector_role: 'member', permissions: {}, active: true, last_login_at: null } : {}), ...(table === 'max_learned' ? { hits: 1, good: 0, bad: 0, route: null, tool: null, args: null } : {}), ...(table === 'stock_items' ? { ref: db.stock_items.length + 1, unit: 'Cada', quantity: 0, min_quantity: 0, cost: null, name_key: String(row.name || '').toLowerCase(), size_key: String(row.size || '').toLowerCase(), ...(NOCAT ? {} : { categories: [] }) } : {}), ...row };
+        const full = { id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(table === 'admins' && !LEGACY ? { is_master: false, sector: null, sector_role: 'member', permissions: {}, active: true, last_login_at: null } : {}), ...(table === 'purchase_requests' ? { number: db.purchase_requests.length + 1, status: 'nova', priority: 'normal', handled_by: null, response: null, reason: null, needed_by: null } : {}), ...(table === 'max_learned' ? { hits: 1, good: 0, bad: 0, route: null, tool: null, args: null } : {}), ...(table === 'stock_items' ? { ref: db.stock_items.length + 1, unit: 'Cada', quantity: 0, min_quantity: 0, cost: null, name_key: String(row.name || '').toLowerCase(), size_key: String(row.size || '').toLowerCase(), ...(NOCAT ? {} : { categories: [] }) } : {}), ...row };
         db[table].push(full);
         created.push(full);
       }

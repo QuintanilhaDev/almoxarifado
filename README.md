@@ -182,7 +182,7 @@ Os setores ficam em `lib/sectors.ts`. A tela padrão é `components/setores/Sect
 
 Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
-1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql`, `supabase/maxhub.sql`, `supabase/categorias.sql` e `supabase/max_aprendizado.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
+1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql`, `supabase/maxhub.sql`, `supabase/categorias.sql`, `supabase/max_aprendizado.sql` e `supabase/compras.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
 2. **GitHub:** crie um repositório **privado** e envie o conteúdo deste projeto.
 3. **Vercel:** importe o repositório e cadastre as variáveis do arquivo `.env.example` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`). Clique em **Deploy**.
 4. Os usuários iniciais são `master` (senha `berrythedev45`), `neilton` e `juliana` (senha `123456`). Entre com `master`, troque as senhas e ajuste os acessos no painel master.
@@ -256,6 +256,21 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 - Se a lista de postos do **formulário de solicitações** for diferente da daqui, aparece um aviso com o botão **Atualizar formulário**.
 
 **Observações sobre a planilha original (`Livro1.xlsx`):** as colunas ENTRADA, SAÍDA, SALDO e REF dependiam de outra planilha (links externos) e vinham com erro. A carga inicial usa a coluna **QUANT** como saldo atual. Dois pares de linhas repetidas (mesmo nome e tamanho) foram unidos.
+
+---
+
+## Compras ⇄ Almoxarifado (solicitações de compra)
+
+O Almoxarifado pede, o setor de Compras atende — tudo em tempo real.
+
+- **Almoxarifado → aba Compras:** "Nova solicitação de compra" com itens do estoque (busca por nome/tamanho, com saldo e mínimo) ou itens novos, quantidade, prioridade (normal/urgente), "precisa até" e motivo. O formulário sugere os itens com estoque baixo (quantidade para chegar a 2× o mínimo). No detalhe de um item do Estoque há o botão **Pedir compra deste item**. Enquanto o pedido está "Nova", o Almoxarifado pode cancelar.
+- **Compras → aba Solicitações:** cada pedido novo chega **sem recarregar a página**, com aviso na tela, som e a **Max falando em voz alta** (ela pisca em amarelo enquanto fala). Compras muda o andamento — Em cotação, Comprada, Entregue ou Recusada — e responde; o Almoxarifado vê na hora, com aviso.
+- **Permissões:** no Almoxarifado, módulo **Compras** (visualizar = acompanhar; editar = pedir e cancelar). Em Compras, módulo **Solicitações** (visualizar = ver; editar = mudar andamento e responder). Masters do setor e o master geral têm tudo. Membros antigos do Almoxarifado começam **sem** acesso a Compras: libere na aba Equipe.
+- **Max:** "Max, tem solicitação de compra nova?", "Max, como está a solicitação de compra 3?", "Max, qual foi a última solicitação?" (em Compras).
+- **Som e voz:** o navegador só toca som e fala depois do primeiro clique na página; até lá aparece um lembrete discreto. O aviso na tela aparece sempre.
+- **Tempo real:** chega pelo Supabase Realtime em cerca de 1 segundo; se a rede bloquear o Realtime, a tela de Compras confere sozinha a cada 8 segundos (o Almoxarifado, a cada 12).
+
+**Ativar:** rode `supabase/compras.sql` no SQL Editor (cria a tabela nova; não mexe em nada existente). Sem ele, as abas explicam o que falta e o resto do sistema funciona normalmente.
 
 ---
 
@@ -357,7 +372,8 @@ supabase/
   maxhub.sql               login global, setores e permissões  ← novo
   schema.sql  estoque.sql  seed_estoque.sql  baixa_e_usuarios.sql
   categorias.sql           categorias dos itens do estoque
-  max_aprendizado.sql      memória de aprendizado da Max  ← novo
+  max_aprendizado.sql      memória de aprendizado da Max
+  compras.sql              solicitações de compra (Almoxarifado → Compras)  ← novo
 tests/                     testes da Max, banco de mentira e teste no navegador
 middleware.ts              barra quem não está logado
 ```
@@ -376,6 +392,7 @@ middleware.ts              barra quem não está logado
 | Estoque ou Postos mostram "Não foi possível carregar" | Rode `supabase/estoque.sql` no SQL Editor e recarregue a página. |
 | Alguém esqueceu a senha | O master geral abre **Painel master → Usuários**, clica na pessoa e define uma **Nova senha**. |
 | O master geral esqueceu a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'mateus';`. A senha volta a ser `123456`; troque em seguida. |
+| "As solicitações de compra ainda não foram ativadas no banco" | Rode `supabase/compras.sql` no SQL Editor. |
 | "O aprendizado da Max ainda não foi ativado no banco" | Rode `supabase/max_aprendizado.sql` no SQL Editor. |
 | "As categorias ainda não foram ativadas no banco" | Rode `supabase/categorias.sql` no SQL Editor. |
 | "Falta rodar o arquivo supabase/maxhub.sql" | Rode `supabase/maxhub.sql` no SQL Editor (passo 1 da atualização). |

@@ -132,8 +132,8 @@ try {
   ok((await page.locator('.warp-label').textContent()) === 'Abrindo o setorCompras', 'a Max anuncia "Abrindo o setor Compras"');
   await page.waitForURL(B + '/setor/compras', { timeout: 10000 });
   await page.waitForSelector('.warp', { state: 'detached', timeout: 20000 });
-  await page.waitForSelector('.blank-tool', { timeout: 8000 });
-  ok(/Compras/.test(await page.locator('.blank-tool').textContent()), 'a ferramenta do setor Compras abre (tela em preparação)');
+  await page.waitForSelector('.section-head h1:has-text("Solicitações de compra")', { timeout: 8000 });
+  ok(true, 'a ferramenta do setor Compras abre nas solicitações de compra');
   await page.screenshot({ path: SHOTS + '/t5-compras.png' });
   await page.context().close();
 
