@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { rateLimit } from '@/lib/rateLimit';
+import { normalize } from '@/lib/max/text';
 import { UUID_RE, loadItems, str } from '@/lib/almoxarifado/stockData';
 import { colabAccess, opOrders, originsOf, rhOrders, scopeAllowed, type OrderScope } from '@/lib/pedidos/access';
 import { ORDER_COLS, duplicityFlags, event, getConfig, lineFor, missingP3, p3Fail, toOrder } from '@/lib/pedidos/server';
@@ -109,6 +110,12 @@ export async function POST(req: Request) {
     if (collab.posto_id && !collab.posto_name) {
       const { data: p } = await db().from('postos').select('name').eq('id', collab.posto_id).maybeSingle();
       collab.posto_name = (p?.name as string) ?? null;
+    } else if (!collab.posto_id && collab.posto_name) {
+      // posto digitado: liga ao cadastro quando o nome bate
+      const { data: ps } = await db().from('postos').select('id, name').limit(2000);
+      const key = normalize(collab.posto_name);
+      const hit = ((ps ?? []) as { id: string; name: string }[]).find((p) => normalize(p.name) === key);
+      if (hit) collab = { ...collab, posto_id: hit.id, posto_name: hit.name };
     }
     // admissão de alguém que ainda não está cadastrado: o cadastro é criado junto (com os tamanhos)
     if (!collab.id && collab.name && type === 'rh_admissao' && (colabAccess(user, 'edit') || rhOrders(user, 'edit'))) {

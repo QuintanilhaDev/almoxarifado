@@ -1,0 +1,154 @@
+.termo {
+  min-height: 100dvh;
+  background: #e9e6f2;
+  padding: 24px 16px 48px;
+  color: #1d1430;
+  font-family: var(--font-body, Figtree, system-ui, sans-serif);
+}
+.termo-bar {
+  max-width: 820px;
+  margin: 0 auto 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+.termo-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 0;
+  background: #6b3fd6;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.termo-page {
+  max-width: 820px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 14px;
+  padding: 40px 44px;
+  box-shadow: 0 10px 40px rgba(29, 20, 48, 0.12);
+}
+.termo-page header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #1d1430;
+  padding-bottom: 14px;
+}
+.termo-page header strong {
+  display: block;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+.termo-page header span {
+  color: #6b6483;
+  font-size: 13px;
+}
+.termo-id {
+  text-align: right;
+}
+.termo-id b {
+  display: block;
+  font-family: ui-monospace, monospace;
+  font-size: 16px;
+}
+.termo-page h1 {
+  font-size: 19px;
+  margin: 22px 0 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.termo-who {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 0 0 20px;
+}
+.termo-who dt {
+  font-size: 11px;
+  color: #6b6483;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.termo-who dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.termo-page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.termo-page th,
+.termo-page td {
+  border: 1px solid #d9d3e8;
+  padding: 7px 9px;
+  text-align: left;
+}
+.termo-page th {
+  background: #f3effb;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.termo-page .n {
+  text-align: right;
+  width: 60px;
+}
+.termo-text {
+  margin: 20px 0 46px;
+  line-height: 1.55;
+  font-size: 14px;
+  text-align: justify;
+}
+.termo-sign {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+}
+.termo-sign div {
+  display: grid;
+  gap: 3px;
+  text-align: center;
+}
+.termo-sign span {
+  border-top: 1px solid #1d1430;
+  margin-bottom: 4px;
+}
+.termo-sign small:last-child {
+  color: #6b6483;
+}
+.termo-page footer {
+  margin-top: 36px;
+  color: #8d86a3;
+  font-size: 11px;
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .termo-page {
+    padding: 24px 18px;
+  }
+  .termo-who {
+    grid-template-columns: 1fr 1fr;
+  }
+  .termo-sign {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  .termo {
+    background: #fff;
+    padding: 0;
+  }
+  .termo-bar {
+    display: none;
+  }
+  .termo-page {
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+  }
+}

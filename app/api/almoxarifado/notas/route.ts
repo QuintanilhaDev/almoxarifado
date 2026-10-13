@@ -12,9 +12,13 @@ import { NOTE_COLS, ensureSupplier, toNote, type NoteLine } from '@/lib/notas/se
 export const dynamic = 'force-dynamic';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const money = (v: unknown) => {
-  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/\./g, '').replace(',', '.'));
+  if (v === null || v === undefined || (typeof v === 'string' && !v.trim())) return null;
+  // "1.234,56" (digitado) ou 1234.56 (do XML)
+  const n = typeof v === 'number' ? v : String(v).includes(',') ? Number(String(v).replace(/\./g, '').replace(',', '.')) : Number(v);
   return Number.isFinite(n) && n >= 0 && n < 1e9 ? Math.round(n * 100) / 100 : null;
 };
+/** custo unitário guarda 4 casas (o XML traz assim) */
+const cost4 = (v: unknown) => (typeof v === 'number' ? (Number.isFinite(v) && v >= 0 && v < 1e9 ? Math.round(v * 10000) / 10000 : null) : money(v));
 
 /** Notas fiscais (Almoxarifado: lança; Financeiro: consulta). */
 export async function GET() {
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
       const total = money(x?.total) ?? 0;
       const discount = money(x?.discount) ?? 0;
       const extra = (money(x?.freight) ?? 0) + (money(x?.insurance) ?? 0) + (money(x?.other) ?? 0) + (money(x?.ipi) ?? 0);
-      const cost = money(x?.unit_cost) ?? Math.round(((total - discount + extra) / qty) * 10000) / 10000;
+      const cost = cost4(x?.unit_cost) ?? Math.round(((total - discount + extra) / qty) * 10000) / 10000;
       const item_id = typeof x?.item_id === 'string' && UUID_RE.test(x.item_id) && stock.has(x.item_id) ? x.item_id : null;
       items.push({
         code: str(x?.code, 60) ?? '',

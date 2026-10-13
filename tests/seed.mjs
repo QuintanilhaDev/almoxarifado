@@ -25,12 +25,16 @@ export function buildSeed({ LEGACY = false, NOCAT = false } = {}) {
     admins: [
       admin('mateus', 'Mateus Quintanilha', { is_master: true }),
       admin('neilton', 'Neilton', { sector: 'almoxarifado', sector_role: 'master', permissions: full }),
-      admin('juliana', 'Juliana Souza', { sector: 'almoxarifado', permissions: { ...full, estoque: 'view', postos: 'none', formulario: 'none', emails: 'none' } }),
+      admin('juliana', 'Juliana Souza', { sector: 'almoxarifado', permissions: { ...full, estoque: 'view', postos: 'none', formulario: 'none', emails: 'none', pedidos: 'edit' } }),
       admin('carla', 'Carla Dias', { sector: 'rh', sector_role: 'master' }),
       admin('pedro', 'Pedro Alves', {}),
       admin('carlos', 'Carlos Compras', { sector: 'compras', sector_role: 'master' }),
       admin('lucas', 'Lucas Compras', { sector: 'compras', permissions: { solicitacoes: 'view' } }),
       admin('inativo', 'Usuário Inativo', { sector: 'financeiro', active: false }),
+      // Projeto 3
+      admin('uesley', 'Uesley', { sector: 'operacional', sector_role: 'master' }),
+      admin('rita', 'Rita RH', { sector: 'rh', permissions: { pedidos: 'edit', colaboradores: 'view' } }),
+      admin('fabia', 'Fábia Financeiro', { sector: 'financeiro', permissions: { notas: 'view' } }),
     ],
     hub_meta: [],
     ...(process.env.NOCOMPRAS === '1' ? {} : { purchase_requests: [] }),

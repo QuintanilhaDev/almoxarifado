@@ -194,6 +194,7 @@ declare
   v_units  integer := 0;
   v_done   boolean := true;
   v_status text;
+  v_target uuid;
 begin
   select * into v_note from public.fiscal_notes where id = p_note for update;
   if not found then raise exception 'Nota fiscal não encontrada.'; end if;
@@ -218,23 +219,27 @@ begin
     if v_qty > v_rem then
       raise exception 'Linha % (%): faltam receber só %.', v_i + 1, v_line->>'description', v_rem;
     end if;
-    if r.item_id is null then raise exception 'Linha % (%): escolha o item do estoque.', v_i + 1, v_line->>'description'; end if;
-    select * into v_item from public.stock_items where id = r.item_id for update;
+    v_target := coalesce(r.item_id, nullif(v_line->>'item_id', '')::uuid);
+    if v_target is null then raise exception 'Linha % (%): escolha o item do estoque.', v_i + 1, v_line->>'description'; end if;
+    if coalesce((v_line->>'received')::numeric, 0) > 0 and nullif(v_line->>'item_id', '')::uuid is distinct from v_target then
+      raise exception 'Linha % (%): parte já entrou em outro item; não dá para trocar o item agora.', v_i + 1, v_line->>'description';
+    end if;
+    select * into v_item from public.stock_items where id = v_target for update;
     if not found then raise exception 'Linha %: item do estoque não encontrado.', v_i + 1; end if;
     v_unit := coalesce((v_line->>'unit_cost')::numeric, 0);
     v_cost := case when v_item.quantity + v_qty > 0
                    then round(((v_item.quantity * coalesce(v_item.cost, v_unit)) + v_qty * v_unit) / (v_item.quantity + v_qty), 2)
                    else v_unit end;
     v_label := v_item.name || coalesce(' · ' || nullif(btrim(v_item.size), ''), '');
-    update public.stock_items set quantity = quantity + v_qty, cost = v_cost, active = true, updated_at = now() where id = r.item_id;
+    update public.stock_items set quantity = quantity + v_qty, cost = v_cost, active = true, updated_at = now() where id = v_target;
     insert into public.stock_movements (item_id, item_name, kind, quantity, before_qty, after_qty, note, by_name, fiscal_note_id)
-      values (r.item_id, v_label, 'entrada', v_qty, v_item.quantity, v_item.quantity + v_qty,
+      values (v_target, v_label, 'entrada', v_qty, v_item.quantity, v_item.quantity + v_qty,
               'NF ' || v_note.number || coalesce('/' || v_note.series, '') || ' — ' || v_note.supplier_name, p_by, p_note);
     v_items := jsonb_set(v_items, array[v_i::text], v_line || jsonb_build_object(
-      'item_id', r.item_id,
+      'item_id', v_target,
       'received', coalesce((v_line->>'received')::numeric, 0) + v_qty));
     if v_note.supplier_id is not null and coalesce(v_line->>'code', '') <> '' then
-      insert into public.supplier_items (supplier_id, supplier_code, item_id) values (v_note.supplier_id, v_line->>'code', r.item_id)
+      insert into public.supplier_items (supplier_id, supplier_code, item_id) values (v_note.supplier_id, v_line->>'code', v_target)
         on conflict (supplier_id, supplier_code) do update set item_id = excluded.item_id, updated_at = now();
     end if;
     v_units := v_units + v_qty;
