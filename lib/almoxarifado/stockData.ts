@@ -29,27 +29,30 @@ export async function fetchAll<T>(
 }
 
 const ITEM_COLS = 'id, ref, name, size, unit, quantity, min_quantity, cost, created_at, updated_at';
-/** false enquanto o supabase/categorias.sql não tiver sido rodado (a tela segue funcionando sem categorias). */
-let categoriesReady: boolean | null = null;
-let categoriesCheckedAt = 0;
+const P3_COLS = 'code, cat_code, grp_code, brand, ca_number, location, max_quantity, lead_days, safety_qty, reserved, active';
+/**
+ * Colunas em camadas: o site funciona mesmo antes de rodar categorias.sql e projeto3.sql
+ * (cada camada que falta é deixada de fora e tentada de novo depois de 1 minuto).
+ */
+const TIERS = [`${ITEM_COLS}, categories, ${P3_COLS}`, `${ITEM_COLS}, categories`, ITEM_COLS];
+let tier = 0;
+let tierCheckedAt = 0;
+/** o banco já tem as colunas do Projeto 3? */
+export const projeto3Ready = () => tier === 0;
 
 export async function loadItems(): Promise<StockItem[]> {
-  type Row = Omit<StockItem, 'at_postos' | 'categories'> & { categories?: string[] | null };
-  let items: Row[];
+  type Row = Partial<StockItem> & Omit<StockItem, 'at_postos' | 'categories' | 'reserved' | 'active'> & { categories?: string[] | null };
+  let items: Row[] | null = null;
   const order = { column: 'name_key', tiebreak: 'id' };
-  const retry = categoriesReady === false && Date.now() - categoriesCheckedAt > 60_000;
-  if (categoriesReady !== false || retry) {
+  if (tier > 0 && Date.now() - tierCheckedAt > 60_000) tier = 0;
+  while (items === null) {
     try {
-      items = await fetchAll<Row>('stock_items', `${ITEM_COLS}, categories`, order);
-      categoriesReady = true;
+      items = await fetchAll<Row>('stock_items', TIERS[tier], order);
     } catch (e) {
-      if (!isMissingColumn(e)) throw e;
-      categoriesReady = false;
-      categoriesCheckedAt = Date.now();
-      items = await fetchAll<Row>('stock_items', ITEM_COLS, order);
+      if (!isMissingColumn(e) || tier === TIERS.length - 1) throw e;
+      tier++;
+      tierCheckedAt = Date.now();
     }
-  } else {
-    items = await fetchAll<Row>('stock_items', ITEM_COLS, order);
   }
   const lines = await fetchAll<{ item_id: string; quantity: number; posto_id: string }>(
     'posto_stock',
@@ -63,6 +66,17 @@ export async function loadItems(): Promise<StockItem[]> {
     cost: i.cost === null ? null : Number(i.cost),
     categories: Array.isArray(i.categories) ? sortCategories(i.categories.filter((c) => typeof c === 'string' && c)) : [],
     at_postos: sum.get(i.id) ?? 0,
+    code: i.code ?? null,
+    cat_code: i.cat_code ?? null,
+    grp_code: i.grp_code ?? null,
+    brand: i.brand ?? null,
+    ca_number: i.ca_number ?? null,
+    location: i.location ?? null,
+    max_quantity: i.max_quantity ?? null,
+    lead_days: i.lead_days ?? null,
+    safety_qty: i.safety_qty ?? null,
+    reserved: i.reserved ?? 0,
+    active: i.active ?? true,
   }));
 }
 
@@ -121,3 +135,36 @@ export function dbMessage(e: unknown): string | null {
   if (err?.code === '23505') return 'Já existe um cadastro com esse nome.';
   return null;
 }
+
+/** Campos do cadastro mestre (Projeto 3). Devolve só o que veio no corpo, já validado. */
+export function catalogFields(body: Record<string, unknown>): { patch: Record<string, unknown> } | { error: string } {
+  const patch: Record<string, unknown> = {};
+  const text = (k: string, max: number) => {
+    if (k in body) patch[k] = str(body[k], max);
+  };
+  text('brand', 80);
+  text('ca_number', 20);
+  text('location', 60);
+  for (const [k, label, max] of [
+    ['max_quantity', 'estoque máximo', 1_000_000],
+    ['lead_days', 'prazo de reposição', 365],
+    ['safety_qty', 'estoque de segurança', 1_000_000],
+  ] as const) {
+    if (!(k in body)) continue;
+    const v = body[k];
+    if (v === '' || v === null || v === undefined) {
+      patch[k] = null;
+      continue;
+    }
+    const n = intOrNull(v, max);
+    if (n === null) return { error: `O ${label} precisa ser um número inteiro entre 0 e ${max.toLocaleString('pt-BR')}.` };
+    patch[k] = n;
+  }
+  if ('active' in body) patch.active = body.active !== false;
+  if (typeof patch.max_quantity === 'number' && typeof body.min_quantity !== 'undefined') {
+    const min = intOrNull(body.min_quantity);
+    if (min !== null && patch.max_quantity < min) return { error: 'O estoque máximo não pode ser menor do que o mínimo.' };
+  }
+  return { patch };
+}
+export const P3_SQL_MSG = 'Os campos novos do catálogo ainda não foram ativados. Rode o arquivo supabase/projeto3.sql no SQL Editor do Supabase.';

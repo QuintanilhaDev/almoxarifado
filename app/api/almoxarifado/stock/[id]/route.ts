@@ -5,7 +5,7 @@ import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { isMissingColumn } from '@/lib/auth';
 import { MISSING_CATEGORIES_SQL, cleanCategories } from '@/lib/almoxarifado/categories';
-import { UUID_RE, dbMessage, intOrNull, moneyOrNull, str } from '@/lib/almoxarifado/stockData';
+import { P3_SQL_MSG, UUID_RE, catalogFields, dbMessage, intOrNull, moneyOrNull, str } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ id: string }> };
@@ -62,19 +62,35 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!Array.isArray(body.categories) && typeof body.categories !== 'string') return fail('Categorias inválidas.');
     patch.categories = cleanCategories(body.categories);
   }
+  const cf = catalogFields(body);
+  if ('error' in cf) return fail(cf.error);
+  Object.assign(patch, cf.patch);
+  const wantsCode = typeof body.cat_code === 'string' && typeof body.grp_code === 'string' && /^\d{2}$/.test(body.cat_code) && /^\d{2}$/.test(body.grp_code);
   try {
     const admin = await requireAlmox('estoque', 'edit');
     const { data, error } = await db().from('stock_items').update(patch).eq('id', id).select('id').maybeSingle();
     if (error) {
-      if ('categories' in patch && isMissingColumn(error)) return fail(MISSING_CATEGORIES_SQL, 409);
+      if ('categories' in patch && isMissingColumn(error) && !Object.keys(cf.patch).length) return fail(MISSING_CATEGORIES_SQL, 409);
+      if (isMissingColumn(error)) return fail(P3_SQL_MSG, 409);
       if (error.code === '23505') return fail('Já existe outro item com esse nome e tamanho.', 409);
       const m = dbMessage(error);
       if (m) return fail(m, 400);
       throw error;
     }
     if (!data) return fail('Item não encontrado.', 404);
+    let code: string | null = null;
+    if (wantsCode) {
+      const r = await db().rpc('assign_item_code', { p_item: id, p_cat: body.cat_code, p_grp: body.grp_code });
+      if (r.error) {
+        const m = dbMessage(r.error);
+        if (m) return fail(m, 409);
+        if (isMissingColumn(r.error) || r.error.code === 'PGRST202') return fail(P3_SQL_MSG, 409);
+        throw r.error;
+      }
+      code = r.data as string;
+    }
     await broadcast('stock:update', { by: admin.display_name });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, code });
   } catch (e) {
     return serverError(e);
   }
@@ -87,11 +103,12 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     const admin = await requireAlmox('estoque', 'edit');
     const { data: item, error: e1 } = await db()
       .from('stock_items')
-      .select('id, name, size, quantity')
+      .select('*')
       .eq('id', id)
       .maybeSingle();
     if (e1) throw e1;
     if (!item) return fail('Item não encontrado.', 404);
+    if (Number((item as { reserved?: number }).reserved ?? 0) > 0) return fail('Este item tem unidades reservadas para pedidos. Libere as reservas antes de excluir (ou desative o item).', 409);
     const { data: lines } = await db().from('posto_stock').select('quantity').eq('item_id', id);
     const atPostos = (lines ?? []).reduce((a, l) => a + (l.quantity as number), 0);
     const { error: e2 } = await db().from('stock_items').delete().eq('id', id);

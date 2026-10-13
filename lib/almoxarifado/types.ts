@@ -126,6 +126,22 @@ export interface StockItem {
   at_postos: number;
   created_at: string;
   updated_at: string;
+  /* ----- Projeto 3 (vazios enquanto o supabase/projeto3.sql não for rodado) ----- */
+  /** código do catálogo CC-GG-NNNN (imutável) */
+  code: string | null;
+  cat_code: string | null;
+  grp_code: string | null;
+  brand: string | null;
+  /** certificado de aprovação (EPI) */
+  ca_number: string | null;
+  location: string | null;
+  max_quantity: number | null;
+  /** prazo de reposição em dias */
+  lead_days: number | null;
+  safety_qty: number | null;
+  /** reservado para pedidos (não saiu fisicamente) */
+  reserved: number;
+  active: boolean;
 }
 
 export interface Posto {
