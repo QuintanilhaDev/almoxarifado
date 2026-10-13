@@ -31,12 +31,12 @@ function parseLines(v: unknown, o: MaterialOrder): Line[] | string {
  * Plano automático (Projeto 3, fluxo B/C): reserva o que há disponível sem furar o mínimo
  * e pede compra do que falta. Só calcula; a tela mostra e a pessoa confirma.
  */
-function autoPlan(o: MaterialOrder, stock: Map<string, StockItem>) {
+function autoPlan(o: MaterialOrder, stock: Map<string, StockItem>, openPurchases: Set<string>) {
   const freeLeft = new Map<string, number>();
   return o.items.map((l, i) => {
     const need = Math.max(0, l.qty - l.delivered - l.reserved);
     if (!need) return { i, reserve: 0, purchase: 0, minimum: false, pending: false };
-    const pending = Boolean(l.purchase_id); // já tem compra a caminho
+    const pending = Boolean(l.purchase_id && openPurchases.has(l.purchase_id)); // já tem compra a caminho
     if (!l.item_id) return { i, reserve: 0, purchase: pending ? 0 : need, minimum: false, pending };
     const s = stock.get(l.item_id);
     if (!s) return { i, reserve: 0, purchase: pending ? 0 : need, minimum: false, pending };
@@ -105,7 +105,13 @@ export async function POST(req: Request, ctx: Ctx) {
         if (!almoxEdit) throw new AccessError(403, 'Só o Almoxarifado pede compras pelo pedido.');
         if (o.stage !== 'encaminhado') return fail('Este pedido não está com o Almoxarifado.', 409);
         const stock = new Map((await loadItems()).map((s) => [s.id, s]));
-        const plan = autoPlan(o, stock);
+        const pIds = [...new Set(o.items.map((l) => l.purchase_id).filter(Boolean) as string[])];
+        const openPurchases = new Set<string>();
+        if (pIds.length) {
+          const { data: ps } = await db().from('purchase_requests').select('id, status').in('id', pIds);
+          for (const p of ps ?? []) if (['nova', 'em_cotacao', 'comprada'].includes(p.status as string)) openPurchases.add(p.id as string);
+        }
+        const plan = autoPlan(o, stock, openPurchases);
         let buy: Line[];
         let reserve: Line[] = [];
         if (action === 'auto') {

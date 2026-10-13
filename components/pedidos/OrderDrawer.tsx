@@ -110,7 +110,12 @@ export function OrderDrawer({
   }, [o.id, o.updated_at]);
 
   // sugestão automática do Almoxarifado: calcula sozinha, mas só grava com a confirmação
-  const needsPlan = almox && canEdit && withAlmox && o.items.some((l) => l.qty - l.delivered - l.reserved > 0 && !l.purchase_id);
+  const openBuy = (l: OrderItem) => {
+    const p = l.purchase_id ? data.purchases[l.purchase_id] : null;
+    return Boolean(p && (p.status === 'nova' || p.status === 'em_cotacao' || p.status === 'comprada'));
+  };
+  // há o que reservar agora (saldo livre) ou o que pedir (sem compra aberta)
+  const needsPlan = almox && canEdit && withAlmox && o.items.some((l) => l.qty - l.delivered - l.reserved > 0 && (!openBuy(l) || (l.item_id ? (data.free[l.item_id] ?? 0) > 0 : false)));
   useEffect(() => {
     if (!needsPlan) {
       setPlan(null);
@@ -551,10 +556,12 @@ function QtySheet({
   onSubmit: (lines: { i: number; qty: number }[], receiver: string) => Promise<boolean>;
 }) {
   const rows = o.items
-    .map((l, i) => ({ l, i, free: l.item_id ? Math.max(0, data.free[l.item_id] ?? 0) : 0 }))
+    .map((l, i) => ({ l, i, free: l.item_id ? Math.max(0, data.free[l.item_id] ?? 0) : 0, min: l.item_id ? data.mins?.[l.item_id] ?? 0 : 0 }))
     .filter(({ l }) => l.item_id && l.qty - l.delivered > (mode === 'reserve' ? l.reserved : 0));
-  const suggest = (l: OrderItem, free: number) => (mode === 'deliver' ? Math.min(l.qty - l.delivered, l.reserved + free) : Math.min(l.qty - l.delivered - l.reserved, free));
-  const [qty, setQty] = useState<Record<number, string>>(() => Object.fromEntries(rows.map(({ l, i, free }) => [i, String(Math.max(0, suggest(l, free)))])));
+  // a sugestão não fura o estoque mínimo (dá para digitar mais: aí pede a liberação excepcional)
+  const above = (free: number, min: number) => Math.max(0, free - min);
+  const suggest = (l: OrderItem, free: number, min: number) => (mode === 'deliver' ? Math.min(l.qty - l.delivered, l.reserved + above(free, min)) : Math.min(l.qty - l.delivered - l.reserved, above(free, min)));
+  const [qty, setQty] = useState<Record<number, string>>(() => Object.fromEntries(rows.map(({ l, i, free, min }) => [i, String(Math.max(0, suggest(l, free, min)))])));
   const [receiver, setReceiver] = useState(o.collaborator_name ?? '');
   const unlinked = o.items.filter((l) => !l.item_id && l.qty > l.delivered);
   const total = Object.values(qty).reduce((t, v) => t + (Number(v) || 0), 0);
@@ -564,13 +571,14 @@ function QtySheet({
         <p className="help">{mode === 'deliver' ? 'Nada a entregar agora.' : 'Nada a reservar: tudo já está reservado ou entregue.'}</p>
       ) : (
         <div className="o-qty-list">
-          {rows.map(({ l, i, free }) => (
+          {rows.map(({ l, i, free, min }) => (
             <div key={i} className="o-qty-row">
               <span>
                 <b>{lineLabel(l)}</b>
                 <small>
                   falta {num(l.qty - l.delivered)}
                   {l.reserved ? ` · reservado ${num(l.reserved)}` : ''} · disponível {num(free)}
+                  {min && free - min < l.qty - l.delivered - l.reserved ? ` · mínimo ${num(min)}` : ''}
                 </small>
               </span>
               <input className="input" inputMode="numeric" aria-label={`Quantidade de ${lineLabel(l)}`} value={qty[i] ?? ''} onChange={(e) => setQty((q) => ({ ...q, [i]: e.target.value.replace(/\D/g, '').slice(0, 5) }))} />

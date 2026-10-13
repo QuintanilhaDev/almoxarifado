@@ -21,6 +21,8 @@ export interface PedidosData {
   orders: MaterialOrder[];
   purchases: Record<string, PurchaseMini>;
   free: Record<string, number>;
+  /** estoque mínimo de cada item (para a sugestão não furar o mínimo) */
+  mins?: Record<string, number>;
   config: P3ConfigClient;
 }
 

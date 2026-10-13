@@ -215,7 +215,7 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
                         <b>{n.supplier_name}</b>
                         <small>
                           {brl(total(n))} · {n.items.length} {n.items.length === 1 ? 'item' : 'itens'} · emitida {dateBR(n.issue_date)}
-                          {next ? ` · próxima parcela ${dateBR(next.due)}` : ''}
+                          {next && n.status !== 'estornada' ? ` · próxima parcela ${dateBR(next.due)}` : ''}
                         </small>
                       </span>
                       <span className="p-tags">

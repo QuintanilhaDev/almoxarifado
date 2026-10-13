@@ -41,8 +41,12 @@ export async function GET(req: Request) {
     }
     const items = await loadItems();
     const free: Record<string, number> = {};
-    for (const i of items) free[i.id] = i.quantity - i.reserved;
-    return NextResponse.json({ orders, purchases, free, config: await getConfig() }, { headers: { 'Cache-Control': 'no-store' } });
+    const mins: Record<string, number> = {};
+    for (const i of items) {
+      free[i.id] = i.quantity - i.reserved;
+      if (i.min_quantity) mins[i.id] = i.min_quantity;
+    }
+    return NextResponse.json({ orders, purchases, free, mins, config: await getConfig() }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);
   }

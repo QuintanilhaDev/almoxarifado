@@ -444,3 +444,34 @@
     display: none !important;
   }
 }
+
+@media (max-width: 760px) {
+  .o-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .o-toolbar .search {
+    grid-column: 1 / -1;
+  }
+  .o-toolbar .select-wrap {
+    width: auto;
+    min-width: 0;
+  }
+  .o-toolbar .select {
+    font-size: 13.5px;
+    padding-right: 30px;
+  }
+  .o-segs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}
+.n-line > div:nth-child(2) > b {
+  display: block;
+}
+.n-line > div:nth-child(2) > small {
+  display: block;
+}
+.o-segs button {
+  white-space: nowrap;
+}

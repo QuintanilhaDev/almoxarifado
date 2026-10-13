@@ -264,7 +264,7 @@ export function OrdersPanel({
               </div>
             ) : null}
 
-            <div className="toolbar">
+            <div className="toolbar o-toolbar">
               <div className="search">
                 <Search size={17} />
                 <input className="input" placeholder="Buscar por nº, colaborador, posto, material ou pessoa" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar pedidos" />

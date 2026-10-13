@@ -39,7 +39,7 @@ type ModuleTab = 'solicitacoes' | 'pedidos' | 'estoque' | 'notas' | 'postos' | '
 export type Tab = ModuleTab | 'equipe' | 'conta' | 'inicio';
 
 const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[] })[] = [
-  { id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon, aliases: ['solicitacoes', 'pedidos', 'caixa de entrada', 'requisicoes'] },
+  { id: 'solicitacoes', label: 'Solicitações', short: 'Solicit.', icon: InboxIcon, aliases: ['solicitacoes', 'pedidos', 'caixa de entrada', 'requisicoes'] },
   { id: 'pedidos', label: 'Pedidos de material', short: 'Pedidos', icon: ClipboardList, aliases: ['pedidos de material', 'pedidos da operacao', 'pedidos do rh', 'admissoes', 'trocas', 'entregas', 'reservas'] },
   { id: 'estoque', label: 'Estoque', short: 'Estoque', icon: Boxes, aliases: ['estoque', 'itens', 'inventario', 'produtos'] },
   { id: 'notas', label: 'Entradas (NF)', short: 'Entradas', icon: Receipt, aliases: ['entradas', 'notas fiscais', 'nota fiscal', 'notas', 'nf', 'xml', 'recebimento'] },

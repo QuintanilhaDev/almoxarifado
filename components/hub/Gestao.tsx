@@ -92,7 +92,7 @@ export function Gestao({ version }: { version: number }) {
               </div>
               <div className="stat">
                 <small>Tempo médio de atendimento</small>
-                <b>{data.orders.avgDays === null ? '—' : `${data.orders.avgDays.toLocaleString('pt-BR')} dias`}</b>
+                <b>{data.orders.avgDays === null ? '—' : data.orders.avgDays < 1 ? 'menos de 1 dia' : `${data.orders.avgDays.toLocaleString('pt-BR')} dias`}</b>
               </div>
             </div>
             <div className="stat-grid">
