@@ -48,6 +48,7 @@ const loginIdle = async (page) => { await page.waitForSelector('.login-max .max-
 const say = (page, t) => page.evaluate((x) => window.__say(x), t);
 const lastMax = async (page) => (await page.locator('.max-msg.max p').allTextContents()).pop() || '';
 async function ask(page, text) {
+  await page.waitForFunction(() => !document.documentElement.classList.contains('max-away'), null, { timeout: 20000 });
   if (!(await page.locator('.max-panel').count())) await page.click('.max-fab');
   else if (!(await page.locator('.max-fab.is-listening').count())) await page.click('.max-fab');
   await page.waitForSelector('.max-fab.is-listening', { timeout: 4000 });
@@ -188,10 +189,10 @@ try {
   await page.keyboard.press('Escape');
   await page.waitForSelector('.modal.sheet', { state: 'detached' });
   r = await ask(page, 'Max, abrir o setor comercial');
-  await page.waitForURL(B + '/setor/comercial', { timeout: 8000 });
+  await page.waitForURL(B + '/setor/comercial', { timeout: 15000 });
   await page.waitForSelector('.blank-tool');
   ok(true, 'Max levou o master ao setor Comercial (ainda sem ferramenta)');
-  await page.waitForSelector('.warp', { state: 'detached', timeout: 20000 });
+  await page.waitForFunction(() => !document.querySelector('.mr.is-on') && !document.documentElement.classList.contains('max-away'), null, { timeout: 20000 });
   await page.waitForSelector('.side-back', { timeout: 8000 }).catch(() => undefined);
   ok(await page.locator('.side-back').count() === 1, 'atalho de volta ao painel master');
   await page.waitForTimeout(900);

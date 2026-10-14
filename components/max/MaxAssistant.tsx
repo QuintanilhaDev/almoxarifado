@@ -1,4 +1,6 @@
 'use client';
+import { maxRun, type RunStep } from '@/lib/max/runner';
+import { holdBus } from '@/lib/max/bus';
 import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Keyboard, Mic, SendHorizontal, Square, ThumbsDown, ThumbsUp, Volume2, VolumeX, X } from 'lucide-react';
@@ -37,6 +39,23 @@ const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipédia', clima: '
  * A Max nas ferramentas dos setores: a esfera no canto inferior direito.
  * Clique nela, espere ficar verde e diga "Max, …". Também aceita o pedido digitado.
  */
+/** A Max vê o mesmo host, mas trocar de aba ou de página vira uma corrida até o botão. */
+function runHost(base: MaxHost, runs: RunStep[] & { open?: boolean }): MaxHost {
+  return {
+    ...base,
+    goTab: (id) => {
+      if (base.tab === id) return base.goTab(id);
+      const step: RunStep = { kind: 'tab', id, exec: () => base.goTab(id) };
+      if (runs.open === false) void maxRun([step]);
+      else runs.push(step);
+    },
+    // depois da fala (afterSpeech) a corrida começa na hora
+    navigate: (path) => {
+      void maxRun([{ kind: 'path', path }]);
+    },
+  };
+}
+
 export function MaxAssistant({ host }: { host: MaxHost }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<OrbState>('idle');
@@ -228,6 +247,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       const shown = raw.trim();
       if (!shown) return;
       const my = ++seq.current;
+      const runs: RunStep[] & { open?: boolean } = [];
       listener.current?.stop();
       stopSpeaking();
       setInterim('');
@@ -239,7 +259,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       setStatus('thinking');
       let reply: MaxReply;
       try {
-        reply = await think(command, hostRef.current, {
+        reply = await think(command, runHost(hostRef.current, runs), {
           memory: memory.current,
           remote,
           agent,
@@ -262,11 +282,19 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       memory.current.lastInput = shown;
       history.current = [...history.current, { role: 'user' as const, content: shown }, { role: 'assistant' as const, content: reply.say || reply.text || '' }].filter((m) => m.content).slice(-8);
       push({ who: 'max', text: reply.text ?? reply.say, card: reply.card, chips: reply.chips, source: reply.source, asked: reply.source === 'bloqueio' || reply.source === 'stop' ? undefined : shown });
+      // trocas de tela pedidas pela Max: ela corre até o botão e soca; o resto espera o soco
+      const release = holdBus();
       try {
         await reply.act?.();
       } catch (e) {
         console.error('[max] ação', e);
       }
+      runs.open = false;
+      if (runs.length) {
+        const all = runs.splice(0);
+        void maxRun(all, release);
+        setTimeout(release, 12000);
+      } else release();
       const done = () => {
         if (my !== seq.current) return;
         setStatus('idle');

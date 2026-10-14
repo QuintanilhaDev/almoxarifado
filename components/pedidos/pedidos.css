@@ -475,3 +475,56 @@
 .o-segs button {
   white-space: nowrap;
 }
+
+/* Gestão: físico / reservado / disponível com setas */
+.g-cycler {
+  display: flex;
+  flex-direction: column;
+}
+.g-cycler-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.g-cycler-nav {
+  display: inline-flex;
+  gap: 2px;
+  margin: -6px -8px -6px 0;
+}
+.g-cycler-nav .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+.g-cycler-body {
+  position: relative;
+  overflow: hidden;
+  min-height: 38px;
+}
+.g-cycler-body b {
+  display: block;
+}
+.g-cycler-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.g-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+.g-dots button {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border-radius: 99px;
+  background: var(--onix-4);
+  transition: width 0.25s, background 0.25s;
+}
+.g-dots button.is-on {
+  width: 16px;
+  background: var(--lilac);
+}

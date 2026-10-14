@@ -46,6 +46,7 @@ async function login(page, user, url) {
   await page.waitForTimeout(1800);
 }
 async function ask(page, text) {
+  await page.waitForFunction(() => !document.documentElement.classList.contains('max-away'), null, { timeout: 20000 });
   if (!(await page.locator('.max-panel').count())) await page.click('.max-fab');
   else if (!(await page.locator('.max-fab.is-listening').count())) await page.click('.max-fab');
   await page.waitForSelector('.max-fab.is-listening', { timeout: 4000 });

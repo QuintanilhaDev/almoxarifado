@@ -25,9 +25,26 @@ type Handler<K extends Name> = (payload: MaxEvents[K]) => void;
 
 const handlers = new Map<Name, Set<Handler<Name>>>();
 const pending = new Map<Name, { payload: unknown; at: number }>();
-const KEEP_MS = 4000;
+const KEEP_MS = 9000;
+/** enquanto a Max corre até o botão, os pedidos para a tela ficam guardados e saem depois do soco */
+let held = 0;
+const queue: { name: Name; payload: unknown }[] = [];
+export function holdBus(): () => void {
+  held++;
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    held = Math.max(0, held - 1);
+    if (!held) queue.splice(0).forEach((e) => maxEmit(e.name, e.payload as never));
+  };
+}
 
 export function maxEmit<K extends Name>(name: K, payload: MaxEvents[K]) {
+  if (held) {
+    queue.push({ name, payload });
+    return;
+  }
   const set = handlers.get(name);
   if (set && set.size) {
     pending.delete(name);

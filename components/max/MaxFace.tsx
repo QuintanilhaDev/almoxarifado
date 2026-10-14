@@ -48,8 +48,8 @@ const FACES: { pose: Partial<Pose>; ms: number }[] = [
 ];
 
 const EYE_X = 8.4;
-const EYE_Y = 46.5;
-const MOUTH_Y = 57.4;
+const EYE_Y = 48.6;
+const MOUTH_Y = 59.2;
 const RX = 3.1;
 const RY = 4.4;
 
@@ -257,8 +257,8 @@ export function MaxFace({ state }: { state: OrbState }) {
   return (
     <svg ref={root} className="max-face" viewBox="0 0 100 100" aria-hidden focusable="false">
       <g className="mf-face">
-        <ellipse className="mf-cheek-l mf-cheek" cx={50 - 14.2} cy={54.6} rx={3.5} ry={2.1} />
-        <ellipse className="mf-cheek-r mf-cheek" cx={50 + 14.2} cy={54.6} rx={3.5} ry={2.1} />
+        <ellipse className="mf-cheek-l mf-cheek" cx={50 - 14.2} cy={56.6} rx={3.5} ry={2.1} />
+        <ellipse className="mf-cheek-r mf-cheek" cx={50 + 14.2} cy={56.6} rx={3.5} ry={2.1} />
         {eye('l')}
         {eye('r')}
         <path className="mf-mouth" d="M -4.6 0 Q 0 2.4 4.6 0 Q 0 2.4 -4.6 0 Z" transform={`translate(50 ${MOUTH_Y})`} />

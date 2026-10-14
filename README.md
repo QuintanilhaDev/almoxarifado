@@ -128,7 +128,7 @@ Como funciona, e por que é seguro:
 
 ### Troca de tela pela Max
 
-No painel master, **Abrir ferramenta** (ou "Max, abrir o setor almoxarifado") não recarrega mais o site: a Max sai do canto, cresce no meio da tela, diz "Abrindo o setor …", toma a tela inteira e revela a ferramenta. O mesmo vale para **Painel master** (voltar) e para ir de um setor a outro pela voz. Ctrl/⌘+clique continua abrindo em outra aba; o botão Voltar do navegador funciona normalmente; com "reduzir movimento" ligado no sistema a troca vira um esmaecimento simples. Código: `components/core/Warp.tsx`.
+Pelo clique, a troca de tela é direta (na mesma página, com a entrada em 3D). Quando alguém pede pela Max ("Max, abrir o setor almoxarifado", "abrir o estoque"), ela ganha bracinhos e perninhas, corre até o botão certo e dá um soquinho nele; se precisar de mais de um botão (de um setor para outro: **Painel master** e depois o card), ela passa por todos. Depois volta correndo para o canto. A Max usa um boné "Max Forte" que acompanha as animações dela. Código: `components/core/Warp.tsx`, `components/max/MaxRunner.tsx`, `components/max/MaxCap.tsx`.
 
 ### Como a Max pensa e aprende
 
@@ -323,7 +323,8 @@ Tudo o que dá para automatizar é feito sozinho, mas **nada é gravado sem a co
 - Compras informa **fornecedor, nº do pedido de compra e previsão de entrega**; o Almoxarifado e os pedidos ligados veem na hora.
 
 ### Gestão (Painel master › Gestão)
-- Valor do estoque (total e por categoria), físico/reservado/disponível, abaixo do mínimo, pedidos abertos/parciais/aguardando compra/atrasados/concluídos, tempo médio de atendimento, consumo e giro, entregas por empresa, itens sem movimentação, compras e vencimentos. **Excel** e **PDF** (imprimir).
+- Valor do estoque (total e por categoria), físico/reservado/disponível, abaixo do mínimo, pedidos abertos/parciais/aguardando compra/atrasados/concluídos, tempo médio de atendimento, consumo e giro, entregas por empresa, itens sem movimentação, compras e vencimentos. **Excel** (planilha formatada, com resumo e abas por assunto) e **PDF** (relatório próprio, com gráficos e tabelas).
+- Todas as planilhas baixáveis usam o mesmo padrão visual: `lib/reportXlsx.ts` (`buildReport`). Para um relatório novo, basta montar as seções e abas e chamar essa função.
 
 ### Permissões novas (aba Equipe de cada setor)
 - Almoxarifado: **Pedidos de material** e **Entradas (notas fiscais)**. RH: **Pedidos** e **Colaboradores**. Operacional: **Pedidos de material**. Financeiro: **Notas e vencimentos**. Masters de setor têm tudo do setor; membros antigos começam sem os módulos novos (libere na aba Equipe).
