@@ -48,6 +48,11 @@ const purchases = [
 const almoxNo: MaxHost = { ...almox, can: (m: string) => m !== 'compras', compras: { requests: () => null } };
 const almoxC: MaxHost = { ...almox, compras: { requests: () => purchases as never } };
 const compras: MaxHost = { ...base, scope: 'sector', sector: getSector('compras'), user: user({ is_master: false, sector: 'compras', sector_role: 'master' }), tabs: [{ id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'pedidos'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta'] }], compras: { requests: () => purchases as never } };
+// Projeto 3: pedidos de material
+const ord = (n: number, stage: string, extra = {}) => ({ id: 'o' + n, number: n, origin: 'operacao', stage, priority: 'normal', needed_by: null, start_date: null, company: null, posto_id: null, posto_name: 'Posto 01', collaborator_id: null, collaborator_name: 'Caio', matricula: null, role: null, reason: null, requester: 'Uesley', supervisor: null, source_request_id: null, items: [{ item_id: 'x', name: 'Bota', size: '42', unit: 'Cada', qty: 2, reserved: 0, delivered: 0 }], flags: [], history: [], forwarded_by: null, forwarded_at: null, validated_by: null, validated_at: null, closed_at: null, created_at: '2026-10-13T10:00:00Z', updated_at: '', ...extra });
+const orders = [ord(1, 'solicitado'), ord(2, 'validacao', { origin: 'rh_troca' }), ord(3, 'encaminhado')];
+const almoxP: MaxHost = { ...almoxC, pedidos: { scope: 'almox', orders: () => orders as never } };
+const opP: MaxHost = { ...base, scope: 'sector', sector: getSector('operacional'), user: user({ is_master: false, sector: 'operacional', sector_role: 'master' }), tabs: [{ id: 'pedidos', label: 'Pedidos de material', aliases: ['pedidos', 'pedidos de material'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta'] }], pedidos: { scope: 'operacao', orders: () => orders as never } };
 
 type Case = [MaxHost, string, string | null];
 const CASES: Case[] = [
@@ -117,6 +122,9 @@ const CASES: Case[] = [
   [almoxC, 'Max tem solicitação nova?', 'almox-request-count'], [compras, 'Max abrir a solicitação 2', 'purchase-open'], [compras, 'Max qual foi a última solicitação?', 'purchase-count'], [almoxC, 'Max quantas solicitações de compra chegaram nos últimos 3 dias', 'purchase-count'], [almoxC, 'Max mostrar os 5 últimos pedidos de compra', 'purchase-count'], [almoxC, 'Max pedido de compra número 2', 'purchase-open'], [almoxC, 'Max abrir a solicitação 12', 'almox-request-open'], [almoxC, 'Max abrir compras', 'go-tab'], [compras, 'Max minha conta', 'go-tab'],
   [hub, 'Max abrir o setor de compras', 'go-sector'], [hub, 'Max abrir o setor de suprimentos', 'go-sector'], [hub, 'Max quem está no setor de compras', 'hub-users-of-sector'],
   [hub, 'Max criar usuário no setor compras', 'hub-create-user'], [almox, 'Max lista de compras', 'almox-stock-low'], [almox, 'Max o que precisa comprar', 'almox-stock-low'],
+  // pedidos de material
+  [opP, 'Max tem troca para validar?', 'order-count'], [opP, 'Max quantos pedidos estão em aberto', 'order-count'], [opP, 'Max abrir o pedido 3', 'order-open'], [opP, 'Max pedidos atrasados', 'order-count'],
+  [almoxP, 'Max quantos pedidos de material para separar', 'order-count'], [almoxP, 'Max abrir o pedido de material 3', 'order-open'], [almoxP, 'Max abrir a solicitação 12', 'almox-request-open'], [almoxP, 'Max tem solicitação nova?', 'almox-request-count'], [almoxP, 'Max pedido de compra número 2', 'purchase-open'], [almoxP, 'Max abrir pedidos de material', 'go-tab'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];

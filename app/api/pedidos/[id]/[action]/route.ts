@@ -130,8 +130,13 @@ export async function POST(req: Request, ctx: Ctx) {
           purchase = await purchaseForOrder(fresh, buy, { id: user.id, name: by }, stock);
           const items = fresh.items.map((l, k) => (buy.some((x) => x.i === k) ? { ...l, purchase_id: purchase!.id, purchase_number: purchase!.number } : l));
           const history = [...fresh.history, event(by, `Compra solicitada (${purchase.number}) do que falta: ${buy.map((x) => `${x.qty} ${lineLabel(fresh.items[x.i])}`).join(', ')}`)];
-          const { error } = await db().from('material_orders').update({ items, history, updated_at: new Date().toISOString() }).eq('id', id);
-          if (error) throw error;
+          // só liga se ninguém mexeu no pedido nesse meio tempo; senão desfaz a compra recém-criada
+          const { data: upd, error } = await db().from('material_orders').update({ items, history, updated_at: new Date().toISOString() }).eq('id', id).eq('updated_at', fresh.updated_at).select('id').maybeSingle();
+          if (error || !upd) {
+            await db().from('purchase_requests').update({ status: 'cancelada', updated_at: new Date().toISOString() }).eq('id', purchase.id);
+            if (error) throw error;
+            return fail('Outra pessoa acabou de mexer neste pedido. Confira e confirme de novo.', 409);
+          }
           await broadcast('purchase:new', { id: purchase.id, number: purchase.number, by, priority: o.priority, count: buy.length });
         }
         result = { reserved: reserve.reduce((t, x) => t + x.qty, 0), purchase };

@@ -44,13 +44,17 @@ export async function POST(req: Request) {
       let updated = 0;
       const { data: existing } = await db().from('collaborators').select('id, matricula, name_key').limit(20000);
       const byMat = new Map((existing ?? []).filter((e) => e.matricula).map((e) => [String(e.matricula), e.id as string]));
+      // separa: quem já existe (mesma matrícula) é atualizado; o resto entra de uma vez, em lotes
+      const fresh: { n: number; row: Row }[] = [];
+      const seen = new Map<string, number>();
       for (const [n, raw] of (b.rows as Row[]).entries()) {
         const r = collabFields(raw ?? {}, ps);
         if ('error' in r) {
           errors.push(`Linha ${n + 2}: ${r.error}`);
           continue;
         }
-        const id = r.row.matricula ? byMat.get(String(r.row.matricula)) : undefined;
+        const mat = r.row.matricula ? String(r.row.matricula) : null;
+        const id = mat ? byMat.get(mat) : undefined;
         if (id) {
           // só atualiza o que veio preenchido na planilha
           const patch: Row = { updated_at: new Date().toISOString() };
@@ -58,13 +62,27 @@ export async function POST(req: Request) {
           const { error } = await db().from('collaborators').update(patch).eq('id', id);
           if (error) errors.push(`Linha ${n + 2}: ${error.message}`);
           else updated++;
-        } else {
-          const { data, error } = await db().from('collaborators').insert({ ...r.row, created_by: user.display_name }).select('id').single();
-          if (error) errors.push(`Linha ${n + 2}: ${error.code === '23505' ? 'matrícula repetida' : error.message}`);
-          else {
-            created++;
-            if (r.row.matricula) byMat.set(String(r.row.matricula), data.id as string);
-          }
+          continue;
+        }
+        if (mat && seen.has(mat)) {
+          errors.push(`Linha ${n + 2}: matrícula ${mat} repetida na planilha (linha ${seen.get(mat)! + 2})`);
+          continue;
+        }
+        if (mat) seen.set(mat, n);
+        fresh.push({ n, row: { ...r.row, created_by: user.display_name } });
+      }
+      for (let i = 0; i < fresh.length; i += 500) {
+        const chunk = fresh.slice(i, i + 500);
+        const { error } = await db().from('collaborators').insert(chunk.map((c) => c.row));
+        if (!error) {
+          created += chunk.length;
+          continue;
+        }
+        // lote recusado (ex.: matrícula que já existe): tenta um por um para salvar o resto
+        for (const c of chunk) {
+          const { error: e1 } = await db().from('collaborators').insert(c.row);
+          if (e1) errors.push(`Linha ${c.n + 2}: ${e1.code === '23505' ? 'matrícula repetida' : e1.message}`);
+          else created++;
         }
       }
       await broadcast('collab:update', { by: user.display_name });

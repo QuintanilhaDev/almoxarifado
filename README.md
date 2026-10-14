@@ -274,6 +274,60 @@ O Almoxarifado pede, o setor de Compras atende — tudo em tempo real.
 
 ---
 
+## Projeto 3: estoque integrado (pedidos, notas, RH, Operação, Gestão)
+
+Tudo o que dá para automatizar é feito sozinho, mas **nada é gravado sem a confirmação de alguém**: o sistema calcula, mostra a sugestão e a pessoa confirma.
+
+**Ativar:** rode `supabase/projeto3.sql` no SQL Editor (pode rodar de novo; não apaga nem altera saldos, entradas ou saídas que já existem). Sem ele, as telas novas explicam o que falta e o resto continua igual.
+
+### Catálogo (código CC-GG-NNNN)
+- **Estoque → Classificar:** o Max Hub sugere categoria e grupo pelo nome de cada item (ex.: bota → 01 Fardamento › 03 Calçados). Confira e confirme: cada item ganha o código, **único, que não muda e não é reaproveitado** (garantido pelo banco).
+- Item novo já nasce com código. Campos novos no cadastro: marca/modelo, CA (EPI), localização, estoque máximo, prazo de reposição e estoque de segurança. Itens podem ser **desativados** (somem dos pedidos e buscas, o histórico fica).
+- **Saldo físico, reservado e disponível**: reserva não baixa o físico; o disponível (físico − reservado) é o que pode ser usado.
+- **Inventário** (master do Almoxarifado): digite o contado, só as diferenças são ajustadas e ficam no histórico. **Baixa** por perda/avaria ou devolução ao fornecedor, sempre com motivo.
+
+### Pedidos de material (Almoxarifado › Pedidos de material)
+- Origem **Operação** (Uesley) ou **RH/DP** (admissão, troca anual, troca extraordinária). Cada área tem o seu painel; o master geral vê tudo.
+- Ao abrir um pedido, aparece a **Sugestão automática**: reservar o que há (sem furar o estoque mínimo) e pedir compra do que falta. Um clique confirma: a reserva é feita e a solicitação de compra vai para o setor de Compras, ligada ao pedido.
+- **Entregar** gera o **termo de entrega** (página pronta para imprimir/assinar ou salvar em PDF) e baixa o saldo. Entrega parcial mantém o pedido aberto; quando tudo é entregue, ele é concluído sozinho.
+- **Abaixo do mínimo:** usar o saldo que deixaria o item abaixo do mínimo pede a **liberação excepcional** do master do Almoxarifado (fica registrada no histórico).
+- Alertas de **duplicidade** (o colaborador recebeu o mesmo item há menos de 90 dias, ou já tem pedido aberto), **atraso** e **admissão em risco** (começa em até 3 dias).
+- **Devolução/troca** de um item entregue (bom estado volta ao saldo; avariado só registra). Status por item e consolidado, filtros (origem, posto, prioridade, período, atraso…) e **planilha Excel** do que está na tela.
+- **Caixa de entrada → Criar pedido:** a solicitação do formulário vira pedido com os itens e tamanhos já reconhecidos.
+
+### Operacional (Uesley)
+- Pedidos dos postos: **Novo pedido**, conferir, **encaminhar ao Almoxarifado**, cancelar. **Validar** as trocas anuais abertas pelo RH.
+- Chave **"Solicitações do formulário dos supervisores"**: *Direto ao Almoxarifado* (padrão, como sempre foi) ou *Passam pela Operação* (cada solicitação vira pedido e chega primeiro ao Uesley).
+- Avisos na tela, som e a Max falando quando chega algo para conferir ou validar.
+
+### RH/DP
+- **Colaboradores:** cadastro com matrícula, função, posto, empresa, admissão e **tamanhos** (camisa, calça, calçado); importação por planilha (atualiza pela matrícula); ficha com tudo o que a pessoa recebeu (com os termos) e os pedidos.
+- **Kits por função:** o que cada função recebe e de quanto em quanto tempo troca. Na **admissão**, basta informar função e tamanhos: o kit entra sozinho no pedido (dá para ajustar).
+- **Troca anual:** lista automática de quem venceu ou vence em breve (pela última entrega ou admissão), com a **demanda consolidada** por item e tamanho. Marque e confirme: a troca vai para a Operação validar e depois ao Almoxarifado. A troca extraordinária exige justificativa e, por padrão, **não reinicia** a contagem (ajustável em Regras).
+
+### Entradas por nota fiscal (Almoxarifado › Entradas)
+- **Importar XML:** fornecedor, CNPJ, número, série, chave, itens, descontos, frete e parcelas vêm do arquivo. Os itens se ligam ao estoque sozinhos (pelo que aquele fornecedor já mandou antes, ou pelo nome e tamanho) e a solicitação de compra atendida já vem escolhida.
+- **Conferência física:** informe o que chegou (tudo ou parte). A entrada atualiza o saldo e o **custo médio**; nota repetida é barrada; ao completar, a compra vira "Entregue" e o sistema mostra os **pedidos que esperavam** esses itens.
+- **Estorno** com motivo (a entrada original fica no histórico). Notas sem XML podem ser digitadas.
+- **Financeiro › Notas e vencimentos:** consulta das notas, parcelas, vencidas e a vencer (só leitura).
+
+### Compras e reposição
+- **Reposição sugerida** (Almoxarifado › Compras): ponto = consumo médio diário × prazo + segurança, já descontando o que está para chegar e os pedidos sem saldo. Ajuste as quantidades e confirme para gerar a solicitação de compra.
+- Compras informa **fornecedor, nº do pedido de compra e previsão de entrega**; o Almoxarifado e os pedidos ligados veem na hora.
+
+### Gestão (Painel master › Gestão)
+- Valor do estoque (total e por categoria), físico/reservado/disponível, abaixo do mínimo, pedidos abertos/parciais/aguardando compra/atrasados/concluídos, tempo médio de atendimento, consumo e giro, entregas por empresa, itens sem movimentação, compras e vencimentos. **Excel** e **PDF** (imprimir).
+
+### Permissões novas (aba Equipe de cada setor)
+- Almoxarifado: **Pedidos de material** e **Entradas (notas fiscais)**. RH: **Pedidos** e **Colaboradores**. Operacional: **Pedidos de material**. Financeiro: **Notas e vencimentos**. Masters de setor têm tudo do setor; membros antigos começam sem os módulos novos (libere na aba Equipe).
+- **Max:** "Max, quantos pedidos de material para separar?", "Max, tem troca para validar?", "Max, abrir o pedido 3".
+
+### Fora deste pacote (decisões da Gestão no PDF)
+- **Armamento e munições** (categoria 04) já existe no catálogo, mas o controle segregado (registro, guia de tráfego, responsáveis) depende das regras legais e fica para depois.
+- Pontos que o PDF deixa para a Gestão decidir (ex.: se a troca extraordinária reinicia o ciclo, quem valida trocas) estão como opções nas telas, com o padrão do PDF.
+
+---
+
 ## Categorias do estoque
 
 Cada item pode ter **uma ou mais categorias**: Max Forte, Max Serviços, Max Confiável, EPI, Acessório, Equipamento, Higienizado, ou qualquer outra que a equipe criar. Um cinto pode ser "Acessório" **e** "Max Forte" ao mesmo tempo, e aparece nos dois filtros.
