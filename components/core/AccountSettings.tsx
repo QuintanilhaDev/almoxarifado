@@ -1,7 +1,6 @@
 'use client';
 import { Eye, EyeOff, LogOut, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { setFx, useFx, type FxMode } from '@/lib/fx';
 import type { HubUser } from '@/lib/permissions';
 import { USERNAME_HELP, USERNAME_RE } from '@/lib/permissions';
 import { getSector } from '@/lib/sectors';
@@ -81,7 +80,7 @@ export function AccountSettings({
         <div className="section-head">
           <div>
             <h1>Minha conta</h1>
-            <p>Altere como seu nome aparece, seu usuário de login e sua senha.</p>
+            <p>Nome, usuário de login e senha.</p>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onLogout}>
             <LogOut size={15} /> Sair
@@ -190,31 +189,7 @@ export function AccountSettings({
             </button>
           </div>
         </form>
-        <FxPicker />
       </div>
-    </div>
-  );
-}
-
-/** Animações 3D: escolha por aparelho (fica guardada neste navegador). */
-function FxPicker() {
-  const mode = useFx();
-  const opts: { id: FxMode; label: string; hint: string }[] = [
-    { id: 'full', label: '3D completo', hint: 'Cena 3D ao fundo, cartões que inclinam com o mouse e telas que giram ao abrir.' },
-    { id: 'lite', label: '3D leve', hint: 'Telas e janelas abrem em 3D, sem a cena animada. Bom para aparelhos mais simples.' },
-    { id: 'off', label: 'Sem animação', hint: 'Tudo aparece direto, sem movimento.' },
-  ];
-  return (
-    <div className="panel" style={{ marginTop: 18 }}>
-      <h3 className="sec-title" style={{ marginTop: 0 }}>Animações</h3>
-      <div className="filter-seg" role="radiogroup" aria-label="Animações 3D">
-        {opts.map((o) => (
-          <button key={o.id} type="button" role="radio" aria-checked={mode === o.id} className={mode === o.id ? 'is-active' : ''} onClick={() => setFx(o.id)}>
-            {o.label}
-          </button>
-        ))}
-      </div>
-      <p className="help" style={{ marginTop: 8 }}>{opts.find((o) => o.id === mode)?.hint} Vale só para este aparelho.</p>
     </div>
   );
 }

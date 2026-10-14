@@ -128,7 +128,7 @@ export interface StockItem {
   at_postos: number;
   created_at: string;
   updated_at: string;
-  /* ----- Projeto 3 (vazios enquanto o supabase/projeto3.sql não for rodado) ----- */
+  /* ----- Projeto 3 (vazios enquanto o supabase/pedidos_e_notas.sql não for rodado) ----- */
   /** código do catálogo CC-GG-NNNN (imutável) */
   code: string | null;
   cat_code: string | null;

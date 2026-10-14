@@ -151,8 +151,8 @@ export function PurchaseBoard({
             <h1>{mode === 'compras' ? 'Solicitações de compra' : 'Compras'}</h1>
             <p>
               {mode === 'compras'
-                ? 'Pedidos que chegam do Almoxarifado. Atualize o andamento e responda: o Almoxarifado vê na hora.'
-                : 'Peça ao setor de Compras o que precisa ser comprado e acompanhe cada pedido até a entrega.'}
+                ? 'Pedidos do Almoxarifado.'
+                : 'Solicitações de compra do almoxarifado.'}
             </p>
           </div>
           {mode === 'almox' ? (
@@ -171,7 +171,7 @@ export function PurchaseBoard({
           <div className="banner">
             <AlertTriangle size={20} color="var(--amber)" />
             <span>
-              {repCount === 1 ? '1 item chegou' : `${repCount} itens chegaram`} ao ponto de reposição (consumo médio × prazo, já descontando o que está para chegar).
+              {repCount === 1 ? '1 item chegou' : `${repCount} itens chegaram`} no ponto de reposição.
             </span>
             <button className="btn btn-ghost btn-sm" onClick={() => setReplenish(true)}>
               Ver sugestão
@@ -215,8 +215,8 @@ export function PurchaseBoard({
             <span>
               {list.length === 0
                 ? mode === 'compras'
-                  ? 'Quando o Almoxarifado pedir uma compra, ela aparece aqui na hora e a Max avisa.'
-                  : 'Use “Nova solicitação de compra” para pedir itens ao setor de Compras.'
+                  ? 'Nenhuma solicitação no momento.'
+                  : 'Nenhuma solicitação no momento.'
                 : 'Tente outro filtro ou outra busca.'}
             </span>
           </div>
@@ -584,7 +584,7 @@ function NewPurchase({ items, initialItemId, onClose, onSaved }: { items: StockI
 
   const today = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
   return (
-    <Sheet title="Nova solicitação de compra" lead="O setor de Compras recebe na hora, com aviso na tela e da Max." onClose={onClose} wide locked>
+    <Sheet title="Nova solicitação de compra" onClose={onClose} wide locked>
       <form onSubmit={submit} noValidate>
         {low.length ? (
           <div className="p-low">

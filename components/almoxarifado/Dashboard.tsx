@@ -169,8 +169,8 @@ function Shell() {
       maxEmit('max:announce', {
         text:
           list.length > 1
-            ? `Atenção, Almoxarifado: chegaram ${list.length} pedidos de material.`
-            : `Atenção, Almoxarifado: ${o.origin === 'rh_admissao' ? `o RH pediu o kit de admissão${who}` : o.origin === 'rh_troca' ? `a troca de fardamento${who} foi validada` : o.origin === 'rh_extra' ? `o RH pediu uma troca extraordinária${who}` : `a Operação encaminhou um pedido${who}`}${o.priority === 'urgente' ? '. É urgente' : ''}.`,
+            ? `Almoxarifado, chegaram ${list.length} pedidos de material.`
+            : `Almoxarifado, ${o.origin === 'rh_admissao' ? `o RH pediu o kit de admissão${who}` : o.origin === 'rh_troca' ? `a troca de fardamento${who} foi validada` : o.origin === 'rh_extra' ? `o RH pediu uma troca extraordinária${who}` : `a Operação encaminhou um pedido${who}`}${o.priority === 'urgente' ? '. É urgente' : ''}.`,
         tone: 'alert',
       });
     },
@@ -404,7 +404,7 @@ function Shell() {
                       <Lock size={24} />
                     </span>
                     <strong>Você ainda não tem acesso a nenhuma parte do Almoxarifado</strong>
-                    <span>Peça ao master do setor para liberar as telas que você precisa. Assim que ele salvar, elas aparecem aqui sozinhas.</span>
+                    <span>Peça ao master do setor para liberar o acesso.</span>
                   </div>
                 </div>
               </div>

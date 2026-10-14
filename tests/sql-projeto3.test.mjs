@@ -28,9 +28,9 @@ const run = async (f) => db.exec(fs.readFileSync(path.join(ROOT, f), 'utf8').rep
 
 process.on('unhandledRejection', (e) => { console.log('EXCEÇÃO', e.message); process.exit(1); });
 await db.exec('create role anon; create role authenticated; create role service_role;');
-for (const f of ['schema.sql', 'estoque.sql', 'baixa_e_usuarios.sql', 'maxhub.sql', 'categorias.sql', 'max_aprendizado.sql', 'compras.sql', 'projeto3.sql']) await run(f);
-await run('projeto3.sql'); // de novo: precisa ser idempotente
-console.log('arquivos rodados (projeto3.sql duas vezes)');
+for (const f of ['schema.sql', 'estoque.sql', 'baixa_e_usuarios.sql', 'maxhub.sql', 'categorias.sql', 'max_aprendizado.sql', 'compras.sql', 'pedidos_e_notas.sql']) await run(f);
+await run('pedidos_e_notas.sql'); // de novo: precisa ser idempotente
+console.log('arquivos rodados (pedidos_e_notas.sql duas vezes)');
 
 // dados
 const bota = await val(`insert into stock_items (name, size, quantity, min_quantity, cost) values ('Bota de segurança','42',10,4,100) returning id`);

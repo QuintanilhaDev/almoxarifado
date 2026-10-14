@@ -31,7 +31,7 @@ export async function fetchAll<T>(
 const ITEM_COLS = 'id, ref, name, size, unit, quantity, min_quantity, cost, created_at, updated_at';
 const P3_COLS = 'code, cat_code, grp_code, brand, ca_number, location, max_quantity, lead_days, safety_qty, reserved, active';
 /**
- * Colunas em camadas: o site funciona mesmo antes de rodar categorias.sql e projeto3.sql
+ * Colunas em camadas: o site funciona mesmo antes de rodar categorias.sql e pedidos_e_notas.sql
  * (cada camada que falta é deixada de fora e tentada de novo depois de 1 minuto).
  */
 const TIERS = [`${ITEM_COLS}, categories, ${P3_COLS}`, `${ITEM_COLS}, categories`, ITEM_COLS];
@@ -167,4 +167,4 @@ export function catalogFields(body: Record<string, unknown>): { patch: Record<st
   }
   return { patch };
 }
-export const P3_SQL_MSG = 'Os campos novos do catálogo ainda não foram ativados. Rode o arquivo supabase/projeto3.sql no SQL Editor do Supabase.';
+export const P3_SQL_MSG = 'Os campos novos do catálogo ainda não foram ativados. Rode o arquivo supabase/pedidos_e_notas.sql no SQL Editor do Supabase.';

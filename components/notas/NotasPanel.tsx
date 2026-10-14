@@ -116,8 +116,8 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
             <h1>{mode === 'financeiro' ? 'Notas e vencimentos' : 'Entradas por nota fiscal'}</h1>
             <p>
               {mode === 'financeiro'
-                ? 'Notas de compra recebidas pelo Almoxarifado, com parcelas e vencimentos. O recebimento físico não aprova o pagamento.'
-                : 'Importe o XML da NF-e: fornecedor, itens, descontos e parcelas vêm preenchidos e os itens já se ligam ao estoque. Confira e dê entrada.'}
+                ? 'Notas de compra, parcelas e vencimentos.'
+                : 'Notas de compra recebidas pelo almoxarifado.'}
             </p>
           </div>
           {mode === 'almox' ? (
@@ -403,7 +403,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
           toast({ kind: 'success', title: r.note.status === 'lancada' ? `NF ${j.note.number} lançada no estoque` : `NF ${j.note.number}: entrada parcial lançada`, text: [r.purchase ? `Compra nº ${r.purchase.number} marcada como entregue` : '', r.waiting.length ? `${r.waiting.length} pedido(s) esperavam estes itens` : ''].filter(Boolean).join(' · ') || undefined }, 10000);
           if (r.waiting.length) sessionStorage.setItem(`waiting:${j.note.id}`, JSON.stringify(r.waiting));
         }
-      } else toast({ kind: 'success', title: `NF ${j.note.number} registrada`, text: 'Confira o recebimento e dê entrada quando o material chegar.' });
+      } else toast({ kind: 'success', title: `NF ${j.note.number} registrada` });
       onDone(j.note.id);
     } catch (e) {
       setError((e as Error).message);
@@ -413,7 +413,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
 
   const unlinked = lines.filter((l) => !l.item_id).length;
   return (
-    <Sheet title={parsed ? `Nota ${parsed.nfe.number}${parsed.nfe.series ? '/' + parsed.nfe.series : ''} · conferência` : 'Digitar nota fiscal'} lead={parsed ? 'Tudo veio do XML. Confira os itens ligados ao estoque e as quantidades que chegaram.' : 'Para notas sem XML. Os itens entram no estoque pelo custo informado.'} onClose={onClose} wide locked>
+    <Sheet title={parsed ? `Nota ${parsed.nfe.number}${parsed.nfe.series ? '/' + parsed.nfe.series : ''} · conferência` : 'Digitar nota fiscal'} lead={parsed ? 'Confira os itens e as quantidades recebidas.' : undefined} onClose={onClose} wide locked>
       {parsed?.duplicate ? (
         <div className="sx-error" role="alert">
           <AlertTriangle size={16} /> Esta nota já foi registrada (NF {parsed.duplicate.number}, {N_STATUS[parsed.duplicate.status as FiscalNote['status']]?.label ?? parsed.duplicate.status}). Não dá para lançar de novo.
@@ -500,7 +500,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
               </option>
             ))}
           </select>
-          <small className="help">Ao lançar tudo, a compra vira “Entregue” sozinha e o setor de Compras é avisado.</small>
+          <small className="help">A compra é marcada como entregue quando a nota for lançada.</small>
         </div>
       ) : null}
 
@@ -534,7 +534,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
                 <>
                   <b style={{ fontSize: 14 }}>{label(l.item_id)}</b>
                   <small className={l.via === 'fornecedor' ? 'n-via' : ''}>
-                    {l.via === 'fornecedor' ? 'ligado pelo histórico deste fornecedor' : l.via === 'nome' ? 'ligado pelo nome · confira' : 'escolhido'}{' '}
+                    {l.via === 'fornecedor' ? 'mesmo item da última nota' : l.via === 'nome' ? 'confira' : 'escolhido'}{' '}
                     · <button type="button" className="link-btn" onClick={() => set(l.key, { item_id: null, text: '', via: null })}>trocar</button>
                   </small>
                 </>
@@ -652,7 +652,7 @@ function NoteDrawer({ note: n, canEdit, items, onClose, reload, onOrders, modalO
     setError('');
     try {
       await api(`/api/almoxarifado/notas/${n.id}/reverse`, { method: 'POST', json: { reason } });
-      toast({ kind: 'success', title: `NF ${n.number} estornada`, text: 'As unidades saíram do estoque e o histórico foi mantido.' });
+      toast({ kind: 'success', title: `NF ${n.number} estornada` });
       setReverse(false);
       await reload();
     } catch (e) {
@@ -838,7 +838,7 @@ function NoteDrawer({ note: n, canEdit, items, onClose, reload, onOrders, modalO
       </motion.aside>
       <AnimatePresence>
         {reverse ? (
-          <Sheet key="rev" title={`Estornar a NF ${n.number}?`} lead="Tudo o que entrou por esta nota sai do estoque. A entrada original continua no histórico (nada é apagado)." onClose={() => setReverse(false)} locked={Boolean(reason)}>
+          <Sheet key="rev" title={`Estornar a NF ${n.number}?`} lead="As quantidades desta nota saem do estoque." onClose={() => setReverse(false)} locked={Boolean(reason)}>
             <label className="label" htmlFor="n-rev">
               Motivo
             </label>

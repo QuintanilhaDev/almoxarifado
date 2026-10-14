@@ -209,7 +209,7 @@ export function Estoque({
         <div className="section-head">
           <div>
             <h1>Estoque</h1>
-            <p>Tudo o que está no almoxarifado e o que já foi enviado aos postos, em um só lugar.</p>
+            <p>Saldo do almoxarifado e dos postos.</p>
           </div>
           <div className="head-actions">
             {catalog.ready && list.some((i) => !i.code) ? (

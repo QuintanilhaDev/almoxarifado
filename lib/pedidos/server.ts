@@ -9,12 +9,12 @@ import { lineLabel, orderLabel } from './types';
 export const ORDER_COLS =
   'id, number, origin, stage, priority, needed_by, company, posto_id, posto_name, collaborator_id, collaborator_name, matricula, role, start_date, reason, requester, supervisor, source_request_id, items, flags, history, forwarded_by, forwarded_at, validated_by, validated_at, closed_at, created_at, updated_at';
 
-/** A tabela/função ainda não existe (falta rodar o supabase/projeto3.sql)? */
+/** A tabela/função ainda não existe (falta rodar o supabase/pedidos_e_notas.sql)? */
 export function missingP3(e: unknown): boolean {
   const err = e as { code?: string; message?: string } | null;
   return ['42P01', 'PGRST205', 'PGRST202', '42703', 'PGRST204', '42883'].includes(err?.code ?? '') || /does not exist|could not find/i.test(err?.message ?? '');
 }
-export const P3_SETUP = 'Esta função ainda não foi ativada no banco. Rode o arquivo supabase/projeto3.sql no SQL Editor do Supabase.';
+export const P3_SETUP = 'Esta função ainda não foi ativada no banco. Rode o arquivo supabase/pedidos_e_notas.sql no SQL Editor do Supabase.';
 export const p3Fail = () => fail(P3_SETUP, 409, { setup: true });
 
 /** Mensagem de "raise exception" do banco; MINIMO| vira pedido de liberação excepcional. */

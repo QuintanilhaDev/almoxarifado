@@ -49,7 +49,7 @@ export function SectorsOverview({
               {greetingFor()}
               {me ? `, ${firstName(me.display_name)}` : ''}
             </h1>
-            <p>Daqui você administra todos os setores do Max Hub: quem entra, em qual setor e com quais permissões.</p>
+            <p>Setores da empresa e suas equipes.</p>
           </div>
         </div>
 

@@ -27,9 +27,9 @@ const PERIODS = [
 ];
 
 const TITLE: Record<OrderScope, { h: string; p: string; action: string }> = {
-  almox: { h: 'Pedidos de material', p: 'Pedidos da Operação e do RH/DP: reserve, entregue com termo e acompanhe o que falta comprar.', action: 'Para separar' },
-  operacao: { h: 'Pedidos de material', p: 'Confira as solicitações dos supervisores, encaminhe ao Almoxarifado e valide as trocas anuais.', action: 'Para conferir' },
-  rh: { h: 'Pedidos do RH/DP', p: 'Kits de admissão e trocas de fardamento: o Almoxarifado recebe na hora e você acompanha até a entrega.', action: 'Em andamento' },
+  almox: { h: 'Pedidos de material', p: 'Pedidos da Operação e do RH/DP.', action: 'Para separar' },
+  operacao: { h: 'Pedidos de material', p: 'Pedidos dos postos e trocas para validar.', action: 'Para conferir' },
+  rh: { h: 'Pedidos do RH/DP', p: 'Admissões e trocas de fardamento.', action: 'Em andamento' },
 };
 
 export function itemsSummary(o: MaterialOrder) {
@@ -235,7 +235,7 @@ export function OrdersPanel({
               <div className="banner">
                 <AlertTriangle size={20} color="var(--amber)" />
                 <span>
-                  {counts.risco === 1 ? '1 admissão começa' : `${counts.risco} admissões começam`} em até 3 dias e ainda falta separar material.
+                  {counts.risco === 1 ? '1 admissão começa' : `${counts.risco} admissões começam`} em até 3 dias com material pendente.
                 </span>
                 <button className="btn btn-ghost btn-sm" onClick={() => setSeg('abertos')}>
                   Ver
@@ -249,8 +249,8 @@ export function OrdersPanel({
                   <b>Solicitações do formulário dos supervisores</b>
                   <small>
                     {data.config.routing
-                      ? 'Chegam aqui primeiro: a Operação confere e encaminha ao Almoxarifado.'
-                      : 'Vão direto ao Almoxarifado (a Operação não precisa conferir).'}
+                      ? 'Passam pela Operação antes de ir ao Almoxarifado.'
+                      : 'Vão direto ao Almoxarifado.'}
                   </small>
                 </div>
                 <div className="filter-seg" role="group" aria-label="Caminho das solicitações">
@@ -345,8 +345,8 @@ export function OrdersPanel({
                 <span>
                   {orders.length === 0
                     ? scope === 'almox'
-                      ? 'Quando a Operação ou o RH/DP pedirem material, o pedido aparece aqui na hora.'
-                      : 'Use o botão “Novo pedido” para pedir material ao Almoxarifado.'
+                      ? 'Nenhum pedido no momento.'
+                      : 'Nenhum pedido no momento.'
                     : 'Tente outro filtro ou outra busca.'}
                 </span>
               </div>

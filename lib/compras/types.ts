@@ -35,7 +35,7 @@ export interface PurchaseRequest {
   handled_by: string | null;
   response: string | null;
   history: PurchaseEvent[];
-  /* Projeto 3 (existem depois do supabase/projeto3.sql) */
+  /* Projeto 3 (existem depois do supabase/pedidos_e_notas.sql) */
   supplier?: string | null;
   order_ref?: string | null;
   expected_date?: string | null;

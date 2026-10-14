@@ -79,7 +79,7 @@ export function ReplenishSheet({ onClose, onSaved }: { onClose: () => void; onSa
         json: {
           items: chosen.map((r) => ({ item_id: r.item_id, quantity: Number(qty[r.item_id]), note: `Reposição: ponto ${r.point}, disponível ${r.available}${r.in_transit ? `, ${r.in_transit} a caminho` : ''}` })),
           priority: chosen.some((r) => r.urgent) ? 'urgente' : 'normal',
-          reason: `Reposição sugerida pelo Max Hub (consumo dos últimos ${data?.days} dias × prazo de reposição + segurança).`,
+          reason: 'Reposição de estoque',
         },
       });
       toast({ kind: 'success', title: `Solicitação de compra ${j.request.number} enviada`, text: `${chosen.length} item(ns) · o setor de Compras foi avisado` });
@@ -90,9 +90,9 @@ export function ReplenishSheet({ onClose, onSaved }: { onClose: () => void; onSa
     }
   };
   return (
-    <Sheet title="Reposição sugerida" lead={data ? `Calculada com o consumo dos últimos ${data.days} dias e o prazo de cada item (padrão ${data.defaultLead} dias). Ajuste as quantidades e confirme.` : 'Calculando…'} onClose={onClose} wide locked>
+    <Sheet title="Reposição sugerida" lead={data ? `Com base no consumo dos últimos ${data.days} dias e no prazo de reposição de cada item.` : 'Calculando…'} onClose={onClose} wide locked>
       {!data && !error ? <div className="skeleton" style={{ height: 160 }} /> : null}
-      {data && data.rows.length === 0 ? <p className="help">Nenhum item precisa de reposição agora. 🎉</p> : null}
+      {data && data.rows.length === 0 ? <p className="help">Nenhum item precisa de reposição agora.</p> : null}
       {data && data.rows.length ? (
         <div className="t-wrap" style={{ maxHeight: '52vh', overflow: 'auto' }}>
           <table className="t-table">

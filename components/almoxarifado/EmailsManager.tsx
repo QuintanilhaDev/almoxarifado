@@ -101,7 +101,7 @@ export function EmailsManager({
         <div className="section-head">
           <div>
             <h1>E-mails autorizados</h1>
-            <p>Só os e-mails desta lista conseguem enviar o formulário. Cadastre os supervisores de cada posto.</p>
+            <p>Só esses e-mails podem enviar o formulário.</p>
           </div>
         </div>
 
