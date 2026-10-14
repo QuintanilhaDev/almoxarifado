@@ -3,13 +3,14 @@ import { capabilities, coreSkills } from './skills-core';
 import { emptySectorSkills, hubSkills } from './skills-hub';
 import { comprasSkills } from './skills-compras';
 import { pedidosSkills } from './skills-pedidos';
+import { manualFallback, manualSkills } from './skills-manual';
 import { makeQuery, normalize, stripWake, tokenize, wantsChange, type Query } from './text';
 export { wantsChange };
 import { BLOCKED_REPLY, isBlocked } from './moderation';
 import type { MaxHost, MaxMemory, MaxReply, PendingAction, Skill } from './types';
 import { gaveUp, recall, type Learned } from './learn';
 
-const ALL: Skill[] = [...coreSkills, ...almoxSkills, ...comprasSkills, ...pedidosSkills, ...hubSkills, ...emptySectorSkills];
+const ALL: Skill[] = [...coreSkills, ...almoxSkills, ...comprasSkills, ...pedidosSkills, ...manualSkills, ...hubSkills, ...emptySectorSkills];
 
 /** Abaixo disto a Max não tem certeza e passa a pergunta adiante (IA/Wikipedia) ou admite que não sabe. */
 export const CONFIDENT = 0.6;
@@ -320,6 +321,9 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
 
   // palpite local com menos certeza ainda é melhor do que "não entendi"
   if (best && best.score >= 0.5) return runSkill(best, q, host, opts.memory);
+  // o manual da plataforma tem algo bem parecido com a pergunta?
+  const manual = manualFallback(q.norm, host);
+  if (manual) return manual;
 
   opts.report?.({ type: 'falha', reason: 'nao_entendeu' });
   return {

@@ -125,6 +125,10 @@ const CASES: Case[] = [
   // pedidos de material
   [opP, 'Max tem troca para validar?', 'order-count'], [opP, 'Max quantos pedidos estão em aberto', 'order-count'], [opP, 'Max abrir o pedido 3', 'order-open'], [opP, 'Max pedidos atrasados', 'order-count'],
   [almoxP, 'Max quantos pedidos de material para separar', 'order-count'], [almoxP, 'Max abrir o pedido de material 3', 'order-open'], [almoxP, 'Max abrir a solicitação 12', 'almox-request-open'], [almoxP, 'Max tem solicitação nova?', 'almox-request-count'], [almoxP, 'Max pedido de compra número 2', 'purchase-open'], [almoxP, 'Max abrir pedidos de material', 'go-tab'],
+  // manual (explicações passo a passo)
+  [almox, 'Max me explique passo a passo como funciona o setor do almoxarifado por favor', 'explain'], [almox, 'Max como funciona este setor', 'explain'], [almox, 'Max como eu lanço uma nota fiscal', 'explain'],
+  [almox, 'Max como faço o inventário', 'explain'], [almox, 'Max o que é saldo reservado', 'explain'], [rh, 'Max como funciona a troca anual', 'explain'], [hub, 'Max explica como funciona o RH', 'explain'],
+  [almox, 'Max como está o estoque', 'almox-stock-summary'], [almox, 'Max abrir o estoque', 'go-tab'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];
