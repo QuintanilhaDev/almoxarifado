@@ -213,16 +213,16 @@ export function Estoque({
           </div>
           <div className="head-actions">
             {catalog.ready && list.some((i) => !i.code) ? (
-              <button className="btn btn-ghost edit-only" onClick={() => setClassify(true)} title="Sugere categoria e grupo e gera os códigos CC-GG-NNNN">
+              <button data-max="estoque-classificar" className="btn btn-ghost edit-only" onClick={() => setClassify(true)} title="Sugere categoria e grupo e gera os códigos CC-GG-NNNN">
                 <Wand2 size={18} /> Classificar ({num(list.filter((i) => !i.code).length)})
               </button>
             ) : null}
             {canInventory && catalog.ready ? (
-              <button className="btn btn-ghost edit-only" onClick={() => setInventory(true)} disabled={!items?.length}>
+              <button data-max="estoque-inventario" className="btn btn-ghost edit-only" onClick={() => setInventory(true)} disabled={!items?.length}>
                 <ClipboardCheck size={18} /> Inventário
               </button>
             ) : null}
-            <button className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>
+            <button data-max="estoque-importar" className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>
               <FileUp size={18} /> Importar planilha
             </button>
             <button className="btn btn-ghost" onClick={exportCsv} disabled={!list.length}>
@@ -231,7 +231,7 @@ export function Estoque({
             <button className="btn btn-ghost edit-only" onClick={() => setSend({})} disabled={!items || !postos}>
               <Send size={17} /> Transferir
             </button>
-            <button className="btn btn-primary edit-only" onClick={() => setForm({ item: null })}>
+            <button data-max="item-novo" className="btn btn-primary edit-only" onClick={() => setForm({ item: null })}>
               <Plus size={18} /> Novo item
             </button>
           </div>
@@ -625,7 +625,7 @@ function ItemDrawer({
           </div>
           {onPurchase ? (
             <div className="drawer-actions">
-              <button className={`btn btn-sm ${low ? 'btn-primary' : 'btn-ghost'}`} onClick={onPurchase}>
+              <button data-max="item-pedir-compra" className={`btn btn-sm ${low ? 'btn-primary' : 'btn-ghost'}`} onClick={onPurchase}>
                 <ShoppingCart size={15} /> Pedir compra deste item
               </button>
             </div>

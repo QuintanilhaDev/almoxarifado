@@ -122,13 +122,13 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
           </div>
           {mode === 'almox' ? (
             <div className="head-actions">
-              <button className="btn btn-ghost edit-only" onClick={() => setManual(true)} disabled={!canEdit || !items}>
+              <button data-max="nota-digitar" className="btn btn-ghost edit-only" onClick={() => setManual(true)} disabled={!canEdit || !items}>
                 <FilePlus2 size={18} /> Digitar nota
               </button>
-              <button className="btn btn-primary edit-only" onClick={() => fileRef.current?.click()} disabled={!canEdit || parsing}>
+              <button data-max="nota-importar" data-max-file="#nota-file" className="btn btn-primary edit-only" onClick={() => fileRef.current?.click()} disabled={!canEdit || parsing}>
                 {parsing ? <span className="spinner" /> : <FileCode2 size={18} />} Importar XML
               </button>
-              <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" hidden onChange={(e) => e.target.files?.[0] && pickFile(e.target.files[0])} aria-label="Arquivo XML da nota" />
+              <input ref={fileRef} id="nota-file" type="file" accept=".xml,text/xml,application/xml" hidden onChange={(e) => e.target.files?.[0] && pickFile(e.target.files[0])} aria-label="Arquivo XML da nota" />
             </div>
           ) : null}
         </div>

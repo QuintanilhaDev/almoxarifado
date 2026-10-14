@@ -160,7 +160,7 @@ export function PurchaseBoard({
               <button className="btn btn-ghost edit-only" onClick={() => setReplenish(true)} disabled={!canEdit}>
                 <PackagePlus size={18} /> Reposição sugerida{repCount ? ` (${repCount})` : ''}
               </button>
-              <button className="btn btn-primary edit-only" onClick={() => setCreating({})} disabled={!canEdit}>
+              <button data-max="compra-nova" className="btn btn-primary edit-only" onClick={() => setCreating({})} disabled={!canEdit}>
                 <Plus size={18} /> Nova solicitação de compra
               </button>
             </div>

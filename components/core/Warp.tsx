@@ -42,6 +42,55 @@ async function waitFirst(sel: string, ms: number): Promise<HTMLElement | null> {
   }
 }
 
+/**
+ * Botão que abre a janela de arquivos: o navegador só deixa abrir com um clique de verdade da pessoa.
+ * Depois do soco, aparece um cartãozinho ao lado do botão para escolher ou arrastar o arquivo.
+ */
+function showFilePick(btn: HTMLElement, inputSel: string) {
+  const input = document.querySelector(inputSel) as HTMLInputElement | null;
+  if (!input) return;
+  document.querySelector('.max-filepick')?.remove();
+  const r = btn.getBoundingClientRect();
+  const card = document.createElement('div');
+  card.className = 'max-filepick';
+  card.setAttribute('role', 'dialog');
+  card.innerHTML = '<strong>Escolha o arquivo</strong><span>ou arraste para cá</span><button type="button" class="btn btn-primary btn-sm">Escolher arquivo</button><button type="button" class="max-filepick-x" aria-label="Fechar">×</button>';
+  const w = 240;
+  card.style.left = `${Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width / 2 - w / 2))}px`;
+  card.style.top = `${r.bottom + 10 + 120 > window.innerHeight ? Math.max(12, r.top - 130) : r.bottom + 10}px`;
+  const close = () => {
+    card.remove();
+    document.removeEventListener('pointerdown', outside, true);
+  };
+  const outside = (e: Event) => {
+    if (!card.contains(e.target as Node)) close();
+  };
+  (card.querySelector('.btn') as HTMLButtonElement).onclick = () => {
+    input.click();
+    close();
+  };
+  (card.querySelector('.max-filepick-x') as HTMLButtonElement).onclick = close;
+  card.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    card.classList.add('is-over');
+  });
+  card.addEventListener('dragleave', () => card.classList.remove('is-over'));
+  card.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const files = e.dataTransfer?.files;
+    if (files?.length) {
+      const dt = new DataTransfer();
+      dt.items.add(files[0]);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    close();
+  });
+  document.body.appendChild(card);
+  setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+  setTimeout(close, 45000);
+}
+
 export function WarpProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -133,6 +182,7 @@ export function WarpProvider({ children }: { children: React.ReactNode }) {
               const press = () => {
                 hit();
                 if (step.exec) step.exec();
+                else if (el?.dataset.maxFile) showFilePick(el, el.dataset.maxFile);
                 else el?.click();
               };
               if (!r || !el) {

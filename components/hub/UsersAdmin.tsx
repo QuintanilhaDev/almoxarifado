@@ -97,7 +97,7 @@ export function UsersAdmin({
             <h1>Usuários</h1>
             <p>Acessos, setores e permissões de cada pessoa.</p>
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setCreating({})}>
+          <button className="btn btn-primary btn-sm" onClick={() => setCreating({})} data-max="usuario-novo">
             <UserPlus size={16} /> Novo usuário
           </button>
         </div>

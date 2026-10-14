@@ -102,6 +102,22 @@ Alguns pedidos:
 
 **Voz:** usa o reconhecimento e a fala do próprio navegador. Funciona no Chrome, Edge e Safari; no Firefox, só digitando. No Chrome o áudio captado é processado pelos servidores do Google (é assim que o reconhecimento do navegador funciona). Por regra dos navegadores, a Max só consegue **falar** depois do primeiro clique na página.
 
+### Comandos que a própria Max faz (sem depender da IA)
+
+Ela entende o pedido do jeito que a pessoa falar ou escrever: procura o verbo (em qualquer forma), a quantidade (em número ou por extenso), o item com o tamanho, o posto, a pessoa, o setor, o e-mail… em qualquer ordem e com tolerância a erros de digitação e de voz. Se faltar algo, ela pergunta, e a resposta curta completa o pedido ("Quantas unidades?" → "dez"). **Toda alteração pede um "sim"** antes de gravar.
+
+| Área | Exemplos (são só exemplos: outras formas de dizer também valem) |
+|---|---|
+| Estoque | "chegaram dez botas 42" · "dar baixa em 2 coletes" · "o saldo da bota 42 é 15" · "manda 3 camisas G pro Posto 01" · "voltaram 3 bonés do Shopping Barra" · "cadastrar o item lanterna tática com 7 unidades" · "o mínimo da bota 42 é 8" · "coloca o boné na categoria EPI" |
+| Solicitações e postos | "marca a 12 como resolvida" · "deixa a 3 pendente" · "novo posto Hospital Central em Salvador" · "remover o posto X" · "autorizar o e-mail joao@empresa.com" |
+| Compras | "pedir compra de 20 botas 42, urgente" · "a compra 2 chegou" · "coloca a solicitação 2 em cotação" · "cancela a compra 1" · "desativar o fornecedor X" |
+| Pedidos de material | "validar a troca 3" · "encaminhar o pedido 5" · "cancelar o pedido 4 porque a pessoa desistiu" · "aplicar a sugestão do pedido 2" · "entregar o pedido 2" |
+| Usuários (master geral, de qualquer tela) | "cadastrar usuário no setor RH" · "desativar a Juliana" · "muda a Carla para o Financeiro" · "tornar a Juliana master do almoxarifado" · "redefinir a senha do Pedro para …" · "a Juliana só pode ver as métricas" |
+| Botões das telas | "classificar os itens" · "fazer inventário" · "importar planilha de itens/postos/colaboradores" · "importar o XML da nota" · "lançar uma nota" · "nova solicitação de compra" · "nova admissão" · "cadastrar um colaborador" · "criar um kit" · "adicionar uma pergunta no formulário" · "trocar minha senha" |
+| Navegação | "abrir o estoque do almoxarifado" · "me leva nos fornecedores" · "abrir a gestão" (de qualquer setor) |
+
+Para os botões, ela corre até a aba e o botão certos (até em outro setor) e dá um soquinho. Botões que abrem a janela de arquivos mostram um cartãozinho "Escolher arquivo" ao lado: o navegador só abre essa janela com um clique da pessoa. Código: `lib/max/intent.ts` (entendimento), `lib/max/skills-actions.ts` (alterações), `lib/max/skills-ui.ts` (botões e navegação). A bateria `npm test` confere centenas de jeitos de falar cada comando.
+
 ### A Max como agente (com a IA ligada)
 
 Com as variáveis da IA configuradas, a Max deixa de só responder comandos e passa a **agir**: a IA recebe ferramentas e decide quais usar.

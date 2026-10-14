@@ -38,7 +38,7 @@ const ALMOX_TABS = [
 ];
 const base = { tab: 'inicio', goTab: () => undefined, can: () => true, navigate: () => undefined, logout: () => undefined };
 const almox: MaxHost = { ...base, scope: 'sector', sector: getSector('almoxarifado'), user: user(), tabs: ALMOX_TABS, almox: { requests: () => requests as never, items: () => items as never, postos: () => postos as never, emailsCount: () => 7 } };
-const hub: MaxHost = { ...base, scope: 'hub', sector: null, user: user(), tabs: [{ id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral'] }, { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'senha'] }], hub: { users: () => rows }, almox: almox.almox };
+const hub: MaxHost = { ...base, scope: 'hub', sector: null, user: user(), tabs: [{ id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral'] }, { id: 'gestao', label: 'Gestão', aliases: ['gestao', 'indicadores', 'painel da gestao', 'relatorios', 'dashboard'] }, { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas'] }, { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'senha'] }], hub: { users: () => rows }, almox: almox.almox };
 const login: MaxHost = { ...base, scope: 'login', sector: null, user: null, tabs: [] };
 const rh: MaxHost = { ...base, scope: 'sector', sector: getSector('rh'), user: user({ is_master: false, sector: 'rh' }), tabs: [{ id: 'inicio', label: 'Início', aliases: ['inicio'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'senha'] }] };
 
@@ -54,6 +54,7 @@ const SUPS = [
   { id: 's2', name: 'Botas Forte Comércio', trade_name: null, cnpj: null, phone: null, email: null, contact: null, category: 'botas e calçados de segurança', city: null, uf: null, address: null, notes: null, active: true, created_by: null, created_at: '', updated_at: null },
 ];
 const comprasF: MaxHost = { ...compras, tabs: [...compras.tabs, { id: 'fornecedores', label: 'Fornecedores', aliases: ['fornecedores', 'fornecedor'] }], fornecedores: { list: () => SUPS as never, canEdit: true } };
+const rhP: MaxHost = { ...rh, user: user({ is_master: false, sector: 'rh', sector_role: 'master' }), tabs: [{ id: 'pedidos', label: 'Pedidos', aliases: ['pedidos', 'admissoes'] }, { id: 'colaboradores', label: 'Colaboradores', aliases: ['colaboradores', 'funcionarios', 'kits'] }, { id: 'trocas', label: 'Troca anual', aliases: ['troca anual', 'trocas'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta'] }], pedidos: { scope: 'rh', orders: () => [] as never } };
 // Projeto 3: pedidos de material
 const ord = (n: number, stage: string, extra = {}) => ({ id: 'o' + n, number: n, origin: 'operacao', stage, priority: 'normal', needed_by: null, start_date: null, company: null, posto_id: null, posto_name: 'Posto 01', collaborator_id: null, collaborator_name: 'Caio', matricula: null, role: null, reason: null, requester: 'Uesley', supervisor: null, source_request_id: null, items: [{ item_id: 'x', name: 'Bota', size: '42', unit: 'Cada', qty: 2, reserved: 0, delivered: 0 }], flags: [], history: [], forwarded_by: null, forwarded_at: null, validated_by: null, validated_at: null, closed_at: null, created_at: '2026-10-13T10:00:00Z', updated_at: '', ...extra });
 const orders = [ord(1, 'solicitado'), ord(2, 'validacao', { origin: 'rh_troca' }), ord(3, 'encaminhado')];
@@ -83,7 +84,7 @@ const CASES: Case[] = [
   [almox, 'Max, resumo do estoque', 'almox-stock-summary'], [almox, 'Max qual o valor do estoque', 'almox-stock-summary'], [almox, 'Max quantos itens temos no estoque', 'almox-stock-summary'],
   [almox, 'Max, o que tem no posto 01?', 'almox-posto-stock'], [almox, 'Max estoque do posto shopping barra', 'almox-posto-stock'], [almox, 'Max, quantos postos temos?', 'almox-postos-count'],
   [almox, 'Max copiar o link do formulário', 'almox-form-link'], [almox, 'Max quantos e-mails autorizados', 'almox-emails-count'],
-  [almox, 'Max, abrir estoque', 'go-tab'], [almox, 'Max ir para postos', 'go-tab'], [almox, 'Max abrir minha conta', 'go-tab'], [almox, 'Max quero trocar minha senha', 'go-tab'], [almox, 'Max estoque', 'go-tab'], [almox, 'Max abre as métricas', 'almox-metrics'],
+  [almox, 'Max, abrir estoque', 'go-tab'], [almox, 'Max ir para postos', 'go-tab'], [almox, 'Max abrir minha conta', 'go-tab'], [almox, 'Max quero trocar minha senha', 'ui-action'], [almox, 'Max estoque', 'go-tab'], [almox, 'Max abre as métricas', 'almox-metrics'],
   [almox, 'Max, abrir o setor financeiro', 'go-sector'], [almox, 'Max voltar ao painel master', 'go-sector'], [almox, 'Max, sair', 'logout'], [almox, 'Max qual é o meu setor', 'whoami'],
   [almox, 'Max, quanto é 15% de 2400', 'calc'], [almox, 'Max bom dia', 'greet'], [almox, 'Max repete', 'repeat'], [almox, 'Max para', 'stop'], [almox, 'Max modo silencioso', 'voice-off'], [almox, 'Max pode falar', 'voice-on'],
   [almox, 'Max quem descobriu o Brasil', null], [almox, 'Max como está o tempo hoje', null], [almox, 'Max qual a cotação do dólar', null], [almox, 'Max me explica o que é ISO 9001', null],
@@ -113,7 +114,7 @@ const CASES: Case[] = [
   // sair da conta dito de qualquer jeito
   [almox, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor', 'logout'], [hub, 'Max deslog da minha conta e me leve diretamente para a tela de login por favor', 'logout'], [almox, 'Max me desloga', 'logout'],
   [almox, 'Max quero sair da minha conta', 'logout'], [almox, 'Max faz logout pra mim', 'logout'], [almox, 'Max me leva para a tela de login', 'logout'], [almox, 'Max encerre minha sessão por favor', 'logout'], [rh, 'Max desconectar', 'logout'],
-  [almox, 'Max abrir minha conta', 'go-tab'], [almox, 'Max quero trocar a senha da minha conta', 'go-tab'], [almox, 'Max o que saiu', 'almox-moves'], [almox, 'Max sair', 'logout'],
+  [almox, 'Max abrir minha conta', 'go-tab'], [almox, 'Max quero trocar a senha da minha conta', 'ui-action'], [almox, 'Max o que saiu', 'almox-moves'], [almox, 'Max sair', 'logout'],
   // baixar o arquivo das métricas
   [hub, 'Max, desejo baixar as métricas do almoxarifado', 'download-metrics'], [almox, 'Max, desejo baixar as métricas', 'download-metrics'], [almox, 'Max baixe a planilha das métricas do último mês', 'download-metrics'],
   [hub, 'Max desejo baixar as métricas do financeiro', 'download-metrics'], [rh, 'Max quero baixar as métricas de recursos humanos', 'download-metrics'], [almox, 'Max me envie o gráfico das métricas', 'download-metrics'],
@@ -134,7 +135,7 @@ const CASES: Case[] = [
   // downloads: a Max corre até o botão e baixa
   [hub, 'Max, baixar o PDF da Gestão', 'download-gestao'], [hub, 'Max baixar o relatório', 'download-gestao'], [hub, 'Max exportar a planilha da gestão dos últimos 90 dias', 'download-gestao'],
   [almox, 'Max baixar a planilha das métricas', 'download-metrics'], [hub, 'Max baixar as métricas do almoxarifado', 'download-metrics'], [almox, 'Max baixar o PDF da gestão', 'download-gestao'],
-  [opP, 'Max baixar a planilha dos pedidos', 'download-orders'], [almox, 'Max baixar o XML da nota 1234', 'download-nota-xml'], [almox, 'Max dar baixa de 3 botas', null],
+  [opP, 'Max baixar a planilha dos pedidos', 'download-orders'], [almox, 'Max baixar o XML da nota 1234', 'download-nota-xml'], [almox, 'Max dar baixa de 3 botas', 'act-stock-move'],
   // pedidos de material
   [opP, 'Max tem troca para validar?', 'order-count'], [opP, 'Max quantos pedidos estão em aberto', 'order-count'], [opP, 'Max abrir o pedido 3', 'order-open'], [opP, 'Max pedidos atrasados', 'order-count'],
   [almoxP, 'Max quantos pedidos de material para separar', 'order-count'], [almoxP, 'Max abrir o pedido de material 3', 'order-open'], [almoxP, 'Max abrir a solicitação 12', 'almox-request-open'], [almoxP, 'Max tem solicitação nova?', 'almox-request-count'], [almoxP, 'Max pedido de compra número 2', 'purchase-open'], [almoxP, 'Max abrir pedidos de material', 'go-tab'],
@@ -145,6 +146,69 @@ const CASES: Case[] = [
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],
 ];
+
+
+// ===================== bateria de comandos (vários jeitos de falar cada um) =====================
+const BATTERY: [MaxHost, string[], string | null][] = [
+  // entrada no estoque
+  [almox, ['entrada de 10 botas 42', 'chegaram 10 botas tamanho 42', 'recebi dez botas 42', 'recebemos 10 botas número 42', 'registra a entrada de 10 botas 42', 'lança entrada de 10 bota 42', 'da entrada em 10 botas 42 por favor', 'adiciona 10 botas 42 no estoque', 'acabou de chegar 10 botas 42', 'repor 10 botas 42', 'coloca mais 10 botas 42', 'quero dar entrada de vinte botas 42'], 'act-stock-move'],
+  // saída
+  [almox, ['saída de 3 botas 40', 'dar baixa em 3 botas 40', 'baixa 3 botas 40', 'tira 3 botas 40 do estoque', 'retirar 3 botas 40', 'usei 3 botas 40', 'saíram 3 botas 40 agora', 'consumimos 3 botas 40', 'registra saída de três botas 40', 'perdemos 3 botas 40'], 'act-stock-move'],
+  // ajuste / contagem
+  [almox, ['o saldo da bota 42 é 15', 'ajusta o saldo da bota 42 para 15', 'corrige o saldo da bota 42 pra 15', 'contei 15 botas 42', 'o saldo certo da bota 42 é 15'], 'act-stock-move'],
+  // envio e devolução de posto
+  [almox, ['enviar 5 camisas G para o posto 01', 'manda 5 camisas G pro posto 01', 'transfere 5 camisas G ao posto 01', 'leva 5 camisas G pro posto 01', 'entregar 5 camisas G no posto 01'], 'act-stock-move'],
+  [almox, ['o posto 01 devolveu 2 camisas G', 'voltaram 2 camisas G do posto 01', 'devolução de 2 camisas G do posto 01', 'recolhi 2 camisas G do posto 01'], 'act-stock-move'],
+  // cadastro de item
+  [almox, ['cadastrar o item lanterna tática', 'cadastra o produto lanterna tática com 7 unidades', 'novo item lanterna tática', 'criar o item lanterna tática', 'adicionar o produto lanterna tática ao estoque', 'cadastrar um item novo', 'quero cadastrar um material novo'], 'act-item-create'],
+  // mínimo
+  [almox, ['o estoque mínimo da bota 42 é 8', 'muda o mínimo da bota 42 para 8', 'define o mínimo da bota 42 em 8', 'mínimo da bota 42 é oito'], 'act-item-min'],
+  // categorias
+  [almox, ['coloca o boné na categoria EPI', 'adiciona o boné na categoria EPI', 'tira o boné da categoria max serviços', 'remove o boné da categoria max serviços'], 'act-item-category'],
+  // solicitações dos postos
+  [almox, ['marcar a solicitação 12 como resolvida', 'resolve a solicitação 12', 'finaliza a 12', 'conclui a solicitação 12', 'fecha a solicitação 12', 'a solicitação 12 está resolvida', 'deixa a solicitação 12 pendente', 'coloca a 12 como pendente', 'reabre a solicitação 12', 'muda a solicitação 12 para nova'], 'act-request-status'],
+  // postos
+  [almox, ['cadastrar o posto Hospital Central', 'novo posto Hospital Central em Salvador', 'cria o posto Hospital Central', 'adiciona o posto Hospital Central', 'novo posto', 'cadastrar um posto'], 'act-posto-create'],
+  [almox, ['remover o posto condomínio vila verde', 'exclui o posto condomínio vila verde', 'apaga o posto condomínio vila verde'], 'act-posto-remove'],
+  [almox, ['enviar itens para o shopping barra', 'mandar material pro posto 01'], 'ui-posto-enviar'],
+  // e-mails autorizados
+  [almox, ['autorizar o email joao@empresa.com', 'libera o e-mail joao@empresa.com', 'cadastra o email joao@empresa.com', 'autoriza um email', 'remove o email joao@empresa.com', 'desautoriza o e-mail joao@empresa.com'], 'act-email'],
+  // estoque: botões
+  [almox, ['classificar os itens', 'gerar os códigos', 'classifica o estoque', 'dar código aos itens'], 'ui-action'],
+  [almox, ['fazer inventário', 'começar o inventário', 'vamos fazer o inventário', 'abrir um novo inventário', 'inventário geral'], 'ui-action'],
+  [almox, ['importar planilha de itens', 'importar a planilha do estoque', 'subir uma planilha com os produtos', 'carregar a planilha de materiais'], 'ui-action'],
+  [almox, ['importar a planilha de postos', 'subir os postos por planilha'], 'ui-action'],
+  [almox, ['nova solicitação de compra', 'quero fazer um pedido de compra', 'pedir uma compra', 'criar uma solicitação de compra', 'manda um pedido de compra'], 'ui-action'],
+  [almox, ['adicionar uma pergunta no formulário', 'criar uma pergunta nova', 'inclui uma pergunta'], 'ui-action'],
+  [almox, ['importar o xml da nota', 'importar xml', 'subir o xml', 'lançar a nota pelo xml'], 'ui-action'],
+  [almox, ['lançar uma nota fiscal', 'digitar uma nota', 'nova nota fiscal', 'registrar uma nf'], 'ui-action'],
+  // RH
+  [rhP, ['abrir uma admissão', 'novo pedido', 'nova admissão', 'quero pedir uma troca extraordinária', 'fazer um pedido de material', 'criar um pedido'], 'ui-action'],
+  [rhP, ['cadastrar um colaborador', 'novo colaborador', 'cadastra o funcionário', 'adicionar um vigilante'], 'ui-action'],
+  [rhP, ['importar a planilha de colaboradores', 'subir a planilha dos funcionários', 'importar colaboradores'], 'ui-action'],
+  [rhP, ['criar um kit', 'novo kit', 'cadastrar um kit para vigilante', 'montar um kit'], 'ui-action'],
+  // usuários (master geral)
+  [hub, ['cadastrar usuário no setor recursos humanos', 'criar um usuário', 'novo usuário no financeiro', 'cria um acesso pro João no almoxarifado', 'quero cadastrar um novo usuário', 'adicionar um usuário'], 'hub-create-user'],
+  [almox, ['cadastrar usuário no setor recursos humanos', 'criar um usuário novo', 'novo usuário no rh', 'criar um acesso para o João'], 'hub-create-user'],
+  [hub, ['desativar a juliana', 'bloqueia o acesso do neilton', 'tira o acesso da juliana', 'reativar a juliana', 'libera o acesso da juliana de novo', 'muda a carla para o setor financeiro', 'transfere a carla pro financeiro', 'tornar a juliana master do almoxarifado', 'faz a juliana virar master', 'tira o neilton de master', 'redefinir a senha da juliana para nova1234', 'troca a senha do neilton', 'excluir o usuário carla', 'apaga o usuário da carla'], 'act-user'],
+  [hub, ['dar permissão de editar o estoque para a juliana', 'a juliana pode editar o estoque', 'a juliana só pode ver as métricas', 'libera a juliana para mexer nos postos', 'tirar o acesso da juliana aos postos', 'a juliana não pode ver os emails'], 'act-permission'],
+  // compras
+  [compras, ['marcar a solicitação de compra 2 como comprada', 'a compra 2 foi comprada', 'compramos a solicitação 2', 'a compra 2 chegou', 'a solicitação 2 foi entregue', 'coloca a solicitação 2 em cotação', 'recusa a solicitação de compra 2', 'a compra 2 foi negada'], 'act-purchase-status'],
+  [almoxC, ['cancelar a solicitação de compra 1', 'cancela a compra 1'], 'act-purchase-status'],
+  [comprasF, ['desativar o fornecedor malharia bahia', 'reativar o fornecedor botas forte'], 'act-supplier-active'],
+  // navegação entre setores e telas
+  [hub, ['abrir o estoque do almoxarifado', 'me leva no estoque do almoxarifado', 'mostra os postos do almoxarifado', 'abrir os fornecedores', 'ir para os fornecedores de compras', 'abrir a troca anual do rh', 'abrir os colaboradores'], 'go-sector-tab'],
+  [almox, ['abrir os colaboradores do rh', 'ir para os fornecedores', 'abrir os usuários', 'abrir o aprendizado da max'], 'go-sector-tab'],
+  [almox, ['trocar minha senha', 'quero mudar a minha senha', 'alterar minha senha', 'esqueci minha senha quero trocar'], 'ui-action'],
+  [almox, ['pedir compra de 20 botas 42', 'solicitar compra de 20 botas 42, é urgente', 'fazer um pedido de compra de 20 botas 42', 'precisamos comprar 20 botas 42', 'compra 20 botas 42'], 'act-purchase-create'],
+  // pedidos de material
+  [opP, ['validar a troca 3', 'aprova o pedido 3', 'valida o pedido número 3', 'cancelar o pedido 3 porque a pessoa desistiu', 'cancela a troca 3', 'encaminhar o pedido 3 ao almoxarifado'], 'act-order'],
+  [almoxP, ['aplicar a sugestão do pedido de material 3', 'reservar o pedido de material 3', 'entregar o pedido de material 3', 'separar o material do pedido 3'], 'act-order'],
+  // perguntas não podem virar alteração
+  [almox, ['quanto tem de bota 42', 'quantas botas 42 temos', 'tem bota 42 no estoque'], 'almox-stock-lookup'],
+  [almox, ['como dou entrada no estoque', 'como faço inventário', 'me explica como lançar uma nota'], 'explain'],
+];
+for (const [host, phrases, expected] of BATTERY) for (const ph of phrases) CASES.push([host, 'Max, ' + ph, expected]);
 
 let fail = 0;
 for (const [host, phrase, expected] of CASES) {
@@ -263,7 +327,7 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
     await t('Max, quero trocar minha senha');
     check('comandos claros continuam locais (sem gastar a IA)', calls.length === 0, calls);
     await t('Max, marque a solicitação 12 como resolvida');
-    check('"marque a solicitação 12 como resolvida" vai ao agente (não só abre)', calls.length === 1, calls);
+    check('"marque a solicitação 12 como resolvida" é feito pela própria Max (sem gastar a IA)', calls.length === 0, calls);
     r = await t('Max, me explique o limite disso');
     check('limite da IA: avisa', /limite de uso/.test(r.say), r);
     r = await think('vai tomar no cu', almox, { memory: m2, agent });
@@ -343,6 +407,31 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
       check('novo fornecedor: abre o cadastro pelo botão', /^Abrindo o cadastro de fornecedor com o que você disse/.test(r.say) && pressed.join(' ').includes('fornecedor-novo'), [r.say, pressed]);
     }
 
+    {
+      // conversa: ela pergunta o que faltou e a resposta curta completa o pedido
+      const m3: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () => undefined };
+      const say = (t: string, h: MaxHost, raw?: string) => think(hear(t).command || t, h, { memory: m3, raw: raw ?? t });
+      const pend = () => m3.pending ?? null;
+      let c = await say('Max, entrada de 10 botas', almox);
+      check('sem tamanho: pergunta qual', /^Encontrei mais de um: Bota de segurança 40/.test(c.say), c.say);
+      c = await say('42', almox);
+      check('"42" completa: entrada de 10 botas 42', /^Vou registrar: entrada de 10 unidades de Bota de segurança 42\. Confirma\?/.test(c.say) && pend()?.[0]?.body?.quantity === 10, c.say);
+      c = await say('não', almox);
+      check('"não" descarta', /não alterei nada/.test(c.say), c.say);
+      c = await say('Max, saída de bota 40', almox);
+      check('sem quantidade: pergunta quantas', /^Quantas unidades de Bota de segurança 40\?/.test(c.say), c.say);
+      c = await say('cinco', almox);
+      check('"cinco" completa: saída de 5', /^Vou registrar: saída de 5 unidades de Bota de segurança 40\./.test(c.say), c.say);
+      m3.pending = null;
+      c = await say('Max, redefinir a senha da Juliana', hub);
+      check('sem a senha: pergunta', /^Qual a nova senha de Juliana Souza/.test(c.say), c.say);
+      c = await say('Nova1234', hub, 'Nova1234');
+      check('a senha dita depois completa (com maiúsculas)', /nova senha\. Confirma\?/.test(c.say) && pend()?.[0]?.body?.new_password === 'Nova1234', [c.say, pend()]);
+      m3.pending = null;
+      c = await say('Max, quanto tem de bota 42', almox);
+      check('pergunta normal continua normal', /Bota de segurança, tamanho 42: 3 unidades/.test(c.say), c.say);
+    }
+
     calls = 0;
     let went = '';
     const hubNav = { ...hub, navigate: (p: string) => { went = p; } };
@@ -373,7 +462,7 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
     check('sair da conta nunca é disparado pela memória', !out && r.say === 'IA', [out, r.say]);
     calls = 0;
     r = await think('registre a saida de 5 bones', almox, { memory: m2, learned: [{ phrase: 'registre a saida de 5 bones', route: 'Max, resumo do estoque' }], agent: async () => { calls++; return { say: 'Vou registrar: saída. Confirma?', pending: [{ method: 'POST', path: '/api/almoxarifado/stock/move', what: 'saída' }], source: 'ia' }; } });
-    check('pedido de alteração nunca é atalho da memória', calls === 1 && m2.pending?.length === 1, r.say);
+    check('pedido de alteração nunca é atalho da memória (a própria Max prepara e pede confirmação)', m2.pending?.length === 1 && /^Vou registrar: saída de 5 unidades de Boné\. Confirma\?/.test(r.say), r.say);
     m2.pending = null;
     const bad: unknown[] = [];
     r = await think('quero uma coisa bem diferente do normal agora', almox, { memory: m2, report: (e) => bad.push(e), agent: async () => ({ route: 'Max, comando que não existe xyz', source: 'ia' }) });

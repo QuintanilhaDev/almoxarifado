@@ -4,6 +4,7 @@ import { PERIOD_GREETING, dateText, dayPeriod, firstName, timeText, type DayPeri
 import { canOpenSector, hasLevel } from '../permissions';
 import type { Period } from '../almoxarifado/metrics';
 import { windowIn } from './when';
+import { SECTOR_TABS } from './skills-ui';
 import { listJoin, pick } from './text';
 import type { MaxHost, Skill } from './types';
 
@@ -35,14 +36,14 @@ export { wantsMetricsFile } from './skills-downloads';
 
 export function capabilities(host: MaxHost): string[] {
   if (host.scope === 'login') return ['Max, apresente-se', 'Max, que horas são?', 'Max, como faço para entrar?', 'Max, quero fazer uma solicitação'];
-  if (host.scope === 'hub') return ['Max, quantos usuários temos?', 'Max, quem está no almoxarifado?', 'Max, criar usuário', 'Max, abrir o setor financeiro'];
+  if (host.scope === 'hub') return ['Max, criar um usuário no RH', 'Max, abrir o estoque do almoxarifado', 'Max, baixar o PDF da Gestão', 'Max, desativar o usuário da Juliana'];
   if (host.sector?.slug === 'almoxarifado') {
-    return ['Max, como funciona este setor?', 'Max, tem solicitação nova?', 'Max, o que está com estoque baixo?', 'Max, quantos pedidos de material para separar?'];
+    return ['Max, entrada de 10 botas 42', 'Max, enviar 5 camisas G para o Posto 01', 'Max, o que está com estoque baixo?', 'Max, marcar a solicitação 12 como resolvida'];
   }
-  if (host.sector?.slug === 'rh') return ['Max, como funciona este setor?', 'Max, como faço uma admissão?', 'Max, como funciona a troca anual?', 'Max, abrir colaboradores'];
-  if (host.sector?.slug === 'operacional') return ['Max, como funciona este setor?', 'Max, tem troca para validar?', 'Max, quantos pedidos estão em aberto?', 'Max, abrir minha conta'];
+  if (host.sector?.slug === 'rh') return ['Max, nova admissão', 'Max, cadastrar um colaborador', 'Max, importar a planilha de colaboradores', 'Max, como funciona a troca anual?'];
+  if (host.sector?.slug === 'operacional') return ['Max, tem troca para validar?', 'Max, validar a troca 3', 'Max, novo pedido de material', 'Max, quantos pedidos estão em aberto?'];
   if (host.sector?.slug === 'financeiro') return ['Max, como funciona este setor?', 'Max, abrir notas e vencimentos', 'Max, que dia é hoje?', 'Max, quanto é 15% de 2400?'];
-  if (host.sector?.slug === 'compras') return ['Max, como funciona este setor?', 'Max, tem solicitação de compra nova?', 'Max, como estão os pedidos de compra?', 'Max, abrir minha conta'];
+  if (host.sector?.slug === 'compras') return ['Max, tem solicitação de compra nova?', 'Max, a compra 2 chegou', 'Max, cadastrar um fornecedor', 'Max, quem fornece botas?'];
   return ['Max, que dia é hoje?', 'Max, quanto é 15% de 2400?', 'Max, abrir minha conta', 'Max, como está o tempo?'];
 }
 
@@ -399,6 +400,8 @@ export const coreSkills: Skill[] = [
       const target = SECTORS.find((s) => s.aliases.some((a) => q.any(a)) || q.any(s.name));
       if (!target) return 0;
       if (host.sector?.slug === target.slug) return 0;
+      // "abrir o ESTOQUE do almoxarifado": quem cuida é o comando que já abre a aba certa
+      if ((SECTOR_TABS[target.slug] ?? []).some((t) => t.id !== 'equipe' && t.aliases.some((a) => ` ${q.norm} `.includes(` ${a} `)))) return 0;
       const saysSector = q.any('setor', 'ferramenta', 'painel', 'area', 'departamento');
       if (q.any(...VERB_GO) && saysSector) return 0.94;
       if (host.scope === 'hub' && q.any(...VERB_GO) && !q.any('usuario', 'usuarios', 'pessoas', 'equipe', 'quem', 'master', 'quantos', 'quantas')) return 0.9;

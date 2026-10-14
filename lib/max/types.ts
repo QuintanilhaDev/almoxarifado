@@ -26,6 +26,13 @@ export interface MaxReply {
   source?: string;
   /** não entendeu: a interface oferece ajuda */
   unknown?: boolean;
+  /** alteração preparada por um comando local: só é feita depois do "sim" da pessoa */
+  pending?: PendingAction[];
+  /**
+   * Ela perguntou o que faltava ("Quantas unidades?"): a próxima resposta curta completa o pedido.
+   * "{x}" marca onde a resposta entra ("entrada de {x} botas 42"); sem ele, a resposta vai no fim.
+   */
+  followUp?: string;
 }
 
 export type MaxScope = 'login' | 'hub' | 'sector';
@@ -89,6 +96,8 @@ export interface PendingAction {
 export interface MaxMemory {
   /** alterações aguardando confirmação */
   pending?: PendingAction[] | null;
+  /** pedido esperando a informação que faltou (ver MaxReply.followUp) */
+  followUp?: string | null;
   last: MaxReply | null;
   lastInput: string;
   /** a frase como foi ouvida/digitada (com maiúsculas e acentos), para habilidades que usam nomes próprios */

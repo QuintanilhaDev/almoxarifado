@@ -18,20 +18,32 @@ function needUsers(host: MaxHost): MaxReply | null {
 export const hubSkills: Skill[] = [
   {
     id: 'hub-create-user',
-    scopes: ['hub'],
+    // de qualquer tela: fora do painel, ela corre até "Painel master", depois "Usuários" e "Novo usuário"
+    scopes: ['hub', 'sector'],
     examples: ['Max, criar usuário', 'Max, novo usuário no financeiro'],
-    match: (q) => (q.re(/\b(cri\w+|nov[oa]|adicion\w+|cadastr\w+|inclu\w+|registr\w+)\b/) && q.any(...USER_WORDS, 'master') && !q.any('quantos', 'quantas', 'quem') ? 0.93 : 0),
+    match: (q, host) => {
+      if (!q.re(/\b(cri\w+|nov[oa]|adicion\w+|cadastr\w+|inclu\w+|registr\w+)\b/) || q.any('quantos', 'quantas', 'quem')) return 0;
+      // no painel, "pessoa", "funcionário" etc. também valem; num setor, "colaborador" é o cadastro do RH, não um acesso
+      if (host.scope === 'hub') return q.any(...USER_WORDS, 'master') ? 0.93 : 0;
+      return q.re(/\b(usuari[oa]s?|acessos?|logins?|conta de acesso|senha de acesso)\b/) ? 0.95 : 0;
+    },
     run: (q, host) => {
-      if (!host.user?.is_master) return { say: 'Só um usuário master cria usuários.' };
+      if (!host.user?.is_master) return { say: 'Novos acessos são criados pelo master geral, no Painel master. Peça a ele para criar o usuário.' };
       const sector = sectorIn(q);
       const m = q.raw.match(/(?:chamad[oa]|com (?:o )?nome(?: de)?|para (?:a |o )?)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' ]{1,38}?)(?=\s+(?:no|na|para|pro|pra|do|da|como|em)\b|[.,!?]|$)/i);
       const name = m ? m[1].trim().replace(/\b\p{L}/gu, (c) => c.toUpperCase()) : undefined;
       const master = Boolean(q.re(/\bmaster (geral|do hub|do sistema)\b/));
       return {
-        say: `Abri o cadastro de usuário${name ? ` para ${name}` : ''}${sector ? `, já no setor ${sector.name}` : ''}. Defina o login e a senha e confirme.`,
+        say: `Abrindo o cadastro de usuário${name ? ` para ${name}` : ''}${sector ? `, já no setor ${sector.name}` : ''}. Defina o login e a senha e confirme.`,
         act: () => {
-          host.goTab('usuarios');
-          maxEmit('hub:users', { create: { name, sector: sector?.slug, master } });
+          const open = () => maxEmit('hub:users', { create: { name, sector: sector?.slug, master } });
+          if (!host.press) {
+            host.goTab('usuarios');
+            return open();
+          }
+          if (host.scope !== 'hub') host.navigate('/hub', { spoken: true });
+          host.press('.nav-item[data-tab="usuarios"], .tab[data-tab="usuarios"]', { skipActive: true });
+          host.press('[data-max="usuario-novo"]', { exec: open });
         },
       };
     },

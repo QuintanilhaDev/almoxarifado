@@ -195,7 +195,7 @@ export function OrdersPanel({
               {exporting ? <span className="spinner" /> : <Download size={18} />} Planilha
             </button>
             {scope !== 'almox' ? (
-              <button className="btn btn-primary edit-only" onClick={() => setCreating(true)} disabled={!canEdit}>
+              <button data-max="pedido-novo" className="btn btn-primary edit-only" onClick={() => setCreating(true)} disabled={!canEdit}>
                 <Plus size={18} /> {scope === 'rh' ? 'Novo pedido do RH' : 'Novo pedido'}
               </button>
             ) : null}
@@ -356,7 +356,7 @@ export function OrdersPanel({
                   const st = statusOf.get(o.id)!;
                   const late = isLate(o);
                   return (
-                    <button key={o.id} className={`p-row${needsAction(o) && seg !== 'acao' ? ' is-new' : ''}`} onClick={() => setOpenId(o.id)} aria-label={`Abrir pedido ${orderLabel(o.number)}`}>
+                    <button key={o.id} data-max-pedido={o.id} className={`p-row${needsAction(o) && seg !== 'acao' ? ' is-new' : ''}`} onClick={() => setOpenId(o.id)} aria-label={`Abrir pedido ${orderLabel(o.number)}`}>
                       <span className="p-num">{orderLabel(o.number)}</span>
                       <span className="p-main">
                         <b>{o.collaborator_name ?? o.posto_name ?? o.requester}</b>

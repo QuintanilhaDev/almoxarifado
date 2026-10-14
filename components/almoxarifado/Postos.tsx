@@ -166,7 +166,7 @@ export function Postos({
             <p>O que cada posto tem em estoque.</p>
           </div>
           <div className="head-actions">
-            <button className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>
+            <button data-max="postos-importar" className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>
               <FileUp size={18} /> Importar planilha
             </button>
             <button className="btn btn-ghost" onClick={exportCsv} disabled={!list.length}>
@@ -175,7 +175,7 @@ export function Postos({
             <button className="btn btn-ghost edit-only" onClick={() => setSend({})} disabled={!items || !postos || !list.length}>
               <Send size={17} /> Transferir
             </button>
-            <button className="btn btn-primary edit-only" onClick={() => setForm({ posto: null })}>
+            <button data-max="posto-novo" className="btn btn-primary edit-only" onClick={() => setForm({ posto: null })}>
               <Plus size={18} /> Novo posto
             </button>
           </div>
@@ -256,6 +256,7 @@ export function Postos({
                   key={p.id}
                   layout="position"
                   className="posto-card"
+                  data-max-posto={p.id}
                   role="button"
                   tabIndex={0}
                   aria-label={`Abrir ${p.name}`}
@@ -459,7 +460,7 @@ function PostoDrawer({
           </div>
 
           <div className="drawer-actions">
-            <button className="btn btn-primary btn-sm edit-only" onClick={onSend}>
+            <button data-max="posto-enviar" className="btn btn-primary btn-sm edit-only" onClick={onSend}>
               <Send size={15} /> Enviar itens
             </button>
             <button className="btn btn-ghost btn-sm" onClick={exportLines} disabled={!lines?.length}>

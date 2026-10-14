@@ -112,7 +112,7 @@ export const MANUAL: ManualTopic[] = [
     sector: 'hub',
     tab: 'usuarios',
     keys: ['criar usuario', 'novo usuario', 'cadastrar usuario', 'usuarios', 'desativar usuario', 'cadastrar pessoa'],
-    summary: 'Usuários são criados pelo master geral no Painel master, ou pelo master do setor na aba Equipe.',
+    summary: 'Usuários são criados pelo master geral no Painel master. O master de cada setor ajusta as permissões da equipe na aba Equipe.',
     steps: [
       'Abra Usuários e toque em Novo usuário.',
       'Preencha nome, usuário de login e senha inicial.',

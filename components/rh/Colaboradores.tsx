@@ -101,16 +101,16 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
           <div className="head-actions">
             {view === 'pessoas' ? (
               <>
-                <button className="btn btn-ghost edit-only" onClick={() => fileRef.current?.click()} disabled={!canEdit}>
+                <button data-max="colab-importar" data-max-file="#colab-file" className="btn btn-ghost edit-only" onClick={() => fileRef.current?.click()} disabled={!canEdit}>
                   <FileUp size={18} /> Importar planilha
                 </button>
-                <input ref={fileRef} type="file" hidden accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} aria-label="Planilha de colaboradores" />
-                <button className="btn btn-primary edit-only" onClick={() => setForm({ c: null })} disabled={!canEdit}>
+                <input ref={fileRef} id="colab-file" type="file" hidden accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} aria-label="Planilha de colaboradores" />
+                <button data-max="colab-novo" className="btn btn-primary edit-only" onClick={() => setForm({ c: null })} disabled={!canEdit}>
                   <UserPlus size={18} /> Novo colaborador
                 </button>
               </>
             ) : (
-              <button className="btn btn-primary edit-only" onClick={() => setKitForm({ k: null })} disabled={!canEdit}>
+              <button data-max="kit-novo" className="btn btn-primary edit-only" onClick={() => setKitForm({ k: null })} disabled={!canEdit}>
                 <Plus size={18} /> Novo kit
               </button>
             )}
@@ -121,7 +121,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
             <button className={view === 'pessoas' ? 'is-active' : ''} onClick={() => setView('pessoas')}>
               Pessoas <em>{num((list ?? []).filter((c) => c.active).length)}</em>
             </button>
-            <button className={view === 'kits' ? 'is-active' : ''} onClick={() => setView('kits')}>
+            <button data-max="colab-kits" className={view === 'kits' ? 'is-active' : ''} onClick={() => setView('kits')}>
               Kits por função <em>{num(kits?.length ?? 0)}</em>
             </button>
           </div>

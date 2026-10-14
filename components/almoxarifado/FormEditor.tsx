@@ -204,7 +204,7 @@ export function FormEditor({ version, me }: { version: { n: number; by: string }
                 />
               ))}
             </Reorder.Group>
-            <button className="add-q edit-only" onClick={add}>
+            <button data-max="form-pergunta" className="add-q edit-only" onClick={add}>
               <Plus size={18} /> Adicionar pergunta
             </button>
           </>

@@ -5,14 +5,17 @@ import { comprasSkills } from './skills-compras';
 import { pedidosSkills } from './skills-pedidos';
 import { downloadSkills } from './skills-downloads';
 import { fornecedoresSkills } from './skills-fornecedores';
+import { ACTION_IDS, actionSkills } from './skills-actions';
+import { UI_IDS, uiSkills } from './skills-ui';
 import { manualFallback, manualSkills } from './skills-manual';
+import { searchManual } from './manual';
 import { makeQuery, normalize, stripWake, tokenize, wantsChange, type Query } from './text';
 export { wantsChange };
 import { BLOCKED_REPLY, isBlocked } from './moderation';
 import type { MaxHost, MaxMemory, MaxReply, PendingAction, Skill } from './types';
 import { gaveUp, recall, type Learned } from './learn';
 
-const ALL: Skill[] = [...downloadSkills, ...fornecedoresSkills, ...coreSkills, ...almoxSkills, ...comprasSkills, ...pedidosSkills, ...manualSkills, ...hubSkills, ...emptySectorSkills];
+const ALL: Skill[] = [...actionSkills, ...uiSkills, ...downloadSkills, ...fornecedoresSkills, ...coreSkills, ...almoxSkills, ...comprasSkills, ...pedidosSkills, ...manualSkills, ...hubSkills, ...emptySectorSkills];
 
 /** Abaixo disto a Max não tem certeza e passa a pergunta adiante (IA/Wikipedia) ou admite que não sabe. */
 export const CONFIDENT = 0.6;
@@ -147,7 +150,7 @@ export interface AgentAnswer {
 }
 
 /** Comandos locais que continuam valendo mesmo quando a frase tem verbo de ação ("desative a voz", "trocar minha senha"). */
-const SAFE_LOCAL = new Set(['stop', 'repeat', 'voice-off', 'voice-on', 'logout', 'go-tab', 'go-sector', 'hub-create-user', 'calc', 'almox-form-link', 'download-metrics', 'download-gestao', 'download-orders', 'download-nota-xml', 'supplier-new', 'supplier-import', 'say-hello']);
+const SAFE_LOCAL = new Set(['stop', 'repeat', 'voice-off', 'voice-on', 'logout', 'go-tab', 'go-sector', 'hub-create-user', 'calc', 'almox-form-link', 'download-metrics', 'download-gestao', 'download-orders', 'download-nota-xml', 'supplier-new', 'supplier-import', 'say-hello', ...ACTION_IDS, ...UI_IDS]);
 
 /** comandos que nunca são disparados pela memória (a pessoa precisa pedir com clareza) */
 const NO_RECALL = new Set(['logout', 'stop', 'bye', 'voice-off', 'voice-on', 'say-hello', 'go-sector', 'hub-create-user']);
@@ -159,7 +162,7 @@ const NO_RE = /^(nao|n|cancel\w*|deixa|deixa pra la|esquece|esqueca|negativo|par
 async function executePending(list: PendingAction[]): Promise<MaxReply> {
   const done: string[] = [];
   for (const a of list) {
-    if (!/^\/api\/(almoxarifado|hub|setor)\//.test(a.path) && a.path !== '/api/max/memoria') continue; // só rotas internas conhecidas
+    if (!/^\/api\/(almoxarifado|hub|setor|compras|pedidos)\//.test(a.path) && a.path !== '/api/max/memoria') continue; // só rotas internas conhecidas
     let error = '';
     try {
       const r = await fetch(a.path, {
@@ -201,7 +204,12 @@ export interface ThinkOptions {
 
 async function runSkill(r: Ranked, q: Query, host: MaxHost, mem: MaxMemory): Promise<MaxReply> {
   try {
-    return await r.skill.run(q, host, mem);
+    const reply = await r.skill.run(q, host, mem);
+    // alteração preparada aqui mesmo: fica esperando o "sim" (nada é gravado antes)
+    if (reply.pending?.length) mem.pending = reply.pending;
+    // ela perguntou o que faltava: a próxima resposta curta completa o pedido
+    mem.followUp = reply.followUp ?? null;
+    return reply;
   } catch (e) {
     console.error('[max]', r.skill.id, e);
     return { say: 'Tive um problema ao buscar essa informação. Tente de novo em instantes.' };
@@ -235,6 +243,17 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
     // mudou de assunto: a alteração é descartada e o novo pedido segue normalmente
   }
 
+  // resposta curta para o que ela perguntou ("Quantas unidades?" → "dez"): completa o pedido anterior
+  if (mem.followUp) {
+    const base = mem.followUp;
+    mem.followUp = null;
+    const alone = understand(command, host).top;
+    const short = tokenize(normalize(command)).length <= 6;
+    if (short && !(alone && alone.score >= CONFIDENT && !alone.skill.id.startsWith('calc'))) {
+      const ans = normalize(command).replace(/^(e |sao |seriam |sera |foram |tamanho |o |a |de |pra |para )+/, '');
+      command = base.includes('{x}') ? base.replace('{x}', ans) : `${base} ${ans}`;
+    }
+  }
   const { q, top: best } = understand(command, host);
   // tamanho do pedido sem as cortesias ("por favor", "você pode…"): elas não tornam a frase mais difícil
   const words = Math.min(q.tokens.length, tokenize(politeTrim(q.norm)).length || q.tokens.length);
@@ -328,6 +347,15 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
   if (manual) return manual;
 
   opts.report?.({ type: 'falha', reason: 'nao_entendeu' });
+  // pedido para fazer algo que ela ainda não faz: diz isso com clareza (sem explicar outra coisa no lugar)
+  if (host.scope !== 'login' && wantsChange(q.norm)) {
+    const how = searchManual(q.norm, host.scope === 'hub' ? 'hub' : host.sector?.slug ?? null)[0];
+    return {
+      say: how && how.score >= 0.7 ? `Isso eu ainda não consigo fazer sozinha por comando. Se quiser, te mostro o passo a passo de ${how.topic.title.toLowerCase()}.` : 'Isso eu ainda não consigo fazer sozinha por comando.',
+      chips: how && how.score >= 0.7 ? [how.topic.ask, ...capabilities(host).slice(0, 2)] : capabilities(host),
+      unknown: true,
+    };
+  }
   return {
     say: host.scope === 'login' ? 'Essa eu ainda não sei responder por aqui. Entre com seu usuário e senha, que lá dentro eu ajudo com o seu setor.' : 'Ainda não sei responder isso. Veja alguns pedidos que eu entendo.',
     chips: capabilities(host),

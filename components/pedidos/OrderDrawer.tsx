@@ -304,7 +304,7 @@ export function OrderDrawer({
               ) : null}
               {almox && withAlmox ? (
                 <>
-                  <button className={`btn btn-sm ${readyToDeliver ? 'btn-primary' : 'btn-ghost'}`} disabled={Boolean(busy)} onClick={() => setSheet('deliver')}>
+                  <button data-max="pedido-entregar" className={`btn btn-sm ${readyToDeliver ? 'btn-primary' : 'btn-ghost'}`} disabled={Boolean(busy)} onClick={() => setSheet('deliver')}>
                     <PackageCheck size={15} /> Entregar
                   </button>
                   <button className="btn btn-ghost btn-sm" disabled={Boolean(busy)} onClick={() => setSheet('reserve')}>

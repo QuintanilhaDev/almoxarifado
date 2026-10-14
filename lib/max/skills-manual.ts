@@ -1,7 +1,7 @@
 import { EXPLAIN_RE, MANUAL, ORDER_RE, searchManual, spokenSteps, type ManualTopic } from './manual';
 import { getSector } from '../sectors';
 import type { MaxHost, MaxReply, Skill } from './types';
-import type { Query } from './text';
+import { wantsChange, type Query } from './text';
 
 const hereOf = (host: MaxHost) => (host.scope === 'hub' ? 'hub' : host.scope === 'login' ? null : host.sector?.slug ?? null);
 
@@ -47,6 +47,8 @@ export const manualSkills: Skill[] = [
 /** Último recurso antes do "não sei": o manual tem algo bem parecido com a pergunta? */
 export function manualFallback(norm: string, host: MaxHost): MaxReply | null {
   if (host.scope === 'login' || ORDER_RE.test(norm)) return null;
+  // pedido para FAZER algo ("cadastrar usuário"): explicar o setor não é a resposta
+  if (wantsChange(norm) && !EXPLAIN_RE.test(norm)) return null;
   const hits = searchManual(norm, hereOf(host));
   if (!hits.length || hits[0].score < 0.85) return null;
   return explainTopic(hits[0].topic, host, hits.slice(1, 4).map((h) => h.topic), 'Pelo que entendi, você quer saber sobre isto. ');
