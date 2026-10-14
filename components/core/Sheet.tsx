@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useEffect } from 'react';
@@ -29,9 +30,9 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        initial={{ opacity: 0, y: 28, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 16, scale: 0.98 }}
+        initial={{ opacity: 0, y: 28, scale: 0.97, rotateX: deg(22), transformPerspective: 1200 }}
+        animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0, transitionEnd: { transform: 'none' } }}
+        exit={{ opacity: 0, y: 16, scale: 0.98, rotateX: deg(-12) }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       >
         <div className="sheet-head">

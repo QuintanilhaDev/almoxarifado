@@ -6,6 +6,8 @@ import { useEffect } from 'react';
 import { initials } from '@/lib/format';
 import type { HubUser } from '@/lib/permissions';
 import { Brand } from './Brand';
+import { Scene3D } from './Depth3D';
+import { deg } from '@/lib/fx';
 
 export interface FrameTab {
   id: string;
@@ -66,6 +68,7 @@ export function AppFrame({
 
   return (
     <div className="dash">
+      <Scene3D />
       <aside className="side">
         <Brand sub={sub} />
         {backToHub ? (
@@ -117,11 +120,12 @@ export function AppFrame({
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
-            style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="frame-page"
+            style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', transformOrigin: '0% 50%' }}
+            initial={{ opacity: 0, y: 12, rotateY: deg(-16), z: deg(-140), transformPerspective: 1600 }}
+            animate={{ opacity: 1, y: 0, rotateY: 0, z: 0, transitionEnd: { transform: 'none' } }}
+            exit={{ opacity: 0, y: -8, rotateY: deg(10), z: deg(-90) }}
+            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
           >
             {children}
           </motion.div>

@@ -2,6 +2,7 @@
 import { LogOut, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Brand } from '../core/Brand';
+import { Scene3D } from '../core/Depth3D';
 import { INTRO_FLAG } from '../core/AppFrame';
 import { firstName } from '@/lib/max/clock';
 
@@ -23,6 +24,7 @@ export function NoSector({ name }: { name: string }) {
   };
   return (
     <main className="center-page">
+      <Scene3D />
       <div className="center-card">
         <Brand />
         <h1>Quase lá, {firstName(name) || name}</h1>

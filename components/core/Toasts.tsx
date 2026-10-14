@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Bell, Check, X } from 'lucide-react';
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
@@ -41,9 +42,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               key={t.id}
               layout
               className={`toast ${t.kind}`}
-              initial={{ opacity: 0, y: -16, scale: 0.94 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 40, scale: 0.96, transition: { duration: 0.2 } }}
+              initial={{ opacity: 0, y: -16, scale: 0.94, rotateX: deg(-70), transformPerspective: 900 }}
+              animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+              exit={{ opacity: 0, x: 40, scale: 0.96, rotateY: deg(35), transition: { duration: 0.2 } }}
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
             >
               <span className="toast-icon">
