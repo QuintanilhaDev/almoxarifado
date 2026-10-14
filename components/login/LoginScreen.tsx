@@ -401,7 +401,7 @@ export function LoginScreen() {
             <form className="login-content" onSubmit={submit} noValidate>
               <Brand sub="Todos os setores em um só lugar" />
               <h1>Entrar</h1>
-              <p>Use seu usuário e senha. Você vai direto para a ferramenta do seu setor.</p>
+              <p>Use seu usuário e senha.</p>
               <div className="login-field">
                 <label className="label" htmlFor="user">
                   Usuário

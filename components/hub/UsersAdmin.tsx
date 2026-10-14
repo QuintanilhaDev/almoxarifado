@@ -95,7 +95,7 @@ export function UsersAdmin({
         <div className="section-head">
           <div>
             <h1>Usuários</h1>
-            <p>Crie acessos, aloque cada pessoa no setor dela e defina quem é master. A mudança vale na hora, sem a pessoa precisar entrar de novo.</p>
+            <p>Acessos, setores e permissões de cada pessoa.</p>
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setCreating({})}>
             <UserPlus size={16} /> Novo usuário
@@ -309,7 +309,7 @@ function UserSheet({
     <>
       <Sheet
         title={isNew ? 'Novo usuário' : user!.display_name}
-        lead={isNew ? 'A pessoa entra com o usuário e a senha definidos aqui e vai direto para o setor dela.' : `@${user!.username} · criado em ${formatDateTime(user!.created_at)}`}
+        lead={isNew ? 'Usuário e senha para o primeiro acesso.' : `@${user!.username} · criado em ${formatDateTime(user!.created_at)}`}
         onClose={() => !busy && !confirmDelete && onClose()}
         wide
       >
@@ -435,7 +435,7 @@ function UserSheet({
               <input type="checkbox" checked={active} disabled={self} onChange={(e) => setActive(e.target.checked)} />
               <span>
                 <b>Acesso ativo</b>
-                <small>{self ? 'Você não pode desativar o seu próprio acesso.' : 'Desmarque para bloquear a entrada sem apagar o usuário. Vale na hora.'}</small>
+                <small>{self ? 'Você não pode desativar o seu próprio acesso.' : 'Desmarque para bloquear o acesso sem apagar o usuário.'}</small>
               </span>
             </label>
           ) : null}

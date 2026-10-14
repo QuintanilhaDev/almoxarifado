@@ -107,7 +107,7 @@ export function TrocaAnual({ canEdit, isMaster, version, onOpened }: { canEdit: 
         <div className="section-head">
           <div>
             <h1>Troca anual</h1>
-            <p>Quem está para trocar o fardamento, calculado sozinho pela última entrega e pelo prazo de cada função. Marque e confirme: a Operação valida e o Almoxarifado entrega.</p>
+            <p>Colaboradores com troca vencida ou perto de vencer.</p>
           </div>
           <div className="head-actions">
             {isMaster ? (
@@ -249,7 +249,7 @@ export function TrocaAnual({ canEdit, isMaster, version, onOpened }: { canEdit: 
               <div className="g-card" style={{ marginTop: 14 }}>
                 <h3>Demanda consolidada (vencidas e que vencem logo, sem troca aberta)</h3>
                 <p className="help" style={{ marginTop: -4 }}>
-                  Para o Almoxarifado se preparar e pedir compra antes{short.length ? ` — falta saldo de ${short.length} item(ns)` : ''}.
+                  Peças necessárias para as trocas pendentes{short.length ? ` — falta saldo de ${short.length} item(ns)` : ''}.
                 </p>
                 <div className="t-wrap">
                   <table className="t-table">
@@ -284,7 +284,7 @@ export function TrocaAnual({ canEdit, isMaster, version, onOpened }: { canEdit: 
       </div>
 
       {confirm ? (
-        <Sheet title={`Abrir a troca de ${sel.size} colaborador(es)?`} lead="Cada um ganha um pedido com o kit da função e os tamanhos do cadastro. Os pedidos vão para a Operação validar antes do Almoxarifado." onClose={() => setConfirm(false)}>
+        <Sheet title={`Abrir a troca de ${sel.size} colaborador(es)?`} lead="Os pedidos seguem para a validação da Operação." onClose={() => setConfirm(false)}>
           <label className="label" htmlFor="t-need">
             Entregar até <span className="opt-tag">(opcional)</span>
           </label>
@@ -336,7 +336,7 @@ function RulesSheet({ cfg, onClose, onSaved }: { cfg: Data['config']; onClose: (
           Sim
         </button>
       </div>
-      <p className="help">Pelo Projeto 3, a extraordinária (desgaste, perda) não muda a data da próxima troca, a não ser que a Gestão decida o contrário.</p>
+      <p className="help">Por padrão, a troca extraordinária não altera a data da próxima troca.</p>
       {error ? (
         <div className="sx-error" role="alert">
           <AlertCircle size={16} /> {error}

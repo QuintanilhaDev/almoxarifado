@@ -40,7 +40,7 @@ export function Gestao({ version }: { version: number }) {
         <div className="section-head">
           <div>
             <h1>Gestão</h1>
-            <p>Estoque, pedidos de material, compras e notas em números, calculados na hora a partir do que cada setor registra.</p>
+            <p>Resumo do estoque, dos pedidos, das compras e das notas.</p>
           </div>
           <div className="head-actions">
             <div className="select-wrap">
@@ -206,7 +206,7 @@ export function Gestao({ version }: { version: number }) {
 
               <div className="g-card">
                 <h3>Abaixo do mínimo</h3>
-                {data.below.length === 0 ? <p className="help">Nenhum item no mínimo. 👍</p> : null}
+                {data.below.length === 0 ? <p className="help">Nenhum item abaixo do mínimo.</p> : null}
                 {data.below.slice(0, 12).map((b) => (
                   <div className="g-row" key={b.id}>
                     <div>

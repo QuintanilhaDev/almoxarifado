@@ -162,7 +162,7 @@ export function FormEditor({ version, me }: { version: { n: number; by: string }
         <div className="section-head">
           <div>
             <h1>Formulário</h1>
-            <p>Edite as perguntas que os supervisores respondem. Arraste pela alça para mudar a ordem.</p>
+            <p>Perguntas do formulário dos supervisores. Arraste para mudar a ordem.</p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-ghost btn-sm edit-only" onClick={() => setConfirmReset(true)} disabled={!fields}>

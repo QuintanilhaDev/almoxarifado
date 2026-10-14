@@ -120,7 +120,7 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
   return (
     <Sheet
       title={cfg.title}
-      lead={`Envie a planilha (.xlsx ou .csv) em qualquer formato: eu encontro a tabela e as colunas sozinho. ${
+      lead={`Envie a planilha (.xlsx ou .csv) . ${
         kind === 'postos' ? 'Postos que já existem não são alterados: só os novos entram.' : 'Itens que já existem (mesmo nome e tamanho) não são alterados: só os novos entram.'
       }`}
       onClose={onClose}

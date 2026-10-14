@@ -151,7 +151,7 @@ function PermissionSheet({ slug, user, onClose, onSaved }: { slug: string; user:
     }
   };
   return (
-    <Sheet title={`Permissões de ${user.display_name}`} lead={`@${user.username} · vale assim que você salvar, sem a pessoa precisar entrar de novo.`} onClose={() => !busy && onClose()} wide>
+    <Sheet title={`Permissões de ${user.display_name}`} lead={`@${user.username}`} onClose={() => !busy && onClose()} wide>
       <PermissionsEditor sector={slug} value={perms} onChange={setPerms} disabled={busy} />
       {error ? <div className="field-error">{error}</div> : null}
       <div className="modal-actions" style={{ marginTop: 20 }}>

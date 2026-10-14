@@ -107,7 +107,7 @@ try {
   await carla.fill('input[aria-label="Tamanho da calça"]', '44');
   await carla.fill('input[aria-label="Número do calçado"]', '42');
   await carla.fill('#o-start', plus(2));
-  await carla.waitForSelector('.o-kit:has-text("Kit da função Vigilante")', { timeout: 8000 });
+  await carla.waitForSelector('.o-kit:has-text("Kit Vigilante")', { timeout: 8000 });
   const lines = await carla.locator('.modal .p-line').count();
   const labels = await carla.locator('.modal .p-line input[aria-label^="Item"]').evaluateAll((els) => els.map((e) => e.value));
   ok(lines === 4 && labels.includes('Camisa social manga curta M') && labels.includes('Bota de segurança 42'), 'kit entrou sozinho com os tamanhos: ' + labels.join(', '));
@@ -125,13 +125,13 @@ try {
   ok((await neilton.locator('.nav-item:has-text("Pedidos de material") .nav-count').count()) === 1, 'aba Pedidos com contador');
   await neilton.locator('.toast:has-text("Pedido #0001") .toast-action').click();
   await neilton.waitForSelector('.o-drawer');
-  await neilton.waitForSelector('.o-plan:has-text("Sugestão automática")', { timeout: 8000 });
+  await neilton.waitForSelector('.o-plan:has-text("Sugestão")', { timeout: 8000 });
   const plan = await neilton.locator('.o-plan').textContent();
-  ok(/Reservar agora:.*Camisa social manga curta M/.test(plan) && /Pedir compra do que falta:.*Bota de segurança 42/.test(plan), 'sugestão: reserva o que há, compra o que falta');
+  ok(/Reservar:.*Camisa social manga curta M/.test(plan) && /Comprar:.*Bota de segurança 42/.test(plan), 'sugestão: reserva o que há, compra o que falta');
   ok(/abaixo do mínimo/.test(plan), 'avisa do estoque mínimo');
   await neilton.screenshot({ path: `${SHOTS}/p3-sugestao.png` });
   await neilton.click('.o-plan button:has-text("Confirmar sugestão")');
-  const t2 = await toastText(neilton, /Sugestão confirmada/);
+  const t2 = await toastText(neilton, /Pedido atualizado/);
   ok(/compra nº/.test(t2), 'confirmou: reserva + compra enviada a Compras (' + t2.slice(0, 90) + ')');
   await neilton.waitForTimeout(1500);
   ok(await neilton.locator('.o-item:has-text("Bota de segurança 42") .o-buy').count() === 1, 'linha da bota mostra a compra ligada');
@@ -194,9 +194,9 @@ try {
   ok(await neilton.locator('.o-plan:has-text("Pedidos que esperavam")').count() === 1, 'mostra os pedidos que esperavam estes itens');
   await neilton.click('.o-plan button:has-text("Ir para os pedidos")');
   await neilton.waitForSelector('.o-drawer:has-text("Pedido #0001")', { timeout: 8000 });
-  await neilton.waitForSelector('.o-plan:has-text("Sugestão automática")', { timeout: 8000 });
+  await neilton.waitForSelector('.o-plan:has-text("Sugestão")', { timeout: 8000 });
   await neilton.click('.o-plan button:has-text("Confirmar sugestão")');
-  await toastText(neilton, /Sugestão confirmada/);
+  await toastText(neilton, /Pedido atualizado/);
   await neilton.waitForTimeout(800);
   await neilton.click('.o-drawer button:has-text("Entregar")');
   await neilton.waitForSelector('.modal:has-text("Entregar · pedido #0001")');
@@ -254,7 +254,7 @@ try {
   await neilton.click(`text=#${String(pub.body.protocol).padStart(4, '0')}`).catch(() => neilton.locator('.req-row, .inbox-row, [class*=row]', { hasText: 'Dani Rocha' }).first().click());
   await neilton.click('button:has-text("Criar pedido")');
   const t9 = await toastText(neilton, /criado/);
-  ok(/Itens e tamanhos/.test(t9), 'solicitação virou pedido com itens e tamanhos');
+  ok(/Pedido #\d+ criado/.test(t9), 'solicitação virou pedido');
 
   /* ------------------------------------------------ inventário */
   console.log('\n— Inventário');

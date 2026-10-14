@@ -395,7 +395,7 @@ function OrderLink({ request, me, onChanged }: { request: RequestRow; me: AdminU
     setBusy(true);
     try {
       const j = await api<{ order: { id: string; number: number } }>('/api/pedidos/from-request', { method: 'POST', json: { request_id: request.id } });
-      toast({ kind: 'success', title: `Pedido #${String(j.order.number).padStart(4, '0')} criado`, text: 'Itens e tamanhos do formulário já estão no pedido.', action: { label: 'Abrir', onClick: () => maxEmit('pedidos:open', { id: j.order.id }) } }, 10000);
+      toast({ kind: 'success', title: `Pedido #${String(j.order.number).padStart(4, '0')} criado`, action: { label: 'Abrir', onClick: () => maxEmit('pedidos:open', { id: j.order.id }) } }, 10000);
       onChanged({ ...request, order_id: j.order.id });
     } catch (e) {
       toast({ kind: 'error', title: 'Não foi possível criar o pedido', text: (e as Error).message });
@@ -410,7 +410,7 @@ function OrderLink({ request, me, onChanged }: { request: RequestRow; me: AdminU
       </span>
       <div className="contact-body">
         <small>Pedido de material</small>
-        <b>Reservar, entregar com termo e pedir compra do que faltar</b>
+        <b>Transformar em pedido de material</b>
       </div>
       <div className="contact-actions">
         <button className="btn btn-ghost btn-sm" onClick={create} disabled={busy}>

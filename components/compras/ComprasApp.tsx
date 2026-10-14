@@ -28,11 +28,11 @@ const POLL_MS = 8000;
 export function announcement(fresh: PurchaseRequest[]): string {
   if (fresh.length > 1) {
     const urgent = fresh.filter((r) => r.priority === 'urgente').length;
-    return `Atenção, equipe de Compras: chegaram ${fresh.length} novas solicitações de compra do Almoxarifado${urgent ? `, ${urgent === 1 ? 'uma delas urgente' : `${urgent} urgentes`}` : ''}.`;
+    return `Equipe de Compras, chegaram ${fresh.length} novas solicitações de compra do Almoxarifado${urgent ? `, ${urgent === 1 ? 'uma delas urgente' : `${urgent} urgentes`}` : ''}.`;
   }
   const r = fresh[0];
   const n = r.items.length;
-  return `Atenção, equipe de Compras: ${r.requested_by} do Almoxarifado enviou uma nova solicitação de compra, número ${r.number}, com ${n === 1 ? 'um item' : `${n} itens`}${r.priority === 'urgente' ? '. É urgente' : ''}.`;
+  return `Equipe de Compras, ${r.requested_by} do Almoxarifado enviou uma nova solicitação de compra, número ${r.number}, com ${n === 1 ? 'um item' : `${n} itens`}${r.priority === 'urgente' ? '. É urgente' : ''}.`;
 }
 
 /** Ferramenta do setor Compras: recebe e atende as solicitações de compra do Almoxarifado. */
@@ -201,7 +201,7 @@ function Shell() {
                       <Lock size={24} />
                     </span>
                     <strong>Você ainda não tem acesso às solicitações de compra</strong>
-                    <span>Peça ao master do setor Compras para liberar. Assim que ele salvar, a aba aparece aqui sozinha.</span>
+                    <span>Peça ao master do setor Compras para liberar o acesso.</span>
                   </div>
                 </div>
               </div>

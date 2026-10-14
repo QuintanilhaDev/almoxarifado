@@ -2,7 +2,6 @@ import { EXPLAIN_RE, MANUAL, ORDER_RE, searchManual, spokenSteps, type ManualTop
 import { getSector } from '../sectors';
 import type { MaxHost, MaxReply, Skill } from './types';
 import type { Query } from './text';
-import { setFx } from '../fx';
 
 const hereOf = (host: MaxHost) => (host.scope === 'hub' ? 'hub' : host.scope === 'login' ? null : host.sector?.slug ?? null);
 
@@ -44,18 +43,6 @@ export const manualSkills: Skill[] = [
     },
   },
 ];
-
-/** "Max, desligar as animações", "Max, ligar o 3D", "Max, deixar as animações leves" */
-manualSkills.push({
-  id: 'fx-mode',
-  examples: ['Max, deixar as animações 3D leves'],
-  match: (q) => (q.re(/\b(animac\w+|3d|efeitos? (3d|visua\w+)|cena 3d|movimento)\b/) && q.re(/\b(lig\w+|ativ\w+|desliga\w*|desativ\w+|tir\w+|remov\w+|leve|leves|reduz\w*|diminu\w+|complet\w+|volt\w+|sem|para)\b/) ? 0.94 : 0),
-  run: (q) => {
-    const mode = q.re(/\b(leve|leves|reduz\w*|diminu\w+)\b/) ? 'lite' : q.re(/\b(desliga\w*|desativ\w+|tir\w+|remov\w+|sem|para)\b/) ? 'off' : 'full';
-    const say = mode === 'off' ? 'Pronto, desliguei as animações neste aparelho.' : mode === 'lite' ? 'Pronto, deixei as animações 3D leves neste aparelho.' : 'Pronto, liguei o 3D completo.';
-    return { say, act: () => setFx(mode), chips: ['Max, ligar o 3D completo', 'Max, deixar as animações leves', 'Max, desligar as animações'] };
-  },
-});
 
 /** Último recurso antes do "não sei": o manual tem algo bem parecido com a pergunta? */
 export function manualFallback(norm: string, host: MaxHost): MaxReply | null {

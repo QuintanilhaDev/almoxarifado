@@ -79,7 +79,7 @@ export function ClassifySheet({ items, onClose, onDone }: { items: StockItem[]; 
     setError('');
     try {
       const j = await api<{ done: number; errors: string[] }>('/api/almoxarifado/catalog/classify', { method: 'POST', json: { items: rows.filter((r) => r.on).map((r) => ({ id: r.item.id, cat: r.cat, grp: r.grp })) } });
-      toast({ kind: j.errors.length ? 'info' : 'success', title: `${j.done} item(ns) com código`, text: j.errors.length ? j.errors.slice(0, 2).join('; ') : 'Os códigos não mudam mais e não são reaproveitados.' }, 9000);
+      toast({ kind: j.errors.length ? 'info' : 'success', title: `${j.done} item(ns) com código`, text: j.errors.length ? j.errors.slice(0, 2).join('; ') : undefined }, 9000);
       onDone();
     } catch (e) {
       setError((e as Error).message);
@@ -87,14 +87,14 @@ export function ClassifySheet({ items, onClose, onDone }: { items: StockItem[]; 
     }
   };
   return (
-    <Sheet title="Classificar itens e gerar códigos" lead="O Max Hub sugeriu a categoria e o grupo pelo nome. Confira (principalmente os marcados em amarelo) e confirme: cada item ganha o código CC-GG-NNNN, que não muda mais." onClose={onClose} wide locked>
+    <Sheet title="Classificar itens e gerar códigos" lead="Confira a categoria e o grupo de cada item. Os marcados em amarelo precisam de revisão." onClose={onClose} wide locked>
       {rows.length === 0 ? (
         <p className="help">Todos os itens já têm código.</p>
       ) : (
         <>
           {unsure ? (
             <p className="o-plan-warn" style={{ marginTop: 0 }}>
-              <AlertCircle size={14} /> {unsure} item(ns) sem palpite seguro foram para “Outros”: escolha a categoria certa.
+              <AlertCircle size={14} /> {unsure} item(ns) ficaram em Outros. Escolha a categoria certa.
             </p>
           ) : null}
           <div className="t-wrap" style={{ maxHeight: '52vh', overflow: 'auto' }}>
@@ -116,7 +116,7 @@ export function ClassifySheet({ items, onClose, onDone }: { items: StockItem[]; 
                     </td>
                     <td>
                       <b>{itemLabel(r.item)}</b>
-                      {!r.sure ? <small style={{ color: 'var(--amber)' }}>sem palpite seguro</small> : null}
+                      {!r.sure ? <small style={{ color: 'var(--amber)' }}>revisar</small> : null}
                     </td>
                     <td style={{ minWidth: 300 }}>
                       <ClassPicker idPrefix={`cl-${n}`} cat={r.cat} grp={r.grp} groups={groups} onChange={(cat, grp) => setRows((rs) => rs.map((x, k) => (k === n ? { ...x, cat, grp, sure: true } : x)))} />
@@ -164,7 +164,7 @@ export function InventorySheet({ items, onClose, onDone }: { items: StockItem[];
     try {
       const lines = items.filter((i) => counted[i.id] !== undefined && counted[i.id] !== '').map((i) => ({ item_id: i.id, counted: Number(counted[i.id]) }));
       const j = await api<{ adjusted: number }>('/api/almoxarifado/stock/inventario', { method: 'POST', json: { lines, note: note || 'Inventário' } });
-      toast({ kind: 'success', title: 'Inventário registrado', text: j.adjusted ? `${j.adjusted} item(ns) ajustado(s)` : 'Tudo bateu: nada precisou de ajuste.' });
+      toast({ kind: 'success', title: 'Inventário registrado', text: j.adjusted ? `${j.adjusted} item(ns) ajustado(s)` : 'Nenhuma diferença encontrada.' });
       onDone();
     } catch (e) {
       setError((e as Error).message);
@@ -172,7 +172,7 @@ export function InventorySheet({ items, onClose, onDone }: { items: StockItem[];
     }
   };
   return (
-    <Sheet title="Inventário" lead="Digite o que foi contado. Só os itens com diferença são ajustados, e cada ajuste fica no histórico." onClose={onClose} wide locked>
+    <Sheet title="Inventário" lead="Informe a quantidade contada de cada item." onClose={onClose} wide locked>
       <input className="input" placeholder="Filtrar por nome, código ou localização" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Filtrar itens" style={{ marginBottom: 10 }} />
       <div className="t-wrap" style={{ maxHeight: '48vh', overflow: 'auto' }}>
         <table className="t-table">
@@ -323,18 +323,18 @@ export function CatalogSection({ item, d, setD, groups, suggestedFor }: { item: 
           Código do catálogo{' '}
           {item?.code ? null : (
             <button type="button" className="link-btn" onClick={() => setD({ ...d, cat: s.cat, grp: s.grp })}>
-              <Sparkles size={12} /> sugerir pelo nome
+              <Sparkles size={12} /> sugerir
             </button>
           )}
         </span>
         {item?.code ? (
           <p className="help" style={{ margin: 0 }}>
-            <b style={{ color: 'var(--white)', fontFamily: 'ui-monospace, monospace' }}>{item.code}</b> · {groupName(groups, item.cat_code, item.grp_code) ?? ''} (não muda)
+            <b style={{ color: 'var(--white)', fontFamily: 'ui-monospace, monospace' }}>{item.code}</b> · {groupName(groups, item.cat_code, item.grp_code) ?? ''} 
           </p>
         ) : (
           <>
             <ClassPicker idPrefix="it-cl" cat={d.cat} grp={d.grp} groups={groups} onChange={(cat, grp) => setD({ ...d, cat, grp })} />
-            <small className="help">O código CC-GG-NNNN é gerado ao salvar e não muda mais.</small>
+            <small className="help">O código é gerado ao salvar.</small>
           </>
         )}
       </div>

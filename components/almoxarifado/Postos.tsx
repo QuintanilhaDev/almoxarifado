@@ -163,7 +163,7 @@ export function Postos({
         <div className="section-head">
           <div>
             <h1>Postos</h1>
-            <p>Os postos da empresa e o que cada um tem em estoque. Transfira itens, adicione ou remova postos e importe uma lista por planilha.</p>
+            <p>O que cada posto tem em estoque.</p>
           </div>
           <div className="head-actions">
             <button className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>

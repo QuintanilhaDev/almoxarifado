@@ -171,7 +171,7 @@ export function Metricas({ version }: { version: number }) {
         <div className="section-head">
           <div>
             <h1>Métricas</h1>
-            <p>Entradas e saídas do almoxarifado. Escolha o período e o gráfico se atualiza na hora.</p>
+            <p>Entradas e saídas do almoxarifado por período.</p>
           </div>
           <div className="mt-actions">
             <button className="btn btn-ghost btn-sm" onClick={downloadPng} disabled={!ready || busy !== null} data-testid="dl-png">

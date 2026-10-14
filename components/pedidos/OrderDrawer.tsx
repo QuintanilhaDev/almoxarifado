@@ -144,7 +144,7 @@ export function OrderDrawer({
             12000,
           );
         } else if (action === 'auto') {
-          toast({ kind: 'success', title: 'Sugestão confirmada', text: [r.reserved ? `${num(r.reserved)} unidade(s) reservada(s)` : '', r.purchase ? `compra nº ${r.purchase.number} enviada ao setor de Compras` : ''].filter(Boolean).join(' · ') || done });
+          toast({ kind: 'success', title: 'Pedido atualizado', text: [r.reserved ? `${num(r.reserved)} unidade(s) reservada(s)` : '', r.purchase ? `compra nº ${r.purchase.number} enviada ao setor de Compras` : ''].filter(Boolean).join(' · ') || done });
         } else toast({ kind: 'success', title: done, text: orderLabel(o.number) });
         setSheet(null);
         setAsk(null);
@@ -260,30 +260,30 @@ export function OrderDrawer({
           {showPlan ? (
             <div className="o-plan">
               <div className="o-plan-head">
-                <Sparkles size={16} /> <b>Sugestão automática</b>
+                <Sparkles size={16} /> <b>Sugestão</b>
               </div>
               {planReserve.length ? (
                 <p>
-                  <span>Reservar agora:</span> {planReserve.map((p) => `${p.reserve} ${lineLabel(o.items[p.i])}`).join(', ')}
+                  <span>Reservar:</span> {planReserve.map((p) => `${p.reserve} ${lineLabel(o.items[p.i])}`).join(', ')}
                 </p>
               ) : null}
               {planBuy.length ? (
                 <p>
-                  <span>Pedir compra do que falta:</span> {planBuy.map((p) => `${p.purchase} ${lineLabel(o.items[p.i])}`).join(', ')}
+                  <span>Comprar:</span> {planBuy.map((p) => `${p.purchase} ${lineLabel(o.items[p.i])}`).join(', ')}
                 </p>
               ) : null}
               {planMin.length ? (
                 <p className="o-plan-warn">
-                  <AlertTriangle size={14} /> {planMin.map((p) => lineLabel(o.items[p.i])).join(', ')}: há saldo, mas usar agora deixa o estoque abaixo do mínimo.
+                  <AlertTriangle size={14} /> {planMin.map((p) => lineLabel(o.items[p.i])).join(', ')}: o saldo ficaria abaixo do mínimo.
                   {almoxMaster ? ' Você pode liberar na reserva ou na entrega.' : ' Só o master do Almoxarifado pode liberar.'}
                 </p>
               ) : null}
               <div className="drawer-actions">
-                <button className="btn btn-primary btn-sm" disabled={Boolean(busy)} onClick={() => act('auto', { confirm: true }, 'Sugestão confirmada')}>
+                <button className="btn btn-primary btn-sm" disabled={Boolean(busy)} onClick={() => act('auto', { confirm: true }, 'Pedido atualizado')}>
                   {busy === 'auto' ? <span className="spinner" /> : <CheckCircle2 size={15} />} Confirmar sugestão
                 </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setPlanHidden(true)} disabled={Boolean(busy)}>
-                  Fazer à mão
+                  Ignorar
                 </button>
               </div>
             </div>
@@ -391,7 +391,7 @@ export function OrderDrawer({
                           </button>
                         )
                       ) : (
-                        <small className="o-note">{l.item_id ? 'Item reconhecido automaticamente: o Almoxarifado confere.' : 'Item ainda não ligado ao estoque: o Almoxarifado confere.'}</small>
+                        <small className="o-note">{l.item_id ? 'Item a conferir.' : 'Item fora do estoque, a conferir.'}</small>
                       )
                     ) : null}
                   </div>
@@ -567,7 +567,7 @@ function QtySheet({
   const unlinked = o.items.filter((l) => !l.item_id && l.qty > l.delivered);
   const total = Object.values(qty).reduce((t, v) => t + (Number(v) || 0), 0);
   return (
-    <Sheet title={mode === 'deliver' ? `Entregar · pedido ${orderLabel(o.number)}` : `Reservar · pedido ${orderLabel(o.number)}`} lead={mode === 'deliver' ? 'Baixa o saldo e gera o termo de entrega para assinatura.' : 'Separa o material para este pedido sem baixar o saldo (o disponível diminui).'} onClose={onClose} wide locked>
+    <Sheet title={mode === 'deliver' ? `Entregar · pedido ${orderLabel(o.number)}` : `Reservar · pedido ${orderLabel(o.number)}`} lead={mode === 'deliver' ? 'Gera o termo de entrega.' : 'O material fica separado para este pedido.'} onClose={onClose} wide locked>
       {rows.length === 0 ? (
         <p className="help">{mode === 'deliver' ? 'Nada a entregar agora.' : 'Nada a reservar: tudo já está reservado ou entregue.'}</p>
       ) : (
@@ -617,7 +617,7 @@ function AskSheet({ kind, busy, error, onClose, onSubmit }: { kind: 'cancel' | '
   const [text, setText] = useState('');
   const cfg = {
     cancel: { title: 'Cancelar este pedido?', lead: 'As reservas voltam a ficar disponíveis. O que já foi entregue continua registrado.', label: 'Motivo do cancelamento', btn: 'Cancelar pedido', need: true },
-    return: { title: 'Devolver para correção', lead: 'O pedido volta para quem abriu, com o seu recado.', label: 'O que precisa ser corrigido', btn: 'Devolver', need: true },
+    return: { title: 'Devolver para correção', lead: 'O pedido volta para quem abriu.', label: 'O que precisa ser corrigido', btn: 'Devolver', need: true },
     release: { title: 'Liberar as reservas?', lead: 'As unidades reservadas voltam a ficar disponíveis para outros pedidos.', label: '', btn: 'Liberar', need: false },
   }[kind];
   return (

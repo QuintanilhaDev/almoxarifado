@@ -27,7 +27,7 @@ const sqlFiles = [
   ...(NOCAT ? [] : ['categorias.sql']),
   ...(env('NOMEM') ? [] : ['max_aprendizado.sql']),
   ...(env('NOCOMPRAS') ? [] : ['compras.sql']),
-  ...(env('NOP3') || !fs.existsSync(path.join(ROOT, 'projeto3.sql')) ? [] : ['projeto3.sql']),
+  ...(env('NOP3') || !fs.existsSync(path.join(ROOT, 'pedidos_e_notas.sql')) ? [] : ['pedidos_e_notas.sql']),
 ];
 
 /* ------------------------------------------------------------------ */

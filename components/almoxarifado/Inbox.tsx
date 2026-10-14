@@ -240,7 +240,7 @@ function emptyTitle(s: RequestStatus) {
 }
 function emptyText(s: RequestStatus) {
   return s === 'nova'
-    ? 'Quando um supervisor enviar o formulário, ela aparece aqui na hora.'
+    ? 'Nenhuma solicitação no momento.'
     : s === 'pendente'
       ? 'Marque uma solicitação como pendente quando ela estiver em andamento.'
       : 'As solicitações concluídas ficam guardadas aqui.';

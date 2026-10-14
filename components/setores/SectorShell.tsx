@@ -89,7 +89,7 @@ function Shell({ slug }: { slug: string }) {
         15000,
       );
       maxEmit('max:announce', {
-        text: mine.length > 1 ? `Atenção, Operação: ${mine.length} pedidos de material esperando conferência.` : o.stage === 'validacao' ? `Atenção, Operação: o RH abriu a troca de fardamento de ${o.collaborator_name ?? 'um colaborador'}. Falta validar.` : `Atenção, Operação: chegou um pedido de material${o.posto_name ? ` do ${o.posto_name}` : ''} para conferir.`,
+        text: mine.length > 1 ? `Operação, ${mine.length} pedidos de material esperando conferência.` : o.stage === 'validacao' ? `Operação, o RH abriu a troca de fardamento de ${o.collaborator_name ?? 'um colaborador'}. Falta validar.` : `Operação, chegou um pedido de material${o.posto_name ? ` do ${o.posto_name}` : ''} para conferir.`,
         tone: 'alert',
       });
     },
@@ -204,7 +204,7 @@ function Shell({ slug }: { slug: string }) {
                         <Lock size={24} />
                       </span>
                       <strong>Você ainda não tem acesso às ferramentas do setor</strong>
-                      <span>Peça ao master do setor para liberar as telas que você precisa. Assim que ele salvar, elas aparecem aqui sozinhas.</span>
+                      <span>Peça ao master do setor para liberar o acesso.</span>
                     </div>
                   ) : (
                     <>

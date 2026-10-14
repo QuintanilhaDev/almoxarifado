@@ -279,7 +279,7 @@ function Inner() {
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         >
           <h1>Pedir item ao almoxarifado</h1>
-          <p>Fardamento, calçado ou EPI para um colaborador do seu posto. A equipe recebe na hora e responde no seu e-mail.</p>
+          <p>Fardamento, calçado ou EPI para um colaborador do seu posto. A resposta chega no seu e-mail.</p>
         </motion.div>
 
         <motion.div

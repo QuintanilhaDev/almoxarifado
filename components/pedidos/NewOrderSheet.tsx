@@ -89,10 +89,10 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
         const qs = new URLSearchParams({ role: f.role.trim(), camisa: f.camisa, calca: f.calca, calcado: f.calcado });
         const j = await api<{ kit: { role: string; period_months: number } | null; lines: { item_id: string | null; name: string; size: string | null; qty: number; note?: string | null }[] }>(`/api/rh/kits?${qs}`);
         if (!j.kit) {
-          setKitInfo(`A função "${f.role.trim()}" não tem kit cadastrado: adicione os itens abaixo (ou cadastre o kit em Colaboradores › Kits).`);
+          setKitInfo(`A função "${f.role.trim()}" não tem kit cadastrado.`);
           return;
         }
-        setKitInfo(`Kit da função ${j.kit.role} (troca a cada ${j.kit.period_months} meses), já com os tamanhos. Confira e ajuste se precisar.`);
+        setKitInfo(`Kit ${j.kit.role} carregado com os tamanhos informados.`);
         setLines(
           j.lines.map((l) => {
             const it = l.item_id ? cat.items.find((x) => x.id === l.item_id) : null;
@@ -154,7 +154,7 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
   const today = todayLocal();
   const items = cat?.items ?? [];
   return (
-    <Sheet title={scope === 'rh' ? 'Novo pedido do RH/DP' : 'Novo pedido de material'} lead={scope === 'rh' ? 'Vai direto ao Almoxarifado, que reserva, entrega e avisa o que falta comprar.' : 'Registre o pedido do posto; ele segue para o Almoxarifado quando você encaminhar.'} onClose={onClose} wide locked>
+    <Sheet title={scope === 'rh' ? 'Novo pedido do RH/DP' : 'Novo pedido de material'} lead={scope === 'rh' ? undefined : undefined} onClose={onClose} wide locked>
       <form onSubmit={submit} noValidate>
         {scope === 'rh' ? (
           <div className="filter-seg" role="group" aria-label="Tipo de pedido" style={{ marginBottom: 14 }}>
@@ -191,7 +191,7 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
               Colaborador {type === 'operacao' ? <span className="opt-tag">(opcional)</span> : null}
             </label>
             <input id="o-col" className="input" list="o-collabs" value={f.collaborator} maxLength={120} onChange={(e) => set('collaborator', e.target.value)} placeholder={type === 'rh_admissao' ? 'Nome completo do novo colaborador' : 'Comece a digitar o nome'} />
-            <small className="help">{chosen ? `Cadastrado${chosen.matricula ? ` · matrícula ${chosen.matricula}` : ''}${chosen.role ? ` · ${chosen.role}` : ''}` : type === 'rh_admissao' && f.collaborator.trim() ? 'Novo: o cadastro é criado junto com o pedido.' : ' '}</small>
+            <small className="help">{chosen ? `Cadastrado${chosen.matricula ? ` · matrícula ${chosen.matricula}` : ''}${chosen.role ? ` · ${chosen.role}` : ''}` : type === 'rh_admissao' && f.collaborator.trim() ? 'Novo colaborador' : ' '}</small>
           </div>
           <div>
             <label className="label" htmlFor="o-posto">
@@ -291,7 +291,7 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
                   onText={(t) => setLine(l.key, { item_id: null, text: t })}
                 />
                 <small className="p-line-hint">
-                  {l.item_id ? `Do estoque · disponível ${items.find((i) => i.id === l.item_id)?.available ?? 0}` : l.note ? l.note : l.text.trim() ? 'Não está no estoque com esse nome: o Almoxarifado confere' : ' '}
+                  {l.item_id ? `Do estoque · disponível ${items.find((i) => i.id === l.item_id)?.available ?? 0}` : l.note ? l.note : l.text.trim() ? 'Fora do estoque' : ' '}
                 </small>
               </div>
               <input className="input p-line-size" aria-label={`Tamanho do item ${n + 1}`} placeholder="Tam." value={l.item_id ? '' : l.size} readOnly={Boolean(l.item_id)} tabIndex={l.item_id ? -1 : undefined} maxLength={40} onChange={(e) => setLine(l.key, { size: e.target.value })} />
@@ -312,7 +312,7 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
 
         {type === 'operacao' ? (
           <label className="o-check">
-            <input type="checkbox" checked={forward} onChange={(e) => setForward(e.target.checked)} /> Encaminhar direto ao Almoxarifado (desmarque para conferir antes)
+            <input type="checkbox" checked={forward} onChange={(e) => setForward(e.target.checked)} /> Encaminhar ao Almoxarifado
           </label>
         ) : null}
 

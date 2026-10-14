@@ -277,16 +277,15 @@ O Almoxarifado pede, o setor de Compras atende — tudo em tempo real.
 ## Animações 3D e o manual da Max
 
 - **3D em toda a plataforma:** cena 3D ao fundo das ferramentas (piso em perspectiva, sólidos girando, câmera que acompanha o mouse), telas que giram ao trocar de aba, gavetas e janelas que abrem em 3D, listas e cartões que "desdobram" ao aparecer, cartões e botões que inclinam com o mouse e botões que afundam ao clicar.
-- **Minha conta → Animações:** *3D completo*, *3D leve* (sem a cena animada, para aparelhos simples) ou *Sem animação*. Vale por aparelho. Quem pediu "menos movimento" no sistema começa no leve. Também pela voz: "Max, deixar as animações leves", "Max, desligar as animações", "Max, ligar o 3D".
 - **Manual da Max:** ela explica passo a passo qualquer setor ou tela, mesmo sem a IA ligada: "Max, me explique passo a passo como funciona o almoxarifado", "Max, como lanço uma nota fiscal?", "Max, como funciona a troca anual?", "Max, como funciona este setor?". Ela abre a tela certa e mostra os passos em um cartão. Com a IA ligada, o manual vai junto para ela responder com precisão.
 
 ---
 
-## Projeto 3: estoque integrado (pedidos, notas, RH, Operação, Gestão)
+## Estoque integrado (pedidos, notas, RH, Operação, Gestão)
 
 Tudo o que dá para automatizar é feito sozinho, mas **nada é gravado sem a confirmação de alguém**: o sistema calcula, mostra a sugestão e a pessoa confirma.
 
-**Ativar:** rode `supabase/projeto3.sql` no SQL Editor (pode rodar de novo; não apaga nem altera saldos, entradas ou saídas que já existem). Sem ele, as telas novas explicam o que falta e o resto continua igual.
+**Ativar:** rode `supabase/pedidos_e_notas.sql` no SQL Editor (pode rodar de novo; não apaga nem altera saldos, entradas ou saídas que já existem). Sem ele, as telas novas explicam o que falta e o resto continua igual.
 
 ### Catálogo (código CC-GG-NNNN)
 - **Estoque → Classificar:** o Max Hub sugere categoria e grupo pelo nome de cada item (ex.: bota → 01 Fardamento › 03 Calçados). Confira e confirme: cada item ganha o código, **único, que não muda e não é reaproveitado** (garantido pelo banco).

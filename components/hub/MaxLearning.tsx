@@ -86,7 +86,7 @@ export function MaxLearning() {
         <div className="section-head">
           <div>
             <h1>Aprendizado da Max</h1>
-            <p>O que ela já aprendeu com o uso, o que a equipe ensinou e os pedidos que ela ainda não soube atender.</p>
+            <p>O que a Max aprendeu e o que ela ainda não soube responder.</p>
           </div>
           <div className="head-actions">
             <button className="btn btn-ghost" onClick={load} disabled={busy}>
@@ -137,7 +137,7 @@ export function MaxLearning() {
           {!data ? (
             <div className="skeleton" style={{ height: 60 }} />
           ) : data.misses.length === 0 ? (
-            <div className="empty-line">Nada por aqui. Quando alguém pedir algo que ela não entenda, ou marcar 👎, aparece nesta lista.</div>
+            <div className="empty-line">Nada por enquanto.</div>
           ) : (
             data.misses.map((m) => (
               <div className="learn-row" key={m.id}>
@@ -182,7 +182,7 @@ export function MaxLearning() {
             <Brain size={16} /> O que ela aprendeu com o uso
           </h3>
           {!data ? null : data.learned.length === 0 ? (
-            <div className="empty-line">Ainda vazio. Cada pedido que a IA resolve vira um exemplo aqui, e os próximos pedidos parecidos saem mais rápidos e certeiros.</div>
+            <div className="empty-line">Nada por enquanto.</div>
           ) : (
             data.learned.slice(0, 200).map((l) => (
               <div className={`learn-row${l.trusted ? '' : ' is-off'}`} key={l.id}>

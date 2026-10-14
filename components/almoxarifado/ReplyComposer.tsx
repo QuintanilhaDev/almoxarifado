@@ -309,7 +309,7 @@ export function ReplyComposer({
     <>
       <Sheet
         title="Responder e dar baixa"
-        lead="Escreva a resposta (ou cole o e-mail que você já enviou). A ferramenta lê o texto e encontra os itens que saíram para você conferir."
+        lead="Escreva a resposta ou cole o e-mail já enviado. Os itens citados aparecem ao lado para conferir."
         onClose={tryClose}
         locked
         wide

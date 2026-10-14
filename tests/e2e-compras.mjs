@@ -146,7 +146,7 @@ try {
     ok(/hue-rotate/.test(filt), 'cor amarela aplicada na esfera: ' + filt.slice(0, 40));
     await carlos.waitForFunction(() => window.__spoken.length > 0, null, { timeout: 6000 }).catch(() => undefined);
     const spoken = await carlos.evaluate(() => window.__spoken);
-    ok(spoken.length === 1 && /^Atenção, equipe de Compras: Neilton do Almoxarifado enviou uma nova solicitação de compra, número 1, com 3 itens\. É urgente\.$/.test(spoken[0]), 'a Max fala: ' + spoken[0]);
+    ok(spoken.length === 1 && /^Equipe de Compras, Neilton do Almoxarifado enviou uma nova solicitação de compra, número 1, com 3 itens\. É urgente\.$/.test(spoken[0]), 'a Max fala: ' + spoken[0]);
     ok((await carlos.evaluate(() => window.__chimes)) >= 2, 'som de notificação tocou');
     ok((await carlos.evaluate(() => window.__marker)) === 'sem-recarregar', 'a página não recarregou');
     ok((await carlos.locator('.nav-item:has-text("Solicitações") .nav-count').textContent()) === '1', 'contador de novas no menu');

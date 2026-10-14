@@ -96,7 +96,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
         <div className="section-head">
           <div>
             <h1>Colaboradores</h1>
-            <p>Cadastro com função, posto e tamanhos: é daqui que saem os kits de admissão e a troca anual, sem digitar de novo.</p>
+            <p>Cadastro, tamanhos e kits por função.</p>
           </div>
           <div className="head-actions">
             {view === 'pessoas' ? (
@@ -160,7 +160,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                 <Users size={24} />
               </span>
               <strong>{list.length ? 'Ninguém encontrado' : 'Nenhum colaborador cadastrado'}</strong>
-              <span>{list.length ? 'Tente outra busca.' : 'Importe a planilha do RH ou cadastre um por um. Admissões feitas em “Pedidos” já criam o cadastro sozinhas.'}</span>
+              <span>{list.length ? 'Tente outra busca.' : 'Importe a planilha do RH ou cadastre um por um. Admissões feitas em Pedidos também entram aqui.'}</span>
             </div>
           ) : (
             <div className="t-wrap">
@@ -207,7 +207,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                   <Shirt size={24} />
                 </span>
                 <strong>Nenhum kit cadastrado</strong>
-                <span>Diga o que cada função recebe (ex.: Vigilante: 2 camisas, 2 calças, 1 bota, 1 boné) e de quanto em quanto tempo troca.</span>
+                <span>Cadastre o que cada função recebe e o prazo de troca.</span>
               </div>
             ) : (
               <div className="g-grid">

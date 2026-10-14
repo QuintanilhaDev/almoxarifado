@@ -81,7 +81,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     // grava só se ninguém mexeu desde a leitura (duas pessoas ao mesmo tempo não se atropelam)
     const { data, error } = await db().from('purchase_requests').update(patch).eq('id', id).eq('updated_at', (cur as { updated_at: string }).updated_at).select(COLS).maybeSingle();
     if (error) {
-      if (hasInfo && ['42703', 'PGRST204'].includes(error.code ?? '')) return fail('Fornecedor e previsão de entrega ainda não foram ativados no banco. Rode o supabase/projeto3.sql.', 409);
+      if (hasInfo && ['42703', 'PGRST204'].includes(error.code ?? '')) return fail('Fornecedor e previsão de entrega ainda não foram ativados no banco. Rode o supabase/pedidos_e_notas.sql.', 409);
       throw error;
     }
     if (!data) return fail('Outra pessoa acabou de alterar esta solicitação. Confira e tente de novo.', 409);
