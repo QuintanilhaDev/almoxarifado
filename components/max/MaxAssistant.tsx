@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Keyboard, Mic, SendHorizontal, Square, ThumbsDown, ThumbsUp, Volume2, VolumeX, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -424,9 +425,9 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
             className="max-panel"
             role="dialog"
             aria-label="Max, assistente virtual"
-            initial={{ opacity: 0, y: 18, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.96, transition: { duration: 0.16 } }}
+            initial={{ opacity: 0, y: 18, scale: 0.94, rotateX: deg(-18), rotateY: deg(12), transformPerspective: 1200 }}
+            animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0, rotateY: 0, transitionEnd: { transform: 'none' } }}
+            exit={{ opacity: 0, y: 12, scale: 0.96, rotateX: deg(-12), transition: { duration: 0.16 } }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           >
             <header className="max-head">

@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertCircle,
@@ -204,9 +205,9 @@ export function OrderDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`Pedido ${orderLabel(o.number)}`}
-        initial={{ x: 60, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        exit={{ x: 60, opacity: 0 }}
+        initial={{ x: 60, opacity: 0, rotateY: deg(-24), transformPerspective: 1400 }}
+        animate={{ x: 0, opacity: 1, rotateY: 0, transitionEnd: { transform: 'none' } }}
+        exit={{ x: 60, opacity: 0, rotateY: deg(-18) }}
         transition={{ type: 'spring', stiffness: 360, damping: 34 }}
         onClick={(e) => e.stopPropagation()}
       >

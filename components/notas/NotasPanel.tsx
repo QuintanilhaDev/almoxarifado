@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, AlertTriangle, CalendarClock, ChevronRight, Download, FileCode2, FilePlus2, PackageCheck, Plus, Receipt, RotateCcw, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -664,7 +665,7 @@ function NoteDrawer({ note: n, canEdit, items, onClose, reload, onOrders, modalO
 
   return (
     <motion.div className="drawer-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.aside className="drawer o-drawer" role="dialog" aria-modal="true" aria-label={`Nota ${n.number}`} initial={{ x: 60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 60, opacity: 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} onClick={(e) => e.stopPropagation()}>
+      <motion.aside className="drawer o-drawer" role="dialog" aria-modal="true" aria-label={`Nota ${n.number}`} initial={{ x: 60, opacity: 0, rotateY: deg(-24), transformPerspective: 1400 }} animate={{ x: 0, opacity: 1, rotateY: 0, transitionEnd: { transform: 'none' } }} exit={{ x: 60, opacity: 0, rotateY: deg(-18) }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} onClick={(e) => e.stopPropagation()}>
         <div className="drawer-top">
           <div style={{ minWidth: 0 }}>
             <h2 className="p-title">

@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
 
@@ -42,9 +43,9 @@ export function ConfirmModal({
             className="modal"
             role="dialog"
             aria-modal="true"
-            initial={{ opacity: 0, y: 24, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
+            initial={{ opacity: 0, y: 24, scale: 0.95, rotateX: deg(24), transformPerspective: 1200 }}
+            animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0, transitionEnd: { transform: 'none' } }}
+            exit={{ opacity: 0, y: 12, scale: 0.97, rotateX: deg(-14) }}
             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
           >

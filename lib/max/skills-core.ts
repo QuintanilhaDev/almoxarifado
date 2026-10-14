@@ -52,8 +52,12 @@ export function capabilities(host: MaxHost): string[] {
   if (host.scope === 'login') return ['Max, apresente-se', 'Max, que horas são?', 'Max, como faço para entrar?', 'Max, quero fazer uma solicitação'];
   if (host.scope === 'hub') return ['Max, quantos usuários temos?', 'Max, quem está no almoxarifado?', 'Max, criar usuário', 'Max, abrir o setor financeiro'];
   if (host.sector?.slug === 'almoxarifado') {
-    return ['Max, métricas da última semana', 'Max, tem solicitação nova?', 'Max, o que está com estoque baixo?', 'Max, quanto tem de bota 42?'];
+    return ['Max, como funciona este setor?', 'Max, tem solicitação nova?', 'Max, o que está com estoque baixo?', 'Max, quantos pedidos de material para separar?'];
   }
+  if (host.sector?.slug === 'rh') return ['Max, como funciona este setor?', 'Max, como faço uma admissão?', 'Max, como funciona a troca anual?', 'Max, abrir colaboradores'];
+  if (host.sector?.slug === 'operacional') return ['Max, como funciona este setor?', 'Max, tem troca para validar?', 'Max, quantos pedidos estão em aberto?', 'Max, abrir minha conta'];
+  if (host.sector?.slug === 'financeiro') return ['Max, como funciona este setor?', 'Max, abrir notas e vencimentos', 'Max, que dia é hoje?', 'Max, quanto é 15% de 2400?'];
+  if (host.sector?.slug === 'compras') return ['Max, como funciona este setor?', 'Max, tem solicitação de compra nova?', 'Max, como estão os pedidos de compra?', 'Max, abrir minha conta'];
   return ['Max, que dia é hoje?', 'Max, quanto é 15% de 2400?', 'Max, abrir minha conta', 'Max, como está o tempo?'];
 }
 
@@ -236,10 +240,10 @@ export const coreSkills: Skill[] = [
       }
       const extra =
         host.scope === 'hub'
-          ? 'contar e localizar usuários, abrir a criação de usuário e levar você a qualquer setor'
+          ? 'contar e localizar usuários, abrir a criação de usuário, levar você a qualquer setor e explicar como cada setor funciona'
           : host.sector?.slug === 'almoxarifado'
-            ? 'mostrar métricas, contar solicitações, consultar o saldo de um item, avisar o que está com estoque baixo e dizer o que há em cada posto'
-            : 'abrir as telas do setor';
+            ? 'mostrar métricas, contar solicitações e pedidos de material, consultar o saldo de um item, avisar o que está com estoque baixo, dizer o que há em cada posto e explicar passo a passo qualquer tela'
+            : 'abrir as telas do setor, acompanhar os pedidos e explicar passo a passo como cada tela funciona';
       return {
         say: `Posso ${extra}. Também digo a hora e a data, faço contas, vejo o tempo e respondo perguntas gerais. Alguns exemplos estão na tela.`,
         chips: capabilities(host),

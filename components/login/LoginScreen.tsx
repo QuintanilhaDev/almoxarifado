@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { AnimatePresence, motion, useAnimate } from 'framer-motion';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -391,8 +392,8 @@ export function LoginScreen() {
           <motion.div
             ref={scope}
             className="login-card"
-            initial={{ opacity: 0, y: 30, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            initial={{ opacity: 0, y: 30, scale: 0.97, rotateX: deg(28), transformPerspective: 1200 }}
+            animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0, transitionEnd: { transform: 'none' } }}
             transition={{ duration: 0.8, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
             style={inForm ? undefined : { pointerEvents: 'none' }}
             aria-hidden={!inForm}

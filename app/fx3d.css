@@ -1,0 +1,139 @@
+/* =========================================================
+   Animações 3D do Max Hub (html[data-fx] = full | lite | off)
+   ========================================================= */
+
+/* cena 3D ao fundo das ferramentas */
+.scene3d {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  /* atrás de tudo (acima só do fundo da página): não cria camadas que prendam janelas e menus */
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.9;
+}
+html:not([data-fx='off']) .dash {
+  background: transparent;
+}
+html:not([data-fx='off']) .side {
+  background: rgba(12, 12, 14, 0.78);
+}
+
+/* ---------- entrada em 3D: tudo "desdobra" ao aparecer ---------- */
+@keyframes fx-rise {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateX(-24deg) translateY(16px) translateZ(-60px);
+  }
+}
+@keyframes fx-swing {
+  from {
+    opacity: 0;
+    transform: perspective(1000px) rotateY(-28deg) translateX(-18px) translateZ(-40px);
+  }
+}
+@keyframes fx-flip {
+  from {
+    opacity: 0;
+    transform: perspective(600px) rotateX(90deg);
+  }
+}
+html:not([data-fx='off'])
+  :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .o-term, .n-line, .move-row, .user-row, .t-table tbody tr, .mini-stats > div, .empty, .blank-tool, .banner, .o-plan, .o-routing, .p-item, .answer, .kv-row, .mt-card, .center-card, .req-card, .contact, .detail-hero, .max-card) {
+  animation: fx-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  transform-origin: 50% 0;
+}
+html:not([data-fx='off']) :is(.section-head h1, .section-head p, .side .brand) {
+  animation: fx-swing 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  transform-origin: 0 50%;
+}
+html:not([data-fx='off']) .section-head p {
+  animation-delay: 0.06s;
+}
+html:not([data-fx='off']) :is(.stat b, .mini-stats b, .nav-count, .pbadge) {
+  display: inline-block;
+  animation: fx-flip 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: 0.15s;
+}
+html:not([data-fx='off']) .stat b,
+html:not([data-fx='off']) .mini-stats b {
+  display: block;
+}
+html:not([data-fx='off']) .nav-item {
+  animation: fx-swing 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+/* escada: um depois do outro */
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(2) { animation-delay: 0.04s; }
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(3) { animation-delay: 0.08s; }
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(4) { animation-delay: 0.12s; }
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(5) { animation-delay: 0.16s; }
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(6) { animation-delay: 0.2s; }
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(7) { animation-delay: 0.24s; }
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(8) { animation-delay: 0.28s; }
+html:not([data-fx='off']) :is(.p-row, .stock-row, .stat, .g-card, .hub-card, .posto-card, .o-item, .move-row, .user-row, .t-table tbody tr, .nav-item, .kv-row, .n-line, .mini-stats > div):nth-child(n + 9) { animation-delay: 0.32s; }
+
+/* ---------- inclinação com o mouse (modo full) ---------- */
+html[data-fx='full'] .is-tilting {
+  transform: perspective(900px) rotateX(var(--rx, 0)) rotateY(var(--ry, 0)) translateZ(8px);
+  transition: transform 0.12s ease-out, box-shadow 0.25s, border-color 0.2s, background-color 0.2s;
+  will-change: transform;
+  box-shadow: 0 22px 44px -22px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(198, 168, 255, 0.14);
+  background-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(198, 168, 255, 0.11), transparent 58%);
+}
+html[data-fx='full'] .tilt-out {
+  transform: perspective(900px) rotateX(0) rotateY(0) translateZ(0);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s;
+}
+/* peças pequenas: giram e saltam sem sombra grande */
+html[data-fx='full'] :is(.btn, .nav-item, .tab, .chip, .cat-chip, .filter-seg button, .pbadge, .avatar).is-tilting {
+  transform: perspective(500px) rotateX(var(--rx, 0)) rotateY(var(--ry, 0)) translateZ(10px);
+  box-shadow: none;
+}
+html[data-fx='full'] .btn-primary.is-tilting {
+  box-shadow: 0 14px 30px -12px rgba(169, 130, 255, 0.65);
+}
+
+/* ---------- toque e clique: o botão "afunda" ---------- */
+html:not([data-fx='off']) :is(.btn, .icon-btn, .nav-item, .tab, .chip, .cat-chip, .p-step, .filter-seg button):active:not(:disabled) {
+  transform: perspective(500px) rotateX(14deg) translateZ(-14px) scale(0.98) !important;
+  transition: transform 0.08s;
+}
+
+/* ---------- gavetas e janelas giram a partir da borda ---------- */
+.drawer {
+  transform-origin: 100% 50%;
+}
+.toast {
+  transform-origin: 50% 0;
+}
+.max-panel {
+  transform-origin: 100% 100%;
+}
+
+/* ---------- carregando: brilho que atravessa em profundidade ---------- */
+@keyframes fx-skel {
+  0%,
+  100% {
+    transform: perspective(800px) rotateX(0deg);
+  }
+  50% {
+    transform: perspective(800px) rotateX(6deg) translateZ(-10px);
+  }
+}
+html:not([data-fx='off']) .skeleton {
+  animation: shimmer 1.3s linear infinite, fx-skel 2.4s ease-in-out infinite;
+}
+
+/* ---------- impressão e quem pediu menos movimento ---------- */
+@media print {
+  .scene3d {
+    display: none;
+  }
+}
+html[data-fx='off'] .scene3d {
+  display: none;
+}
+html:not([data-fx='off']) .mobile-top {
+  background: rgba(12, 12, 14, 0.86);
+}

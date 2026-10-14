@@ -1,4 +1,5 @@
 'use client';
+import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, FileText, FileUp, Pencil, Plus, Search, Shirt, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -562,7 +563,7 @@ function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: C
   };
   return (
     <motion.div className="drawer-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.aside className="drawer o-drawer" role="dialog" aria-modal="true" aria-label={c.name} initial={{ x: 60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 60, opacity: 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} onClick={(e) => e.stopPropagation()}>
+      <motion.aside className="drawer o-drawer" role="dialog" aria-modal="true" aria-label={c.name} initial={{ x: 60, opacity: 0, rotateY: deg(-24), transformPerspective: 1400 }} animate={{ x: 0, opacity: 1, rotateY: 0, transitionEnd: { transform: 'none' } }} exit={{ x: 60, opacity: 0, rotateY: deg(-18) }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} onClick={(e) => e.stopPropagation()}>
         <div className="drawer-top">
           <div style={{ minWidth: 0 }}>
             <h2>{c.name}</h2>
