@@ -30,6 +30,16 @@ const visible = (el: Element | null): el is HTMLElement => {
   return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
 };
 const first = (sel: string): HTMLElement | null => [...document.querySelectorAll(sel)].find(visible) as HTMLElement | null ?? null;
+/** espera o botão aparecer (a tela pode estar abrindo) */
+async function waitFirst(sel: string, ms: number): Promise<HTMLElement | null> {
+  const t0 = Date.now();
+  for (;;) {
+    const el = first(sel);
+    if (el && !(el as HTMLButtonElement).disabled) return el;
+    if (Date.now() - t0 > ms) return el;
+    await wait(80);
+  }
+}
 
 export function WarpProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -66,17 +76,24 @@ export function WarpProvider({ children }: { children: React.ReactNode }) {
   const go = useCallback((path: string) => void push(path), [push]);
 
   /** os botões que levam até `path`, na ordem em que a Max precisa socar */
-  const plan = useCallback((path: string): { el: () => HTMLElement | null; to: string }[] => {
+  const plan = useCallback((path: string): { el: () => HTMLElement | null; to: string | null }[] => {
     const target = clean(path);
     const here = pathRef.current;
     if (here === target) return [];
     const back = () => first('.side-back, .mobile-top a[href="/hub"]');
     const card = (p: string) => () => first(`.hub-card a[href="${p}"]`) ?? first(`a[href="${p}"]`);
+    // no painel, os cards ficam na aba Setores: se ela não estiver aberta, soca a aba antes
+    const setores = (p: string) => () => {
+      if (card(p)()) return null;
+      const tab = first('.nav-item[data-tab="setores"], .tab[data-tab="setores"]');
+      return tab && !tab.classList.contains('is-active') ? tab : null;
+    };
     if (target === '/hub') return [{ el: back, to: '/hub' }];
     if (/^\/setor\//.test(target)) {
-      if (here === '/hub') return [{ el: card(target), to: target }];
+      if (here === '/hub') return [{ el: setores(target), to: null }, { el: card(target), to: target }];
       return [
         { el: back, to: '/hub' },
+        { el: setores(target), to: null },
         { el: card(target), to: target },
       ];
     }
@@ -109,9 +126,45 @@ export function WarpProvider({ children }: { children: React.ReactNode }) {
                 hit();
               });
               await wait(120);
+            } else if (step.kind === 'press') {
+              const el = await waitFirst(step.sel, 4000);
+              if (el && step.skipActive && el.classList.contains('is-active')) continue;
+              const press = () => {
+                hit();
+                if (step.exec) step.exec();
+                else el?.click();
+              };
+              if (!r || !el) {
+                if (step.exec) press();
+                continue;
+              }
+              // botão fora da tela: rola até ele antes de correr
+              const box = el.getBoundingClientRect();
+              if (box.top < 0 || box.bottom > window.innerHeight) {
+                el.scrollIntoView({ block: 'center' });
+                await wait(200);
+              }
+              await r.sprout();
+              await r.punch(el, press);
+              await wait(380); // a tela reage ao clique (abre a gaveta, começa o download)
             } else {
               for (const p of plan(step.path)) {
-                const el = p.el();
+                let el = p.el();
+                // a tela nova pode ainda estar carregando os botões
+                for (const t0 = Date.now(); !el && p.to !== null && Date.now() - t0 < 3000; ) {
+                  await wait(80);
+                  el = p.el();
+                }
+                if (p.to === null) {
+                  // passo de clique (abrir a aba certa antes do botão)
+                  if (!el) continue;
+                  if (r) {
+                    await r.sprout();
+                    await r.punch(el, () => el.click());
+                  } else el.click();
+                  await wait(320);
+                  continue;
+                }
                 if (!r || !el) {
                   hit();
                   await push(p.to);
@@ -119,9 +172,10 @@ export function WarpProvider({ children }: { children: React.ReactNode }) {
                 }
                 await r.sprout();
                 let go: Promise<void> = Promise.resolve();
+                const to = p.to;
                 await r.punch(el, () => {
                   hit();
-                  go = push(p.to);
+                  go = push(to);
                 });
                 await go;
               }

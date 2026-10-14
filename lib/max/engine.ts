@@ -3,6 +3,7 @@ import { capabilities, coreSkills } from './skills-core';
 import { emptySectorSkills, hubSkills } from './skills-hub';
 import { comprasSkills } from './skills-compras';
 import { pedidosSkills } from './skills-pedidos';
+import { downloadSkills } from './skills-downloads';
 import { manualFallback, manualSkills } from './skills-manual';
 import { makeQuery, normalize, stripWake, tokenize, wantsChange, type Query } from './text';
 export { wantsChange };
@@ -10,7 +11,7 @@ import { BLOCKED_REPLY, isBlocked } from './moderation';
 import type { MaxHost, MaxMemory, MaxReply, PendingAction, Skill } from './types';
 import { gaveUp, recall, type Learned } from './learn';
 
-const ALL: Skill[] = [...coreSkills, ...almoxSkills, ...comprasSkills, ...pedidosSkills, ...manualSkills, ...hubSkills, ...emptySectorSkills];
+const ALL: Skill[] = [...downloadSkills, ...coreSkills, ...almoxSkills, ...comprasSkills, ...pedidosSkills, ...manualSkills, ...hubSkills, ...emptySectorSkills];
 
 /** Abaixo disto a Max não tem certeza e passa a pergunta adiante (IA/Wikipedia) ou admite que não sabe. */
 export const CONFIDENT = 0.6;
@@ -145,7 +146,7 @@ export interface AgentAnswer {
 }
 
 /** Comandos locais que continuam valendo mesmo quando a frase tem verbo de ação ("desative a voz", "trocar minha senha"). */
-const SAFE_LOCAL = new Set(['stop', 'repeat', 'voice-off', 'voice-on', 'logout', 'go-tab', 'go-sector', 'hub-create-user', 'calc', 'almox-form-link', 'download-metrics', 'say-hello']);
+const SAFE_LOCAL = new Set(['stop', 'repeat', 'voice-off', 'voice-on', 'logout', 'go-tab', 'go-sector', 'hub-create-user', 'calc', 'almox-form-link', 'download-metrics', 'download-gestao', 'download-orders', 'download-nota-xml', 'say-hello']);
 
 /** comandos que nunca são disparados pela memória (a pessoa precisa pedir com clareza) */
 const NO_RECALL = new Set(['logout', 'stop', 'bye', 'voice-off', 'voice-on', 'say-hello', 'go-sector', 'hub-create-user']);

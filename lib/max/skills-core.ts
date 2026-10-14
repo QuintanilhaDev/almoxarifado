@@ -2,19 +2,10 @@ import { SECTORS, getSector, sectorPath } from '../sectors';
 import { tryCalc } from './calc';
 import { PERIOD_GREETING, dateText, dayPeriod, firstName, timeText, type DayPeriod } from './clock';
 import { canOpenSector, hasLevel } from '../permissions';
-import { downloadAlmoxMetrics } from '../almoxarifado/metricsDownload';
 import type { Period } from '../almoxarifado/metrics';
 import { windowIn } from './when';
 import { listJoin, pick } from './text';
 import type { MaxHost, Skill } from './types';
-
-/**
- * Setores que têm métricas para baixar. Para um setor novo: marque `metrics: true` em lib/sectors.ts
- * e registre aqui a função que gera o gráfico (.png) e a planilha (.xlsx) dele.
- */
-const METRICS_DOWNLOAD: Record<string, (format: 'png' | 'xlsx', period: Period) => Promise<{ filename: string; periodLabel: string }>> = {
-  almoxarifado: downloadAlmoxMetrics,
-};
 
 const VERB_GO = ['abrir', 'abre', 'abra', 'ir', 'vai', 'va', 'vamos', 'mostrar', 'mostra', 'mostre', 'ver', 'veja', 'exibir', 'exiba', 'acessar', 'acesse', 'entrar', 'leva', 'leve', 'navegar', 'navegue', 'quero', 'desejo', 'preciso', 'abrindo', 'visualizar', 'voltar', 'volta', 'volte'];
 
@@ -40,13 +31,7 @@ export function wantsLogout(q: { re: (r: RegExp) => RegExpMatchArray | null }): 
   );
 }
 
-/** A pessoa quer o ARQUIVO das métricas (baixar, exportar, "me envie a planilha"), não só ver os números. */
-export function wantsMetricsFile(q: { re: (r: RegExp) => RegExpMatchArray | null }): boolean {
-  if (q.re(/\b(dar|deu|dei|de|da|demos) (uma |a )?baixa\b/)) return false; // "dar baixa" é movimentação de estoque
-  const verb = q.re(/\b(baixar|baixe|baixa|baixando|download|downloads|exportar|exporte|exporta|salvar|salve|salva|gerar|gere|gera|enviar|envie|envia|mandar|mande|manda|imprimir)\b/);
-  const noun = q.re(/\b(metrica|metricas|relatorio|relatorios|indicadores|planilha|planilhas|grafico|graficos|xlsx|png|excel)\b/);
-  return Boolean(verb && noun);
-}
+export { wantsMetricsFile } from './skills-downloads';
 
 export function capabilities(host: MaxHost): string[] {
   if (host.scope === 'login') return ['Max, apresente-se', 'Max, que horas são?', 'Max, como faço para entrar?', 'Max, quero fazer uma solicitação'];
@@ -402,43 +387,6 @@ export const coreSkills: Skill[] = [
     run: (_q, host) => ({ say: `Encerrando a sua sessão. Até logo${name(host)}!`, afterSpeech: () => host.logout() }),
   },
 
-
-  /* ---------- baixar as métricas de um setor (gráfico .png ou planilha .xlsx) ---------- */
-  {
-    id: 'download-metrics',
-    scopes: ['hub', 'sector'],
-    examples: ['Max, desejo baixar as métricas do almoxarifado', 'Max, baixar a planilha das métricas do último mês'],
-    match: (q) => (wantsMetricsFile(q) ? 0.97 : 0),
-    run: async (q, host) => {
-      const named = SECTORS.find((s) => s.aliases.some((a) => q.any(a)) || q.any(s.name));
-      const sector = named ?? host.sector;
-      if (!sector) {
-        const withMetrics = SECTORS.filter((s) => s.metrics).map((s) => s.name);
-        return { say: `De qual setor você quer baixar as métricas? Hoje ${withMetrics.length === 1 ? `só o ${withMetrics[0]} tem` : `têm métricas: ${listJoin(withMetrics)}`}.`, chips: withMetrics.map((n) => `Max, baixar as métricas do ${n}`) };
-      }
-      if (!canOpenSector(host.user, sector.slug)) return { say: `Você não tem acesso ao setor ${sector.name}, então não posso baixar as métricas dele.` };
-      const download = METRICS_DOWNLOAD[sector.slug];
-      if (!sector.metrics || !download) {
-        return { say: `O setor ${sector.name} ainda não possui métricas. Caso queira que esse setor obtenha uma contagem de métricas, contate Mateus na sede.` };
-      }
-      if (!hasLevel(host.user, sector.slug, 'metricas', 'view')) return { say: `Você não tem acesso às Métricas do setor ${sector.name}. Fale com o master do setor se precisar.` };
-      const format: 'png' | 'xlsx' = q.any('planilha', 'planilhas', 'xlsx', 'excel', 'tabela') ? 'xlsx' : 'png';
-      const w = windowIn(q.norm);
-      const period = w?.standard ?? 'ultima-semana';
-      const kind = format === 'png' ? 'o gráfico' : 'a planilha';
-      try {
-        const done = await download(format, period);
-        const note = w && !w.standard ? ' Esse arquivo só existe nos períodos da tela de Métricas, então usei a última semana.' : '';
-        return {
-          say: `Pronto, baixei ${kind} das métricas do ${sector.name}, período: ${done.periodLabel.toLowerCase()}. Está na pasta de downloads do seu computador.${note}`,
-          text: `Baixei ${kind} das métricas do ${sector.name} (${done.periodLabel.toLowerCase()}): ${done.filename}${note}`,
-          chips: format === 'png' ? [`Max, baixar a planilha das métricas do ${sector.name}`] : [`Max, baixar o gráfico das métricas do ${sector.name}`],
-        };
-      } catch (e) {
-        return { say: `Não consegui baixar ${kind} das métricas do ${sector.name}. ${(e as Error).message}` };
-      }
-    },
-  },
 
   /* ---------- navegação ---------- */
   {

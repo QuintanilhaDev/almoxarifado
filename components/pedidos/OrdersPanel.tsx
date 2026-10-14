@@ -191,7 +191,7 @@ export function OrdersPanel({
             <p>{TITLE[scope].p}</p>
           </div>
           <div className="head-actions">
-            <button className="btn btn-ghost" onClick={exportXlsx} disabled={!shown.length || exporting}>
+            <button className="btn btn-ghost" onClick={exportXlsx} disabled={!shown.length || exporting} data-max="pedidos-xlsx">
               {exporting ? <span className="spinner" /> : <Download size={18} />} Planilha
             </button>
             {scope !== 'almox' ? (

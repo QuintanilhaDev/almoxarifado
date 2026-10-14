@@ -122,6 +122,10 @@ const CASES: Case[] = [
   [almoxC, 'Max tem solicitação nova?', 'almox-request-count'], [compras, 'Max abrir a solicitação 2', 'purchase-open'], [compras, 'Max qual foi a última solicitação?', 'purchase-count'], [almoxC, 'Max quantas solicitações de compra chegaram nos últimos 3 dias', 'purchase-count'], [almoxC, 'Max mostrar os 5 últimos pedidos de compra', 'purchase-count'], [almoxC, 'Max pedido de compra número 2', 'purchase-open'], [almoxC, 'Max abrir a solicitação 12', 'almox-request-open'], [almoxC, 'Max abrir compras', 'go-tab'], [compras, 'Max minha conta', 'go-tab'],
   [hub, 'Max abrir o setor de compras', 'go-sector'], [hub, 'Max abrir o setor de suprimentos', 'go-sector'], [hub, 'Max quem está no setor de compras', 'hub-users-of-sector'],
   [hub, 'Max criar usuário no setor compras', 'hub-create-user'], [almox, 'Max lista de compras', 'almox-stock-low'], [almox, 'Max o que precisa comprar', 'almox-stock-low'],
+  // downloads: a Max corre até o botão e baixa
+  [hub, 'Max, baixar o PDF da Gestão', 'download-gestao'], [hub, 'Max baixar o relatório', 'download-gestao'], [hub, 'Max exportar a planilha da gestão dos últimos 90 dias', 'download-gestao'],
+  [almox, 'Max baixar a planilha das métricas', 'download-metrics'], [hub, 'Max baixar as métricas do almoxarifado', 'download-metrics'], [almox, 'Max baixar o PDF da gestão', 'download-gestao'],
+  [opP, 'Max baixar a planilha dos pedidos', 'download-orders'], [almox, 'Max baixar o XML da nota 1234', 'download-nota-xml'], [almox, 'Max dar baixa de 3 botas', null],
   // pedidos de material
   [opP, 'Max tem troca para validar?', 'order-count'], [opP, 'Max quantos pedidos estão em aberto', 'order-count'], [opP, 'Max abrir o pedido 3', 'order-open'], [opP, 'Max pedidos atrasados', 'order-count'],
   [almoxP, 'Max quantos pedidos de material para separar', 'order-count'], [almoxP, 'Max abrir o pedido de material 3', 'order-open'], [almoxP, 'Max abrir a solicitação 12', 'almox-request-open'], [almoxP, 'Max tem solicitação nova?', 'almox-request-count'], [almoxP, 'Max pedido de compra número 2', 'purchase-open'], [almoxP, 'Max abrir pedidos de material', 'go-tab'],

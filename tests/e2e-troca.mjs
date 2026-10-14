@@ -24,7 +24,7 @@ const FAKE = `
 const HITS = `
   window.__hits = [];
   const seen = new Set();
-  new MutationObserver((ms) => { for (const m of ms) { const t = m.target; if (t.classList && t.classList.contains('max-hit') && !(m.oldValue || '').includes('max-hit') && !seen.has(t)) { seen.add(t); setTimeout(() => seen.delete(t), 300); window.__hits.push(t.getAttribute('data-tab') || t.getAttribute('href') || ''); } } })
+  new MutationObserver((ms) => { for (const m of ms) { const t = m.target; if (t.classList && t.classList.contains('max-hit') && !(m.oldValue || '').includes('max-hit') && !seen.has(t)) { seen.add(t); setTimeout(() => seen.delete(t), 300); window.__hits.push(t.getAttribute('data-tab') || t.getAttribute('data-max') || t.getAttribute('data-testid') || t.getAttribute('href') || ''); } } })
     .observe(document, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
 `;
 async function newPage(browser, mobile = false) {
@@ -50,7 +50,8 @@ const settled = async (page) => {
   await page.waitForFunction(() => !document.querySelector('.mr.is-on') && !document.documentElement.classList.contains('max-away'), null, { timeout: 20000 });
 };
 async function say(page, text) {
-  await page.click('.max-fab');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('max-away'), null, { timeout: 20000 });
+  if (!(await page.locator('.max-fab.is-listening').count())) await page.click('.max-fab');
   await page.waitForSelector('.max-fab.is-listening', { timeout: 4000 });
   await page.evaluate((t) => window.__say(t), text);
 }
@@ -112,6 +113,41 @@ try {
   await settled(page);
   h = await hits(page);
   ok(JSON.stringify(h) === '["estoque"]', 'socou o item Estoque do menu: ' + JSON.stringify(h));
+
+  console.log('\n[4b] Downloads: ela soca a aba e o botão de baixar');
+  await page.goto(B + '/hub');
+  await page.waitForSelector('.hub-card');
+  await page.waitForTimeout(1500);
+  await hits(page);
+  let dlP = page.waitForEvent('download', { timeout: 25000 });
+  await say(page, 'Max, baixar o PDF da Gestão');
+  let dl = await dlP.catch(() => null);
+  await settled(page);
+  h = await hits(page);
+  ok(Boolean(dl) && /\.pdf$/.test(dl.suggestedFilename()), 'PDF da Gestão baixado: ' + dl?.suggestedFilename());
+  ok(h.length === 2 && h[0] === 'gestao' && h[1] === 'gestao-pdf', 'socou a aba Gestão e depois o botão PDF: ' + JSON.stringify(h));
+  dlP = page.waitForEvent('download', { timeout: 25000 });
+  await say(page, 'Max, baixar a planilha da gestão');
+  dl = await dlP.catch(() => null);
+  await settled(page);
+  h = await hits(page);
+  ok(Boolean(dl) && /\.xlsx$/.test(dl.suggestedFilename()) && JSON.stringify(h) === JSON.stringify(['gestao-xlsx']), 'aba já aberta: socou só o botão Excel: ' + JSON.stringify(h) + ' ' + dl?.suggestedFilename());
+  dlP = page.waitForEvent('download', { timeout: 30000 });
+  await say(page, 'Max, baixar a planilha das métricas do almoxarifado');
+  dl = await dlP.catch(() => null);
+  await settled(page);
+  h = await hits(page);
+  ok(Boolean(dl) && /\.xlsx$/.test(dl.suggestedFilename()), 'planilha das métricas baixada: ' + dl?.suggestedFilename());
+  ok(JSON.stringify(h) === JSON.stringify(['setores', '/setor/almoxarifado', 'metricas', 'dl-xlsx']), 'do painel (aba Gestão aberta): aba Setores, card do Almoxarifado, aba Métricas e o botão: ' + JSON.stringify(h));
+  await page.waitForTimeout(800);
+  dlP = page.waitForEvent('download', { timeout: 12000 });
+  await say(page, 'Max, baixar a planilha dos pedidos de material');
+  dl = await dlP.catch(() => null);
+  await settled(page);
+  h = await hits(page);
+  const last = await page.evaluate(() => [...document.querySelectorAll('.max-msg.max')].pop()?.textContent || '');
+  if (/não há pedidos/.test(last)) ok(h.length === 0 && !dl, 'sem pedidos: ela avisa e não sai correndo à toa');
+  else ok(Boolean(dl) && /\.xlsx$/.test(dl.suggestedFilename()) && JSON.stringify(h) === JSON.stringify(['pedidos', 'pedidos-xlsx']), 'planilha dos pedidos: socou a aba Pedidos e o botão: ' + JSON.stringify(h) + ' ' + dl?.suggestedFilename());
 
   console.log('\n[5] Detalhes');
   await page.goBack();

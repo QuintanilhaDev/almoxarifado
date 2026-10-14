@@ -50,6 +50,8 @@ export interface MaxHost {
   /** `spoken`: a Max já está dizendo para onde vai (a animação de troca não repete a frase) */
   navigate: (path: string, opts?: { spoken?: boolean }) => void;
   logout: () => void;
+  /** a Max corre até o botão `sel` e soca (no soco: `exec`, ou o clique no botão). Sem o palco, só executa. */
+  press?: (sel: string, opts?: { exec?: () => void; skipActive?: boolean }) => void;
   almox?: {
     requests: () => RequestRow[] | null;
     items: () => StockItem[] | null;

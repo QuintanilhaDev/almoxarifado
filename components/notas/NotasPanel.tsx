@@ -210,7 +210,7 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
                 {shown.map((n) => {
                   const next = n.installments.filter((p) => p.due && p.due >= today).sort((a, b) => a.due!.localeCompare(b.due!))[0];
                   return (
-                    <button key={n.id} className="p-row" onClick={() => setOpenId(n.id)} aria-label={`Abrir nota ${n.number}`}>
+                    <button key={n.id} className="p-row" onClick={() => setOpenId(n.id)} aria-label={`Abrir nota ${n.number}`} data-max-nota={n.number}>
                       <span className="p-num">NF {n.number}</span>
                       <span className="p-main">
                         <b>{n.supplier_name}</b>
@@ -807,7 +807,7 @@ function NoteDrawer({ note: n, canEdit, items, onClose, reload, onOrders, modalO
                 </div>
               ))}
             {n.access_key ? (
-              <a className="btn btn-ghost btn-sm" href={`/api/almoxarifado/notas/${n.id}?xml=1`} style={{ marginTop: 8 }}>
+              <a className="btn btn-ghost btn-sm" href={`/api/almoxarifado/notas/${n.id}?xml=1`} style={{ marginTop: 8 }} data-max="nota-xml">
                 <Download size={14} /> Baixar XML
               </a>
             ) : null}

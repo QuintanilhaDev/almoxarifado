@@ -56,10 +56,10 @@ export function Gestao({ version }: { version: number }) {
             <button className="btn btn-ghost" onClick={load} disabled={busy} aria-label="Atualizar">
               {busy ? <span className="spinner" /> : <RefreshCcw size={17} />}
             </button>
-            <a className="btn btn-ghost" href={`/api/gestao/export?days=${days}`}>
+            <a className="btn btn-ghost" href={`/api/gestao/export?days=${days}`} data-max="gestao-xlsx">
               <Download size={18} /> Excel
             </a>
-            <a className="btn btn-ghost" href={`/api/gestao/pdf?days=${days}`}>
+            <a className="btn btn-ghost" href={`/api/gestao/pdf?days=${days}`} data-max="gestao-pdf">
               <FileText size={18} /> PDF
             </a>
           </div>

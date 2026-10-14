@@ -49,9 +49,16 @@ function runHost(base: MaxHost, runs: RunStep[] & { open?: boolean }): MaxHost {
       if (runs.open === false) void maxRun([step]);
       else runs.push(step);
     },
-    // depois da fala (afterSpeech) a corrida começa na hora
+    // dentro da ação, a troca entra na fila (antes dos botões seguintes); depois da fala, corre na hora
     navigate: (path) => {
-      void maxRun([{ kind: 'path', path }]);
+      const step: RunStep = { kind: 'path', path };
+      if (runs.open === false) void maxRun([step]);
+      else runs.push(step);
+    },
+    press: (sel, opts) => {
+      const step: RunStep = { kind: 'press', sel, exec: opts?.exec, skipActive: opts?.skipActive };
+      if (runs.open === false) void maxRun([step]);
+      else runs.push(step);
     },
   };
 }

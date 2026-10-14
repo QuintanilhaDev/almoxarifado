@@ -1,10 +1,11 @@
 'use client';
 import { useId } from 'react';
+import './cap.css';
 
 /**
  * Boné "Max Forte" da Max. Fica por cima da esfera (mesma caixa 100×100 do rostinho)
  * e mexe junto com ela: balança em repouso, acompanha a fala, inclina pensando,
- * quica correndo e pula no soco (as animações estão em max.css, por estado).
+ * quica correndo e pula no soco (as animações estão em cap.css e, na corrida, em max.css).
  */
 export function MaxCap() {
   const id = useId().replace(/:/g, '');

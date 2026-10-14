@@ -151,7 +151,8 @@ try {
   let dl = await dlP.catch(() => null);
   let size = dl ? fs.statSync(await dl.path()).size : 0;
   ok(Boolean(dl) && /\.png$/.test(dl.suggestedFilename()) && size > 20000, `gráfico .png baixado sozinho: ${dl?.suggestedFilename()} (${size} bytes)`);
-  ok(/^Baixei o gráfico das métricas do Almoxarifado \(última semana\)/.test(r), 'ela confirma o que baixou: ' + r.slice(0, 80));
+  ok(/^Baixando o gráfico das métricas do Almoxarifado \(última semana\)/.test(r), 'ela diz o que está baixando: ' + r.slice(0, 80));
+  ok(page.url().endsWith('/setor/almoxarifado#metricas') || page.url().endsWith('/setor/almoxarifado'), 'ela foi até a tela de Métricas para apertar o botão: ' + page.url());
   if (dl) fs.copyFileSync(await dl.path(), SHOTS + '/metricas-baixadas.png');
   dlP = page.waitForEvent('download', { timeout: 20000 });
   r = await ask(page, 'Max, baixe a planilha das métricas do almoxarifado do último mês');
@@ -163,6 +164,11 @@ try {
   r = await ask(page, 'Max, desejo baixar as métricas do almoxarifado do último dia');
   dl = await dlP.catch(() => null);
   ok(Boolean(dl) && /ultimo-dia.*\.png$/.test(dl.suggestedFilename()) && /\(último dia\)/.test(r), `período falado vale no arquivo: ${dl?.suggestedFilename()}`);
+  // de volta ao painel master para os próximos pedidos
+  await page.waitForFunction(() => !document.documentElement.classList.contains('max-away'), null, { timeout: 20000 });
+  await page.goto(B + '/hub');
+  await page.waitForSelector('.hub-card');
+  await page.waitForTimeout(1500);
   r = await ask(page, 'Max, desejo baixar as métricas do financeiro');
   ok(r === 'O setor Financeiro ainda não possui métricas. Caso queira que esse setor obtenha uma contagem de métricas, contate Mateus na sede.', 'setor sem métricas: avisa e orienta');
   r = await ask(page, 'Max, novo usuário chamado Rita Lopes no financeiro');
