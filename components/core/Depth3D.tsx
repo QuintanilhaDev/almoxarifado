@@ -1,4 +1,5 @@
 'use client';
+import { canvasColors, rgb } from '@/lib/canvasColors';
 import { useEffect, useRef } from 'react';
 import { getFx, useFx } from '@/lib/fx';
 
@@ -108,6 +109,8 @@ export function Scene3D() {
     };
 
     const draw = (t: number, dt: number) => {
+
+      const C = canvasColors();
       ctx.clearRect(0, 0, w, h);
       cam.yaw += (cam.tyaw - cam.yaw) * 0.04;
       cam.pitch += (cam.tpitch - cam.pitch) * 0.04;
@@ -123,7 +126,7 @@ export function Scene3D() {
         const b = project(2200, floorY, zz);
         if (!a || !b) continue;
         const fade = Math.max(0, 1 - zz / FAR);
-        ctx.strokeStyle = `rgba(198,168,255,${0.16 * fade})`;
+        ctx.strokeStyle = `rgba(${rgb(C.lilac)},${0.16 * fade * C.boost})`;
         ctx.beginPath();
         ctx.moveTo(a[0], a[1]);
         ctx.lineTo(b[0], b[1]);
@@ -134,8 +137,8 @@ export function Scene3D() {
         const b = project(x, floorY, FAR);
         if (!a || !b) continue;
         const g = ctx.createLinearGradient(a[0], a[1], b[0], b[1]);
-        g.addColorStop(0, 'rgba(198,168,255,0.14)');
-        g.addColorStop(1, 'rgba(198,168,255,0)');
+        g.addColorStop(0, `rgba(${rgb(C.lilac)},0.14)`);
+        g.addColorStop(1, `rgba(${rgb(C.lilac)},0)`);
         ctx.strokeStyle = g;
         ctx.beginPath();
         ctx.moveTo(a[0], a[1]);
@@ -150,7 +153,7 @@ export function Scene3D() {
         const s = project(p[0], p[1], p[2]);
         if (!s) continue;
         const fade = 1 - s[2] / FAR;
-        ctx.fillStyle = `rgba(246,244,251,${0.35 * fade})`;
+        ctx.fillStyle = `rgba(${rgb(C.fg)},${0.35 * fade * C.boost})`;
         const r = Math.max(0.4, 1.6 * fade);
         ctx.fillRect(s[0], s[1], r, r);
       }
@@ -180,7 +183,7 @@ export function Scene3D() {
           return project(o.x + x2 * o.size, o.y + y1 * o.size, o.z + z2 * o.size);
         });
         const fade = Math.min(1, (1 - o.z / FAR) * 1.4) * Math.min(1, (o.z - 120) / 300);
-        const col = o.hue === 'mint' ? '143,227,187' : '198,168,255';
+        const col = o.hue === 'mint' ? rgb(C.mint) : rgb(C.lilac);
         ctx.strokeStyle = `rgba(${col},${0.34 * fade})`;
         ctx.lineWidth = 1.1;
         ctx.beginPath();

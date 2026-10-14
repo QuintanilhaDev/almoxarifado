@@ -17,7 +17,7 @@ html:not([data-fx='off']) .dash {
   background: transparent;
 }
 html:not([data-fx='off']) .side {
-  background: rgba(12, 12, 14, 0.78);
+  background: rgba(var(--bg-rgb), 0.78);
 }
 
 /* ---------- entrada em 3D: tudo "desdobra" ao aparecer ---------- */
@@ -135,5 +135,5 @@ html[data-fx='off'] .scene3d {
   display: none;
 }
 html:not([data-fx='off']) .mobile-top {
-  background: rgba(12, 12, 14, 0.86);
+  background: rgba(var(--bg-rgb), 0.86);
 }

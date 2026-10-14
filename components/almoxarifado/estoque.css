@@ -105,7 +105,7 @@
   border-radius: 99px;
   display: inline-grid;
   place-items: center;
-  background: rgba(246, 244, 251, 0.08);
+  background: rgba(var(--fg-rgb), 0.08);
 }
 .filter-seg button.is-active em {
   background: var(--lilac);
@@ -211,7 +211,7 @@ button.stock-row:hover {
   color: var(--mint);
 }
 .badge.gray {
-  background: rgba(246, 244, 251, 0.08);
+  background: rgba(var(--fg-rgb), 0.08);
   color: var(--muted);
 }
 .more-row {
@@ -225,7 +225,7 @@ button.stock-row:hover {
   position: fixed;
   inset: 0;
   z-index: 55;
-  background: rgba(6, 6, 8, 0.7);
+  background: var(--scrim, rgba(6, 6, 8, 0.7));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
@@ -815,7 +815,7 @@ details.imp-cols ul {
   border-radius: 99px;
   display: inline-grid;
   place-items: center;
-  background: rgba(246, 244, 251, 0.08);
+  background: rgba(var(--fg-rgb), 0.08);
 }
 .cat-chip.is-on em {
   background: var(--lilac);
@@ -833,7 +833,7 @@ details.imp-cols ul {
   line-height: 1;
   padding: 3px 7px;
   border-radius: 99px;
-  background: rgba(246, 244, 251, 0.08);
+  background: rgba(var(--fg-rgb), 0.08);
   color: var(--muted);
   white-space: nowrap;
 }

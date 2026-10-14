@@ -1,4 +1,5 @@
 'use client';
+import { ThemeToggle } from '../core/ThemeToggle';
 import { deg } from '@/lib/fx';
 import { AnimatePresence, motion, useAnimate } from 'framer-motion';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
@@ -362,6 +363,7 @@ export function LoginScreen() {
   return (
     <>
       <DiagonalField />
+      <ThemeToggle className="icon-btn login-theme" />
       <main className="login-page page-layer">
         <div className="login-stage" style={{ ['--orb' as string]: `${orbSize}px` }}>
           <motion.div

@@ -1,4 +1,5 @@
 'use client';
+import { auditMax } from '@/lib/auditClient';
 import { maxRun, type RunStep } from '@/lib/max/runner';
 import { holdBus } from '@/lib/max/bus';
 import { deg } from '@/lib/fx';
@@ -288,6 +289,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       memory.current.last = reply;
       memory.current.lastInput = shown;
       history.current = [...history.current, { role: 'user' as const, content: shown }, { role: 'assistant' as const, content: reply.say || reply.text || '' }].filter((m) => m.content).slice(-8);
+      if (hostRef.current.scope !== 'login') auditMax(shown, reply.text ?? reply.say);
       push({ who: 'max', text: reply.text ?? reply.say, card: reply.card, chips: reply.chips, source: reply.source, asked: reply.source === 'bloqueio' || reply.source === 'stop' ? undefined : shown });
       // trocas de tela pedidas pela Max: ela corre até o botão e soca; o resto espera o soco
       const release = holdBus();

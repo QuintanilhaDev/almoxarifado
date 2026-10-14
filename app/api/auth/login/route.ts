@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import bcrypt from 'bcryptjs';
 import { fail, readJson, serverError } from '@/lib/http';
 import { SESSION_COOKIE, signSession } from '@/lib/session';
@@ -33,9 +34,13 @@ export async function POST(req: Request) {
     const ok = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
     if (!user || !ok) {
       await new Promise((r) => setTimeout(r, 450));
+      await audit({ user: null, who: user ? user.display_name : `@${username}`, kind: 'acesso', action: 'Tentou entrar com a senha errada', detail: user ? `usuário @${username}` : `usuário @${username} não existe`, ok: false });
       return fail('Usuário ou senha incorretos.', 401);
     }
-    if (!user.active) return fail('Seu acesso está desativado. Fale com o administrador do Max Hub.', 403);
+    if (!user.active) {
+      await audit({ user, kind: 'acesso', action: 'Tentou entrar com o acesso desativado', ok: false });
+      return fail('Seu acesso está desativado. Fale com o administrador do Max Hub.', 403);
+    }
 
     limited.reset();
     // registra o último acesso (coluna do maxhub.sql; se ainda não existir, só ignora)
@@ -48,6 +53,7 @@ export async function POST(req: Request) {
         () => undefined,
       );
 
+    await audit({ user, kind: 'acesso', action: 'Entrou no Max Hub' });
     const token = await signSession({ sub: user.id, name: user.display_name });
     const { password_hash: _hash, ...safe } = user;
     void _hash;

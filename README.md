@@ -72,6 +72,39 @@ A Vercel publica sozinha. Não há variável nova obrigatória.
 
 Módulos do Almoxarifado: Solicitações, Estoque, Postos, Métricas, Formulário e E-mails autorizados. Dar baixa de estoque pela resposta de uma solicitação exige **editar** em Solicitações **e** em Estoque.
 
+### Cerca de localização (só dentro do terreno da empresa)
+
+O Max Hub acompanha a localização de quem está usando o sistema o tempo inteiro. Fora do terreno da empresa, a tela trava e o servidor recusa qualquer ação, mesmo que a chamada seja feita diretamente. Quando a pessoa volta, a tela libera sozinha. Também trava quando ela não permite a localização ou quando o aparelho não consegue dizer com precisão onde está.
+
+- O **master geral** entra de qualquer lugar.
+- O **formulário público** de solicitação e a tela de login continuam abertos.
+- Para ajustar, cadastre estas variáveis na Vercel (opcionais) e faça um novo deploy:
+
+| Variável | Padrão | Para que serve |
+|---|---|---|
+| `GEO_LAT` / `GEO_LNG` | `-12.986892099250628` / `-38.489956547863` | O centro do terreno |
+| `GEO_RADIUS_M` | `150` | O raio liberado, em metros |
+| `GEO_MAX_ACCURACY_M` | `200` | A partir desta imprecisão (em metros), a localização não é aceita |
+| `GEO_FENCE` | ligada | `off` desliga a cerca |
+
+Computadores sem Wi-Fi nem GPS costumam dar uma localização imprecisa. Nesse caso, ligue o Wi-Fi do computador.
+
+### Auditoria (Painel master › Auditoria)
+
+A Auditoria mostra, ao vivo e sem precisar atualizar a página, tudo o que cada usuário faz:
+
+- entradas no sistema e saídas, incluindo as tentativas com a senha errada;
+- as telas e abas abertas;
+- cada alteração feita, com o resultado (deu certo ou deu erro);
+- os pedidos feitos à Max;
+- as entradas e saídas da área da empresa.
+
+Dá para filtrar por pessoa e por tipo, buscar e pausar a lista. Por enquanto, os registros ficam **só na memória do servidor**, não no banco, e zeram a cada novo deploy. As senhas nunca são registradas.
+
+### Modo claro e modo escuro
+
+O botão de sol/lua fica no rodapé do menu (no celular, no topo da tela) e também na tela de login. A troca é uma onda em 3D que nasce no canto inferior direito da tela e dura 4 segundos. A escolha fica lembrada naquele navegador.
+
 ---
 
 ## Max, a assistente virtual

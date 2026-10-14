@@ -1,5 +1,5 @@
 'use client';
-import { BarChart3, Brain, Building, UserRound, UsersRound } from 'lucide-react';
+import { BarChart3, Brain, Building, ShieldCheck, UserRound, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -19,20 +19,23 @@ import { loadAlmox, loadCompras, loadShell } from '../setores/SectorApp';
 const loadUsers = () => import('./UsersAdmin');
 const loadLearning = () => import('./MaxLearning');
 const loadGestao = () => import('./Gestao');
+const loadAudit = () => import('./Auditoria');
+const Auditoria = dynamic(() => loadAudit().then((m) => m.Auditoria), { loading: PanelSkeleton });
 const UsersAdmin = dynamic(() => loadUsers().then((m) => m.UsersAdmin), { loading: PanelSkeleton });
 const MaxLearning = dynamic(() => loadLearning().then((m) => m.MaxLearning), { loading: PanelSkeleton });
 const Gestao = dynamic(() => loadGestao().then((m) => m.Gestao), { loading: PanelSkeleton });
 // no painel master, o código das telas e dos setores chega com a página parada
-const PRELOAD = [loadGestao, loadUsers, loadAlmox, loadShell, loadCompras, loadLearning];
+const PRELOAD = [loadGestao, loadUsers, loadAudit, loadAlmox, loadShell, loadCompras, loadLearning];
 import { useWarp } from '../core/Warp';
 import './hub.css';
 
-type Tab = 'setores' | 'gestao' | 'usuarios' | 'max' | 'conta';
-const VALID: Tab[] = ['setores', 'gestao', 'usuarios', 'max', 'conta'];
+type Tab = 'setores' | 'gestao' | 'usuarios' | 'auditoria' | 'max' | 'conta';
+const VALID: Tab[] = ['setores', 'gestao', 'usuarios', 'auditoria', 'max', 'conta'];
 const TABS: FrameTab[] = [
   { id: 'setores', label: 'Setores', short: 'Setores', icon: Building },
   { id: 'gestao', label: 'Gestão', short: 'Gestão', icon: BarChart3 },
   { id: 'usuarios', label: 'Usuários', short: 'Usuários', icon: UsersRound },
+  { id: 'auditoria', label: 'Auditoria', short: 'Auditoria', icon: ShieldCheck },
   { id: 'max', label: 'Aprendizado da Max', short: 'Max', icon: Brain },
   { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
 ];
@@ -124,6 +127,7 @@ function Shell() {
         { id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral', 'inicio', 'pagina inicial'] },
         { id: 'gestao', label: 'Gestão', aliases: ['gestao', 'indicadores', 'painel da gestao', 'relatorios', 'dashboard'] },
         { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas', 'cadastro de usuarios', 'acessos'] },
+        { id: 'auditoria', label: 'Auditoria', aliases: ['auditoria', 'registros', 'historico de acoes', 'log', 'logs', 'quem fez o que', 'atividades'] },
         { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max', 'o que voce aprendeu'] },
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
@@ -152,6 +156,7 @@ function Shell() {
         {tab === 'setores' && <SectorsOverview me={user} users={users} failed={failed} retry={loadUsers} onSeeTeam={() => setTab('usuarios')} />}
         {tab === 'gestao' && <Gestao version={gestaoVersion} />}
         {tab === 'usuarios' && <UsersAdmin me={user} users={users} setUsers={setUsers} failed={failed} reload={loadUsers} />}
+        {tab === 'auditoria' && <Auditoria />}
         {tab === 'max' && <MaxLearning />}
         {tab === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
       </AppFrame>

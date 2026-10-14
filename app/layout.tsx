@@ -2,7 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { WarpProvider } from '@/components/core/Warp';
 import { TiltField } from '@/components/core/Depth3D';
+import { GeoGuard } from '@/components/core/GeoGuard';
+import { AuditBeacon } from '@/components/core/AuditBeacon';
 import { fxScript } from '@/lib/fxScript';
+import { themeScript } from '@/lib/themeScript';
 import './fx3d.css';
 
 export const metadata: Metadata = {
@@ -24,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: fxScript }} />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
@@ -35,6 +39,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <WarpProvider>{children}</WarpProvider>
         <TiltField />
+        <GeoGuard />
+        <AuditBeacon />
       </body>
     </html>
   );

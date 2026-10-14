@@ -8,7 +8,7 @@ export interface SessionPayload {
   name: string;
 }
 
-async function secretKey(): Promise<Uint8Array> {
+export async function secretKey(): Promise<Uint8Array> {
   const raw =
     process.env.SESSION_SECRET ||
     // Se esquecerem de configurar SESSION_SECRET, derivamos da chave secreta do Supabase

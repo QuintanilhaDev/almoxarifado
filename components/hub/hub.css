@@ -352,3 +352,212 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* =========================================================
+   Auditoria (ao vivo)
+   ========================================================= */
+.au-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(143, 227, 187, 0.12);
+  color: var(--mint);
+}
+.au-live.is-poll {
+  background: var(--lilac-soft);
+  color: var(--lilac);
+}
+.au-live i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: au-pulse 1.6s ease-out infinite;
+}
+@keyframes au-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent); }
+  100% { box-shadow: 0 0 0 9px transparent; }
+}
+.au-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.au-stats > div {
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.au-stats small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.au-stats b {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.au-stats span {
+  color: var(--faint);
+  font-size: 12px;
+}
+.au-stats .is-warn b {
+  color: var(--amber);
+}
+.au-person {
+  max-width: 220px;
+}
+.au-kinds {
+  margin: 0 0 14px;
+  flex-wrap: wrap;
+}
+.au-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.au-row {
+  display: grid;
+  grid-template-columns: 74px 34px minmax(160px, 1.1fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+}
+.au-row.is-bad {
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.au-time {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.au-time b {
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+}
+.au-time small,
+.au-who small,
+.au-what small,
+.au-meta small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.au-ico {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--lilac-soft);
+  color: var(--lilac);
+}
+.k-acesso .au-ico {
+  background: rgba(143, 227, 187, 0.14);
+  color: var(--mint);
+}
+.k-local .au-ico,
+.k-erro .au-ico,
+.is-bad .au-ico {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+.k-tela .au-ico {
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--muted);
+}
+.au-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.au-who > span:last-child,
+.au-what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.au-who b,
+.au-what b {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.au-what small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.au-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--onix-4);
+  font-size: 12px;
+  font-weight: 700;
+}
+.au-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+.au-bad {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+@media (max-width: 900px) {
+  .au-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .au-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-areas: 'ico who' 'ico what' 'ico time';
+    row-gap: 4px;
+  }
+  .au-ico {
+    grid-area: ico;
+    align-self: start;
+  }
+  .au-who {
+    grid-area: who;
+  }
+  .au-what {
+    grid-area: what;
+  }
+  .au-time {
+    grid-area: time;
+    flex-direction: row;
+    gap: 6px;
+  }
+  .au-meta {
+    display: none;
+  }
+}

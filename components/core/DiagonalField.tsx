@@ -1,4 +1,5 @@
 'use client';
+import { canvasColors, rgb } from '@/lib/canvasColors';
 import { useEffect, useRef } from 'react';
 
 /**
@@ -64,6 +65,7 @@ export function DiagonalField() {
         return;
       }
       drawn = now;
+      const C = canvasColors();
       const time = (now - t0) / 1000;
       pointer.x += (pointer.tx - pointer.x) * 0.14;
       pointer.y += (pointer.ty - pointer.y) * 0.14;
@@ -110,9 +112,9 @@ export function DiagonalField() {
           }
           {
             // mistura branco -> lilás
-            const r = Math.round(246 + (198 - 246) * f);
-            const g = Math.round(244 + (168 - 244) * f);
-            const b = Math.round(251 + (255 - 251) * f);
+            const r = Math.round(C.fg[0] + (C.lilac[0] - C.fg[0]) * f);
+            const g = Math.round(C.fg[1] + (C.lilac[1] - C.fg[1]) * f);
+            const b = Math.round(C.fg[2] + (C.lilac[2] - C.fg[2]) * f);
             ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
             ctx.lineWidth = 1.2 + f * 1.3;
           }
@@ -123,15 +125,15 @@ export function DiagonalField() {
         }
       }
 
-      ctx.strokeStyle = 'rgba(246,244,251,0.07)';
+      ctx.strokeStyle = `rgba(${rgb(C.fg)},${0.07 * C.boost})`;
       ctx.lineWidth = 1.2;
       ctx.stroke(base);
 
       // brilho suave seguindo o cursor
       if (pointer.energy > 0.01) {
         const g = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, R * 1.3);
-        g.addColorStop(0, `rgba(198,168,255,${0.1 * pointer.energy})`);
-        g.addColorStop(1, 'rgba(198,168,255,0)');
+        g.addColorStop(0, `rgba(${rgb(C.lilac)},${0.1 * pointer.energy})`);
+        g.addColorStop(1, `rgba(${rgb(C.lilac)},0)`);
         ctx.fillStyle = g;
         ctx.fillRect(pointer.x - R * 1.3, pointer.y - R * 1.3, R * 2.6, R * 2.6);
       }

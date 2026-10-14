@@ -50,6 +50,7 @@ export const SECTOR_TABS: Record<string, { id: string; label: string; aliases: s
     { id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral'] },
     { id: 'gestao', label: 'Gestão', aliases: ['gestao', 'indicadores', 'painel da gestao'] },
     { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'cadastro de usuarios', 'acessos'] },
+    { id: 'auditoria', label: 'Auditoria', aliases: ['auditoria', 'registros', 'logs', 'atividades'] },
     { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max'] },
   ],
 };

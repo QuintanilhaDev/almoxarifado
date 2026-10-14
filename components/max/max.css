@@ -36,7 +36,7 @@
   max-height: min(540px, calc(100dvh - 190px));
   display: flex;
   flex-direction: column;
-  background: rgba(19, 19, 23, 0.94);
+  background: rgba(var(--panel-rgb), 0.94);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--line-strong);
@@ -354,12 +354,12 @@
   display: grid;
   place-items: center;
   color: var(--muted);
-  background: rgba(246, 244, 251, 0.06);
+  background: rgba(var(--fg-rgb), 0.06);
   transition: color 0.2s, background 0.2s;
 }
 .max-rate button:hover {
   color: var(--white);
-  background: rgba(246, 244, 251, 0.14);
+  background: rgba(var(--fg-rgb), 0.14);
 }
 .max-rate small {
   color: var(--faint);
@@ -495,7 +495,7 @@ html.max-away .max-fab {
   height: 14px;
   margin: -7px 0 0 -7px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, rgba(246, 244, 251, 0.55), rgba(198, 168, 255, 0.18) 60%, transparent 70%);
+  background: radial-gradient(circle at 40% 35%, rgba(var(--fg-rgb), 0.55), rgba(198, 168, 255, 0.18) 60%, transparent 70%);
   animation: mr-dust 0.6s ease-out forwards;
 }
 @keyframes mr-dust {

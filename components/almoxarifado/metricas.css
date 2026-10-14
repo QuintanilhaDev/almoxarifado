@@ -250,7 +250,7 @@
   position: absolute;
   top: 10px;
   min-width: 170px;
-  background: rgba(35, 35, 43, 0.97);
+  background: rgba(var(--raised-rgb), 0.97);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   padding: 10px 12px;

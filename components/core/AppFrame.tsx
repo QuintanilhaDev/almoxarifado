@@ -2,6 +2,7 @@
 import { useWarp } from './Warp';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, LogOut, type LucideIcon } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 import { useEffect } from 'react';
 import { initials } from '@/lib/format';
 import type { HubUser } from '@/lib/permissions';
@@ -96,6 +97,7 @@ export function AppFrame({
             {user?.display_name || '…'}
             <small>{role ?? (user ? '@' + user.username : ' ')}</small>
           </div>
+          <ThemeToggle />
           <button className="icon-btn" onClick={onLogout} aria-label="Sair" title="Sair">
             <LogOut size={18} />
           </button>
@@ -110,6 +112,7 @@ export function AppFrame({
               <ArrowLeft size={18} />
             </a>
           ) : null}
+          <ThemeToggle />
           <button className="icon-btn" onClick={onLogout} aria-label="Sair" title="Sair">
             <LogOut size={18} />
           </button>
