@@ -4,7 +4,7 @@
  * então as funções do banco (movimentações, reservas, entregas, notas fiscais…) são testadas de verdade.
  *
  * Uso: node tests/pg-supabase.mjs [porta]
- *   NOCAT=1 NOMEM=1 NOCOMPRAS=1 NOP3=1  → simula o banco sem o respectivo arquivo .sql
+ *   NOCAT=1 NOMEM=1 NOCOMPRAS=1 NOP3=1 NOFORN=1  → simula o banco sem o respectivo arquivo .sql
  */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -28,6 +28,7 @@ const sqlFiles = [
   ...(env('NOMEM') ? [] : ['max_aprendizado.sql']),
   ...(env('NOCOMPRAS') ? [] : ['compras.sql']),
   ...(env('NOP3') || !fs.existsSync(path.join(ROOT, 'pedidos_e_notas.sql')) ? [] : ['pedidos_e_notas.sql']),
+  ...(env('NOP3') || env('NOFORN') ? [] : ['fornecedores.sql']),
 ];
 
 /* ------------------------------------------------------------------ */

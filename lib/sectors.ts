@@ -96,7 +96,10 @@ export const SECTORS: SectorDef[] = [
     description: 'Pedidos de compra, cotações, fornecedores e acompanhamento das entregas.',
     ready: true,
     aliases: ['compras', 'setor de compras', 'suprimentos', 'aquisicoes', 'cotacoes'],
-    modules: [{ id: 'solicitacoes', label: 'Solicitações', hint: 'Mudar o andamento e responder os pedidos de compra' }],
+    modules: [
+      { id: 'solicitacoes', label: 'Solicitações', hint: 'Mudar o andamento e responder os pedidos de compra' },
+      { id: 'fornecedores', label: 'Fornecedores', hint: 'Cadastrar, editar e importar fornecedores' },
+    ],
   },
 ];
 

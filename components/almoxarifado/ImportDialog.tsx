@@ -6,18 +6,31 @@ import { money, num } from '@/lib/almoxarifado/stockFormat';
 import { useToast } from '../core/Toasts';
 import { api } from '../core/api';
 import { Sheet } from './StockModals';
+import { formatDoc } from '@/lib/compras/fornecedores';
 
-type Kind = 'postos' | 'itens';
+type Kind = 'postos' | 'itens' | 'fornecedores';
 
 const CONFIG: Record<
   Kind,
-  { endpoint: string; title: string; singular: string; plural: string; cols: { key: string; label: string; fmt?: (v: string | number | null) => string }[] }
+  {
+    endpoint: string;
+    /** onde grava (sem isso, o próprio endpoint em JSON) */
+    saveEndpoint?: string;
+    /** quem já existe é completado com o que veio na planilha (em vez de ficar como está) */
+    updates?: boolean;
+    title: string;
+    singular: string;
+    plural: string;
+    lead: string;
+    cols: { key: string; label: string; fmt?: (v: string | number | null) => string }[];
+  }
 > = {
   postos: {
     endpoint: '/api/almoxarifado/postos/import',
     title: 'Importar postos por planilha',
     singular: 'posto',
     plural: 'postos',
+    lead: 'Postos que já existem não são alterados: só os novos entram.',
     cols: [
       { key: 'name', label: 'Posto' },
       { key: 'code', label: 'Código' },
@@ -31,6 +44,7 @@ const CONFIG: Record<
     title: 'Importar itens por planilha',
     singular: 'item',
     plural: 'itens',
+    lead: 'Itens que já existem (mesmo nome e tamanho) não são alterados: só os novos entram.',
     cols: [
       { key: 'name', label: 'Item' },
       { key: 'size', label: 'Tam.' },
@@ -39,6 +53,23 @@ const CONFIG: Record<
       { key: 'quantity', label: 'Saldo', fmt: (v) => (v === null ? '' : num(Number(v))) },
       { key: 'min_quantity', label: 'Mín.', fmt: (v) => (v === null ? '' : num(Number(v))) },
       { key: 'cost', label: 'Custo', fmt: (v) => (v === null ? '' : money(Number(v))) },
+    ],
+  },
+  fornecedores: {
+    endpoint: '/api/compras/fornecedores/import',
+    saveEndpoint: '/api/compras/fornecedores',
+    updates: true,
+    title: 'Importar fornecedores por planilha',
+    singular: 'fornecedor',
+    plural: 'fornecedores',
+    lead: 'Quem já está cadastrado (mesmo CNPJ ou, sem CNPJ, mesmo nome) é completado com o que vier na planilha; o resto entra como novo.',
+    cols: [
+      { key: 'name', label: 'Fornecedor' },
+      { key: 'cnpj', label: 'CNPJ/CPF', fmt: (v) => formatDoc(v === null ? null : String(v)) },
+      { key: 'category', label: 'O que fornece' },
+      { key: 'contact', label: 'Contato' },
+      { key: 'phone', label: 'Telefone' },
+      { key: 'city', label: 'Cidade' },
     ],
   },
 };
@@ -50,6 +81,13 @@ const FIELD_LABEL: Record<string, string> = {
   address: 'endereço',
   supervisor: 'responsável',
   notes: 'observação',
+  trade_name: 'nome fantasia',
+  cnpj: 'CNPJ/CPF',
+  phone: 'telefone',
+  email: 'e-mail',
+  contact: 'contato',
+  category: 'o que fornece',
+  uf: 'UF',
   size: 'tamanho',
   categories: 'categoria',
   unit: 'unidade',
@@ -90,25 +128,40 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
   };
 
   const fresh = preview?.rows.filter((r) => r.status === 'new') ?? [];
-  const exists = preview?.rows.filter((r) => r.status === 'exists').length ?? 0;
+  const known = preview?.rows.filter((r) => r.status === 'exists') ?? [];
+  const exists = known.length;
   const dup = preview?.rows.filter((r) => r.status === 'duplicate').length ?? 0;
+  const invalid = preview?.rows.filter((r) => r.status === 'invalid').length ?? 0;
+  /** o que vai ser gravado */
+  const toSave = cfg.updates ? [...fresh, ...known] : fresh;
 
   const save = async () => {
-    if (!fresh.length) return;
+    if (!toSave.length) return;
     setBusy('saving');
     setError('');
     try {
-      const j = await api<{ added: number; skipped: number }>(cfg.endpoint, {
+      const j = await api<{ added?: number; created?: number; skipped?: number; updated?: number; errors?: string[] }>(cfg.saveEndpoint ?? cfg.endpoint, {
         method: 'POST',
-        json: { rows: fresh.map((r) => r.data) },
+        json: { rows: toSave.map((r) => r.data) },
       });
-      toast({
-        kind: j.added ? 'success' : 'info',
-        title: j.added
-          ? `${num(j.added)} ${j.added === 1 ? cfg.singular + ' adicionado' : cfg.plural + ' adicionados'}`
-          : `Nenhum ${cfg.singular} novo`,
-        text: j.skipped ? `${j.skipped} já existia${j.skipped > 1 ? 'm' : ''} e foi mantido como estava` : undefined,
-      });
+      const added = j.added ?? j.created ?? 0;
+      const updated = j.updated ?? 0;
+      const errs = j.errors ?? [];
+      toast(
+        {
+          kind: errs.length ? 'info' : added || updated ? 'success' : 'info',
+          title:
+            added || updated
+              ? [added ? `${num(added)} ${added === 1 ? cfg.singular + ' adicionado' : cfg.plural + ' adicionados'}` : '', updated ? `${num(updated)} ${updated === 1 ? 'atualizado' : 'atualizados'}` : ''].filter(Boolean).join(' · ')
+              : `Nenhum ${cfg.singular} novo`,
+          text: errs.length
+            ? `${errs.length} ${errs.length === 1 ? 'linha não entrou' : 'linhas não entraram'}: ${errs.slice(0, 2).join('; ')}`
+            : j.skipped
+              ? `${j.skipped} já existia${j.skipped > 1 ? 'm' : ''} e foi mantido como estava`
+              : undefined,
+        },
+        errs.length ? 10000 : undefined,
+      );
       onDone();
       onClose();
     } catch (err) {
@@ -120,9 +173,7 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
   return (
     <Sheet
       title={cfg.title}
-      lead={`Envie a planilha (.xlsx ou .csv) . ${
-        kind === 'postos' ? 'Postos que já existem não são alterados: só os novos entram.' : 'Itens que já existem (mesmo nome e tamanho) não são alterados: só os novos entram.'
-      }`}
+      lead={`Envie a planilha (.xlsx ou .csv). ${cfg.lead}`}
       onClose={onClose}
       wide={Boolean(preview)}
       locked={busy !== ''}
@@ -173,7 +224,14 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
             <span className="badge green">
               <CheckCircle2 size={13} /> {num(fresh.length)} {fresh.length === 1 ? 'novo' : 'novos'}
             </span>
-            {exists ? <span className="badge gray">{num(exists)} já cadastrado{exists > 1 ? 's' : ''}</span> : null}
+            {exists ? (
+              cfg.updates ? (
+                <span className="badge lilac">{num(exists)} já cadastrado{exists > 1 ? 's' : ''}: {exists > 1 ? 'serão completados' : 'será completado'}</span>
+              ) : (
+                <span className="badge gray">{num(exists)} já cadastrado{exists > 1 ? 's' : ''}</span>
+              )
+            ) : null}
+            {invalid ? <span className="badge amber">{num(invalid)} com problema</span> : null}
             {dup ? <span className="badge gray">{num(dup)} repetido{dup > 1 ? 's' : ''} na planilha</span> : null}
             {preview.ignored ? <span className="badge gray">{num(preview.ignored)} linha{preview.ignored > 1 ? 's' : ''} ignorada{preview.ignored > 1 ? 's' : ''} (títulos, totais, vazias)</span> : null}
           </div>
@@ -217,10 +275,16 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
               </thead>
               <tbody>
                 {preview.rows.slice(0, SHOW).map((r, i) => (
-                  <tr key={i} className={r.status === 'new' ? '' : 'skip'} title={r.source}>
+                  <tr key={i} className={r.status === 'new' || (cfg.updates && r.status === 'exists') ? '' : 'skip'} title={r.error ? `${r.source}: ${r.error}` : r.source}>
                     <td>
                       {r.status === 'new' ? (
                         <span className="badge green">novo</span>
+                      ) : r.status === 'invalid' ? (
+                        <span className="badge amber" title={r.error} style={{ maxWidth: 230, overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
+                          {r.error}
+                        </span>
+                      ) : r.status === 'exists' && cfg.updates ? (
+                        <span className="badge lilac">completa</span>
                       ) : (
                         <span className="badge gray">{r.status === 'exists' ? 'já existe' : 'repetido'}</span>
                       )}
@@ -256,9 +320,13 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
             >
               Escolher outro arquivo
             </button>
-            <button className="btn btn-primary" onClick={save} disabled={busy !== '' || !fresh.length}>
+            <button className="btn btn-primary" onClick={save} disabled={busy !== '' || !toSave.length}>
               {busy === 'saving' ? <span className="spinner" /> : null}
-              {fresh.length ? `Adicionar ${num(fresh.length)} ${fresh.length === 1 ? cfg.singular : cfg.plural}` : `Nada novo para adicionar`}
+              {!toSave.length
+                ? 'Nada novo para adicionar'
+                : cfg.updates && exists
+                  ? `Gravar ${num(toSave.length)} ${toSave.length === 1 ? cfg.singular : cfg.plural}`
+                  : `Adicionar ${num(fresh.length)} ${fresh.length === 1 ? cfg.singular : cfg.plural}`}
             </button>
           </div>
         </>

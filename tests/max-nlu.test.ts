@@ -4,6 +4,7 @@
  */
 import { hear, think, understand, CONFIDENT } from '../lib/max/engine';
 import { getSector } from '../lib/sectors';
+import { supplierPrefill } from '../lib/max/skills-fornecedores';
 import type { MaxHost, MaxMemory } from '../lib/max/types';
 import type { HubUser, HubUserRow } from '../lib/permissions';
 
@@ -48,6 +49,11 @@ const purchases = [
 const almoxNo: MaxHost = { ...almox, can: (m: string) => m !== 'compras', compras: { requests: () => null } };
 const almoxC: MaxHost = { ...almox, compras: { requests: () => purchases as never } };
 const compras: MaxHost = { ...base, scope: 'sector', sector: getSector('compras'), user: user({ is_master: false, sector: 'compras', sector_role: 'master' }), tabs: [{ id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'pedidos'] }, { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta'] }], compras: { requests: () => purchases as never } };
+const SUPS = [
+  { id: 's1', name: 'Malharia Bahia Ltda', trade_name: 'Malharia Bahia', cnpj: '11222333000181', phone: '(71) 3333-4444', email: 'vendas@malharia.com', contact: 'Rosa', category: 'fardamento, camisas e calças', city: 'Salvador', uf: 'BA', address: null, notes: null, active: true, created_by: 'Mateus', created_at: '', updated_at: null },
+  { id: 's2', name: 'Botas Forte Comércio', trade_name: null, cnpj: null, phone: null, email: null, contact: null, category: 'botas e calçados de segurança', city: null, uf: null, address: null, notes: null, active: true, created_by: null, created_at: '', updated_at: null },
+];
+const comprasF: MaxHost = { ...compras, tabs: [...compras.tabs, { id: 'fornecedores', label: 'Fornecedores', aliases: ['fornecedores', 'fornecedor'] }], fornecedores: { list: () => SUPS as never, canEdit: true } };
 // Projeto 3: pedidos de material
 const ord = (n: number, stage: string, extra = {}) => ({ id: 'o' + n, number: n, origin: 'operacao', stage, priority: 'normal', needed_by: null, start_date: null, company: null, posto_id: null, posto_name: 'Posto 01', collaborator_id: null, collaborator_name: 'Caio', matricula: null, role: null, reason: null, requester: 'Uesley', supervisor: null, source_request_id: null, items: [{ item_id: 'x', name: 'Bota', size: '42', unit: 'Cada', qty: 2, reserved: 0, delivered: 0 }], flags: [], history: [], forwarded_by: null, forwarded_at: null, validated_by: null, validated_at: null, closed_at: null, created_at: '2026-10-13T10:00:00Z', updated_at: '', ...extra });
 const orders = [ord(1, 'solicitado'), ord(2, 'validacao', { origin: 'rh_troca' }), ord(3, 'encaminhado')];
@@ -122,6 +128,9 @@ const CASES: Case[] = [
   [almoxC, 'Max tem solicitação nova?', 'almox-request-count'], [compras, 'Max abrir a solicitação 2', 'purchase-open'], [compras, 'Max qual foi a última solicitação?', 'purchase-count'], [almoxC, 'Max quantas solicitações de compra chegaram nos últimos 3 dias', 'purchase-count'], [almoxC, 'Max mostrar os 5 últimos pedidos de compra', 'purchase-count'], [almoxC, 'Max pedido de compra número 2', 'purchase-open'], [almoxC, 'Max abrir a solicitação 12', 'almox-request-open'], [almoxC, 'Max abrir compras', 'go-tab'], [compras, 'Max minha conta', 'go-tab'],
   [hub, 'Max abrir o setor de compras', 'go-sector'], [hub, 'Max abrir o setor de suprimentos', 'go-sector'], [hub, 'Max quem está no setor de compras', 'hub-users-of-sector'],
   [hub, 'Max criar usuário no setor compras', 'hub-create-user'], [almox, 'Max lista de compras', 'almox-stock-low'], [almox, 'Max o que precisa comprar', 'almox-stock-low'],
+  // fornecedores (Compras)
+  [comprasF, 'Max, cadastrar um novo fornecedor', 'supplier-new'], [comprasF, 'Max novo fornecedor Malharia Bahia telefone 71 3333-4444', 'supplier-new'], [comprasF, 'Max importar a planilha de fornecedores', 'supplier-import'],
+  [comprasF, 'Max quantos fornecedores temos', 'supplier-info'], [comprasF, 'Max quem fornece botas', 'supplier-info'], [comprasF, 'Max qual o telefone do fornecedor Malharia Bahia', 'supplier-info'], [comprasF, 'Max abrir fornecedores', 'go-tab'],
   // downloads: a Max corre até o botão e baixa
   [hub, 'Max, baixar o PDF da Gestão', 'download-gestao'], [hub, 'Max baixar o relatório', 'download-gestao'], [hub, 'Max exportar a planilha da gestão dos últimos 90 dias', 'download-gestao'],
   [almox, 'Max baixar a planilha das métricas', 'download-metrics'], [hub, 'Max baixar as métricas do almoxarifado', 'download-metrics'], [almox, 'Max baixar o PDF da gestão', 'download-gestao'],
@@ -315,6 +324,24 @@ const mem: MaxMemory = { last: null, lastInput: '', voiceOn: true, setVoice: () 
     check('desistência sem palpite local: mostra a resposta e oferece ajuda', r.unknown === true && r.say === 'Não consigo fazer café.' && (r.chips?.length ?? 0) > 0, r);
     r = await think('xpto blablabla', almox, { memory: m2, report: (e) => reports.push(e) });
     check('pedido não entendido é avisado ao servidor', r.unknown === true && JSON.stringify(reports).includes('nao_entendeu'), reports);
+
+    {
+      const pressed: string[] = [];
+      const hostF = { ...comprasF, press: (sel: string) => { pressed.push(sel); } };
+      r = await think(hear('Max quem fornece botas?').command, hostF, { memory: m2 });
+      check('quem fornece: acha pela categoria', /^Quem fornece botas é Botas Forte Comércio/.test(r.say), r.say);
+      r = await think(hear('Max qual o telefone do fornecedor Malharia Bahia').command, hostF, { memory: m2 });
+      await r.act?.();
+      check('contato do fornecedor e corre até a linha dele', /Malharia Bahia: contato Rosa, telefone \(71\) 3333-4444/.test(r.say) && pressed.some((p) => p.includes('data-max-fornecedor="s1"')), [r.say, pressed]);
+      r = await think(hear('Max quantos fornecedores temos?').command, hostF, { memory: m2 });
+      check('contagem de fornecedores', /^Temos 2 fornecedores ativos\. 1 está sem telefone e sem e-mail\. 1 sem CNPJ\./.test(r.say), r.say);
+      pressed.length = 0;
+      r = await think(hear('Max, novo fornecedor Couros do Sul, CNPJ 11.222.333/0001-81, telefone 71 98888-7777').command, hostF, { memory: m2 });
+      await r.act?.();
+      const pf = supplierPrefill(hear('Max novo fornecedor malharia bahia ltda com cnpj 11.222.333/0001-81, telefone 71 98888-7777, que fornece fardamento').command);
+      check('novo fornecedor: o que foi dito preenche o cadastro', pf.name === 'Malharia Bahia Ltda' && pf.cnpj === '11.222.333/0001-81' && pf.phone === '71 98888-7777' && pf.category === 'fardamento', pf);
+      check('novo fornecedor: abre o cadastro pelo botão', /^Abrindo o cadastro de fornecedor com o que você disse/.test(r.say) && pressed.join(' ').includes('fornecedor-novo'), [r.say, pressed]);
+    }
 
     calls = 0;
     let went = '';

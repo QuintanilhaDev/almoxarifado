@@ -1,5 +1,5 @@
 'use client';
-import { BellRing, Inbox as InboxIcon, Lock, UserRound, UsersRound } from 'lucide-react';
+import { BellRing, Building2, Inbox as InboxIcon, Lock, UserRound, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -16,11 +16,13 @@ import { useHashTab, useSession } from '@/lib/useSession';
 import { itemsSummary, purchaseLabel, type PurchaseRequest } from '@/lib/compras/types';
 import type { MaxHost } from '@/lib/max/types';
 import { PurchaseBoard } from './PurchaseBoard';
+import { Fornecedores } from './Fornecedores';
+import type { Supplier } from '@/lib/compras/fornecedores';
 import { usePurchases } from './usePurchases';
 
 const SLUG = 'compras';
-type Tab = 'solicitacoes' | 'equipe' | 'conta' | 'inicio';
-const VALID: Tab[] = ['solicitacoes', 'equipe', 'conta', 'inicio'];
+type Tab = 'solicitacoes' | 'fornecedores' | 'equipe' | 'conta' | 'inicio';
+const VALID: Tab[] = ['solicitacoes', 'fornecedores', 'equipe', 'conta', 'inicio'];
 /** sem o Realtime (rede bloqueada), a lista ainda se atualiza sozinha neste intervalo */
 const POLL_MS = 8000;
 
@@ -55,6 +57,9 @@ function Shell() {
   const manager = canManageSector(user, SLUG);
   const canView = hasLevel(user, SLUG, 'solicitacoes', 'view');
   const canEdit = hasLevel(user, SLUG, 'solicitacoes', 'edit');
+  const canSup = hasLevel(user, SLUG, 'fornecedores', 'view');
+  const canSupEdit = hasLevel(user, SLUG, 'fornecedores', 'edit');
+  const suppliersRef = useRef<Supplier[] | null>(null);
   const canViewRef = useRef(canView);
   canViewRef.current = canView;
   const setTabRef = useRef(setTab);
@@ -141,15 +146,21 @@ function Shell() {
     () => [
       ...(canView
         ? [{ id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon, badge: newCount, badgeTitle: 'Solicitações novas' }]
-        : user
+        : user && !canSup
           ? [{ id: 'inicio', label: 'Início', short: 'Início', icon: Lock }]
           : []),
+      ...(canSup ? [{ id: 'fornecedores', label: 'Fornecedores', short: 'Fornec.', icon: Building2 }] : []),
       ...(manager ? [{ id: 'equipe', label: 'Equipe', short: 'Equipe', icon: UsersRound }] : []),
       { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
     ],
-    [canView, manager, newCount, user],
+    [canView, canSup, manager, newCount, user],
   );
-  const current: Tab = !user ? tab : tab === 'equipe' && !manager ? (canView ? 'solicitacoes' : 'inicio') : tab === 'solicitacoes' && !canView ? 'inicio' : tab === 'inicio' && canView ? 'solicitacoes' : tab;
+  const home: Tab = canView ? 'solicitacoes' : canSup ? 'fornecedores' : 'inicio';
+  const current: Tab = !user
+    ? tab
+    : (tab === 'equipe' && !manager) || (tab === 'solicitacoes' && !canView) || (tab === 'fornecedores' && !canSup) || (tab === 'inicio' && home !== 'inicio')
+      ? home
+      : tab;
 
   const requestsRef = useRef(purchases.requests);
   requestsRef.current = purchases.requests;
@@ -160,6 +171,7 @@ function Shell() {
       user,
       tabs: [
         ...(canView ? [{ id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'pedidos', 'solicitacoes de compra', 'pedidos de compra', 'inicio'] }] : []),
+        ...(canSup ? [{ id: 'fornecedores', label: 'Fornecedores', aliases: ['fornecedores', 'fornecedor', 'cadastro de fornecedores', 'lista de fornecedores'] }] : []),
         ...(manager ? [{ id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes', 'time', 'pessoas'] }] : []),
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
@@ -169,8 +181,9 @@ function Shell() {
       navigate: (path, opts) => warp.go(path, opts),
       logout,
       compras: { requests: () => (canViewRef.current ? requestsRef.current : null) },
+      fornecedores: canSup ? { list: () => suppliersRef.current, canEdit: canSupEdit } : undefined,
     }),
-    [sector, user, canView, manager, current, setTab, logout, warp],
+    [sector, user, canView, canSup, canSupEdit, manager, current, setTab, logout, warp],
   );
 
   // a Max pede para abrir uma solicitação ("abrir a solicitação de compra 3")
@@ -187,7 +200,7 @@ function Shell() {
             <span className="spinner" /> Carregando…
           </div>
         ) : (
-          <div className={`module${canView && !canEdit && current === 'solicitacoes' ? ' is-readonly' : ''}`}>
+          <div className={`module${(canView && !canEdit && current === 'solicitacoes') || (canSup && !canSupEdit && current === 'fornecedores') ? ' is-readonly' : ''}`}>
             {canView && !canEdit && current === 'solicitacoes' ? (
               <div className="readonly-note" role="note">
                 Você está só visualizando as solicitações. Para mudar o andamento, peça a permissão de edição ao master do setor.
@@ -213,6 +226,14 @@ function Shell() {
             ) : null}
             {current === 'solicitacoes' && canView && (
               <PurchaseBoard mode="compras" requests={purchases.requests} failed={purchases.failed} canEdit={canEdit} reload={reload} openId={openId} setOpenId={setOpenId} />
+            )}
+            {current === 'fornecedores' && canSup && (
+              <Fornecedores
+                canEdit={canSupEdit}
+                onList={(l) => {
+                  suppliersRef.current = l;
+                }}
+              />
             )}
             {current === 'equipe' && manager && <TeamManager slug={SLUG} me={user} version={teamVersion} />}
             {current === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}

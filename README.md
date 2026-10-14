@@ -272,6 +272,17 @@ O Almoxarifado pede, o setor de Compras atende — tudo em tempo real.
 
 **Ativar:** rode `supabase/compras.sql` no SQL Editor (cria a tabela nova; não mexe em nada existente). Sem ele, as abas explicam o que falta e o resto do sistema funciona normalmente.
 
+### Fornecedores (Compras › Fornecedores)
+
+- **Cadastro manual:** razão social (obrigatória), nome fantasia, CNPJ ou CPF (com conferência dos dígitos), o que fornece, contato, telefone, e-mail, cidade/UF, endereço e observações.
+- **Por planilha:** a mesma leitura inteligente das outras importações. Acha o cabeçalho sozinha, reconhece as colunas pelo nome (razão social, fornecedor, CNPJ, telefone, e-mail, contato, o que fornece, cidade, UF…) e corrige o CNPJ que o Excel guardou como número. Mostra tudo antes de gravar: **novo**, **já cadastrado** (é completado com o que veio na planilha), **repetido** ou **com problema** (com o motivo).
+- Quem vende pelas **notas fiscais** entra sozinho (pelo CNPJ) e aparece aqui com o histórico: quantidade de notas, total comprado e última nota.
+- Fornecedor não é apagado: é **desativado** (as notas continuam ligadas a ele).
+- **Permissões:** módulo **Fornecedores** do setor Compras (visualizar = consultar; editar = cadastrar, editar e importar). Almoxarifado e Financeiro (módulo Notas) podem consultar.
+- **Max:** "Max, cadastrar um novo fornecedor Malharia Bahia, telefone 71 3333-4444" (abre o cadastro já preenchido), "Max, importar a planilha de fornecedores", "Max, quem fornece botas?", "Max, qual o telefone do fornecedor Malharia Bahia?", "Max, quantos fornecedores temos?".
+
+**Ativar:** rode `supabase/fornecedores.sql` no SQL Editor (completa a tabela de fornecedores; não apaga nada).
+
 ---
 
 ## Animações 3D e o manual da Max

@@ -383,3 +383,8 @@
     border-radius: 14px;
   }
 }
+
+/* Fornecedores */
+.muted-t {
+  color: var(--faint);
+}

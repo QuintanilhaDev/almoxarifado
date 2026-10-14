@@ -221,7 +221,9 @@ export const MOVEMENT_LABEL: Record<MovementKind, string> = {
 /** Resultado da leitura de uma planilha (pré-visualização antes de importar). */
 export interface ImportPreviewRow {
   data: Record<string, string | number | null>;
-  status: 'new' | 'exists' | 'duplicate';
+  status: 'new' | 'exists' | 'duplicate' | 'invalid';
+  /** por que a linha não entra (status "invalid") */
+  error?: string;
   /** onde a linha está na planilha, ex.: "Folha1, linha 12" */
   source: string;
 }

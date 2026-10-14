@@ -338,8 +338,25 @@ export const MANUAL: ManualTopic[] = [
       'Preencha fornecedor, número do pedido de compra e previsão de entrega: o Almoxarifado vê na hora.',
       'Escreva uma resposta se precisar explicar algo.',
       'Quando o Almoxarifado lança a nota, a compra vira Entregue sozinha.',
+      'Fornecedores: cadastro de quem vende para a empresa, à mão ou por planilha.',
     ],
     ask: 'Max, como funciona o setor de compras?',
+  },
+  {
+    id: 'fornecedores',
+    title: 'Fornecedores',
+    sector: 'compras',
+    tab: 'fornecedores',
+    keys: ['fornecedores', 'cadastro de fornecedores', 'cadastrar fornecedor', 'importar fornecedores', 'planilha de fornecedores', 'contato do fornecedor'],
+    summary: 'Na aba Fornecedores o setor de Compras mantém o cadastro de quem vende para a empresa: contato, o que fornece e o histórico de notas fiscais.',
+    steps: [
+      'Novo fornecedor: só a razão social é obrigatória; o CNPJ liga o fornecedor às notas dele.',
+      'Importar planilha: escolha ou arraste o arquivo. Eu reconheço as colunas sozinha (razão social, CNPJ, telefone, e-mail, contato, o que fornece, cidade) e mostro tudo antes de gravar.',
+      'Quem já está cadastrado é completado com o que vier na planilha; linhas com CNPJ ou e-mail inválido ficam de fora, com o motivo.',
+      'Toque num fornecedor para ver contato, notas fiscais e o total comprado; dá para ligar, chamar no WhatsApp ou mandar e-mail.',
+      'Fornecedor não é apagado: desative quem não vende mais. As notas continuam ligadas a ele.',
+    ],
+    ask: 'Max, como cadastro fornecedores?',
   },
 
   /* ---------------- RH ---------------- */

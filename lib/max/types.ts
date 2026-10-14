@@ -65,6 +65,11 @@ export interface MaxHost {
   compras?: {
     requests: () => PurchaseRequest[] | null;
   };
+  /** fornecedores (setor Compras); a lista chega quando a aba Fornecedores já carregou */
+  fornecedores?: {
+    list: () => import('../compras/fornecedores').Supplier[] | null;
+    canEdit: boolean;
+  };
   /** pedidos de material (Projeto 3) do painel desta área */
   pedidos?: {
     scope: 'almox' | 'operacao' | 'rh';

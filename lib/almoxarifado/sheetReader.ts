@@ -658,3 +658,20 @@ export const COLLAB_SCHEMA: SchemaSpec = {
     { key: 'name', kind: 'text', synonyms: ['nome do colaborador', 'colaborador', 'nome completo', 'nome', 'funcionario', 'vigilante'] },
   ],
 };
+
+/** Planilha de fornecedores (Compras). A ordem importa: telefone e e-mail antes de "contato". */
+export const SUPPLIER_SCHEMA: SchemaSpec = {
+  fields: [
+    { key: 'cnpj', kind: 'text', synonyms: ['cnpj', 'cnpj cpf', 'cpf cnpj', 'cpf', 'documento', 'cnpj do fornecedor', 'inscricao federal'] },
+    { key: 'trade_name', kind: 'text', synonyms: ['nome fantasia', 'fantasia', 'apelido', 'marca'] },
+    { key: 'email', kind: 'text', synonyms: ['email', 'e mail', 'correio eletronico', 'endereco de email'] },
+    { key: 'phone', kind: 'text', synonyms: ['telefone', 'fone', 'celular', 'whatsapp', 'tel', 'telefones', 'contato telefonico'], exclude: ['email'] },
+    { key: 'contact', kind: 'text', synonyms: ['nome do contato', 'contato', 'responsavel', 'vendedor', 'representante', 'pessoa de contato', 'atendente'] },
+    { key: 'category', kind: 'text', synonyms: ['o que fornece', 'categoria', 'fornece', 'produtos', 'segmento', 'ramo', 'ramo de atividade', 'tipo de material', 'linha de produtos', 'materiais'] },
+    { key: 'city', kind: 'text', synonyms: ['cidade', 'municipio', 'localidade'] },
+    { key: 'uf', kind: 'text', synonyms: ['uf', 'estado'] },
+    { key: 'address', kind: 'text', synonyms: ['endereco', 'logradouro', 'rua', 'endereco completo'], exclude: ['email'] },
+    { key: 'notes', kind: 'text', synonyms: ['observacao', 'observacoes', 'obs', 'notas', 'comentario', 'detalhes', 'condicoes'] },
+    { key: 'name', kind: 'text', synonyms: ['razao social', 'fornecedor', 'nome do fornecedor', 'fornecedores', 'empresa', 'nome', 'razao'], exclude: ['fantasia', 'contato'] },
+  ],
+};

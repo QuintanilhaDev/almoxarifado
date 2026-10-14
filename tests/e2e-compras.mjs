@@ -53,7 +53,7 @@ try {
   await login(carlos, 'carlos', '/setor/compras');
   console.log('\n[1] Carlos (Compras) abre a ferramenta');
   const nav = await carlos.locator('.side .nav-item span:not(.nav-count):not(.nav-bg)').allTextContents();
-  ok(nav.join('|') === 'Solicitações|Equipe|Minha conta', 'menu de Compras: ' + nav.join(' | '));
+  ok(nav.join('|') === 'Solicitações|Fornecedores|Equipe|Minha conta', 'menu de Compras: ' + nav.join(' | '));
   if (NOCOMPRAS) {
     await carlos.waitForSelector('.empty:has-text("compras.sql")', { timeout: 8000 });
     ok(true, 'sem o SQL: a tela explica que falta rodar o compras.sql');
