@@ -48,6 +48,7 @@ const patch = (page, id, json) => page.evaluate(async ([i, j]) => { const r = aw
 const rows = (page) => page.locator('.stock-row:not(.head)').count();
 const chips = async (page) => (await page.locator('.cat-bar .cat-chip').allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim());
 async function ask(page, text) {
+  await page.waitForFunction(() => !document.documentElement.classList.contains('max-away'), null, { timeout: 20000 });
   if (!(await page.locator('.max-panel').count())) await page.click('.max-fab');
   else if (!(await page.locator('.max-fab.is-listening').count())) await page.click('.max-fab');
   await page.waitForSelector('.max-fab.is-listening', { timeout: 4000 });

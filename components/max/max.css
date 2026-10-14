@@ -395,3 +395,226 @@
     filter: hue-rotate(150deg) saturate(1.6) drop-shadow(0 0 16px rgba(255, 205, 64, 0.7));
   }
 }
+
+/* =========================================================
+   Boné "Max Forte"
+   ========================================================= */
+.max-cap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+}
+.max-cap .mc-cap,
+.max-cap .mc-shade {
+  transform-box: view-box;
+  transform-origin: 50px 39px;
+}
+.max-orb.is-idle .mc-cap {
+  animation: cap-sway 4.2s ease-in-out infinite, cap-tip 11s ease-in-out 3s infinite;
+}
+.max-orb.is-speaking .mc-cap {
+  animation: cap-talk 0.42s ease-in-out infinite alternate;
+}
+.max-orb.is-listening .mc-cap {
+  animation: cap-listen 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) forwards, cap-sway 3s ease-in-out 0.5s infinite;
+}
+.max-orb.is-thinking .mc-cap {
+  animation: cap-think 1.6s ease-in-out infinite alternate;
+}
+@keyframes cap-sway {
+  0%, 100% { transform: rotate(-1.6deg) translateY(0); }
+  50% { transform: rotate(1.6deg) translateY(0.5px); }
+}
+/* de vez em quando ela levanta a aba, tipo cumprimento */
+@keyframes cap-tip {
+  0%, 86%, 100% { transform: rotate(0) translateY(0); }
+  89% { transform: rotate(-11deg) translate(-1px, -3.2px); }
+  93% { transform: rotate(-9deg) translate(-1px, -2.6px); }
+  97% { transform: rotate(1deg) translateY(0.3px); }
+}
+@keyframes cap-talk {
+  from { transform: translateY(0) rotate(-0.8deg); }
+  to { transform: translateY(-0.9px) rotate(0.8deg); }
+}
+@keyframes cap-listen {
+  from { transform: none; }
+  to { transform: rotate(-5deg) translateY(-1.6px); }
+}
+@keyframes cap-think {
+  from { transform: rotate(4deg) translateX(0.6px); }
+  to { transform: rotate(9deg) translateX(1.2px); }
+}
+
+/* =========================================================
+   A Max correndo até o botão
+   ========================================================= */
+html.max-away .max-fab {
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.25s;
+}
+.mr {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 95;
+  pointer-events: none;
+  display: none;
+  will-change: transform;
+}
+.mr.is-on {
+  display: block;
+}
+.mr-body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.5));
+}
+.mr-body .max-orb {
+  position: absolute;
+  inset: 0;
+}
+.mr-limbs {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.mr-arm,
+.mr-leg {
+  fill: none;
+  stroke: url(#mr-skin);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mr-out {
+  fill: none;
+  stroke: #2b1656;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mr-fist {
+  fill: url(#mr-glove);
+  stroke: #2b1656;
+  stroke-width: 1.2;
+}
+.mr-cuff {
+  fill: #f4efff;
+  stroke: #2b1656;
+  stroke-width: 1;
+}
+/* o boné reage à corrida e ao soco */
+.mr.is-running .mc-cap {
+  animation: cap-run 0.28s ease-in-out infinite alternate;
+}
+.mr.is-sprout .mc-cap {
+  animation: cap-pop 0.7s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.mr.is-windup .mc-cap {
+  animation: none;
+  transform: rotate(-7deg) translateY(-0.8px);
+}
+.mr.is-punch .mc-cap {
+  animation: cap-hit 0.55s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes cap-run {
+  from { transform: translateY(-1.8px) rotate(-4deg); }
+  to { transform: translateY(0.6px) rotate(3deg); }
+}
+@keyframes cap-pop {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(-9px) rotate(-14deg); }
+  70% { transform: translateY(1px) rotate(4deg); }
+  100% { transform: none; }
+}
+@keyframes cap-hit {
+  0% { transform: none; }
+  25% { transform: translateY(-7px) rotate(16deg); }
+  60% { transform: translateY(0.8px) rotate(-5deg); }
+  100% { transform: none; }
+}
+
+/* efeitos: poeirinha, nuvem, estrelinhas do soco */
+.mr-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 94;
+  pointer-events: none;
+  overflow: hidden;
+}
+.mr-fx > div {
+  position: absolute;
+  pointer-events: none;
+}
+.mr-dust {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, rgba(246, 244, 251, 0.55), rgba(198, 168, 255, 0.18) 60%, transparent 70%);
+  animation: mr-dust 0.6s ease-out forwards;
+}
+@keyframes mr-dust {
+  from { transform: translate(0, 0) scale(calc(0.5 * var(--s, 1))); opacity: 0.9; }
+  to { transform: translate(var(--dx, 0), -10px) scale(calc(1.7 * var(--s, 1))); opacity: 0; }
+}
+.mr-poof {
+  width: 90px;
+  height: 90px;
+  margin: -45px 0 0 -45px;
+  border-radius: 50%;
+  border: 3px solid rgba(198, 168, 255, 0.55);
+  animation: mr-poof 0.6s ease-out forwards;
+}
+@keyframes mr-poof {
+  from { transform: scale(0.3); opacity: 1; }
+  to { transform: scale(1.4); opacity: 0; border-width: 1px; }
+}
+.mr-pow {
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  background: radial-gradient(circle, #fff7d6 0 18%, transparent 19%),
+    conic-gradient(from 0deg, #ffd166 0 6%, transparent 6% 12.5%, #ffd166 12.5% 18.5%, transparent 18.5% 25%, #ffd166 25% 31%, transparent 31% 37.5%, #ffd166 37.5% 43.5%, transparent 43.5% 50%, #ffd166 50% 56%, transparent 56% 62.5%, #ffd166 62.5% 68.5%, transparent 68.5% 75%, #ffd166 75% 81%, transparent 81% 87.5%, #ffd166 87.5% 93.5%, transparent 93.5%);
+  border-radius: 50%;
+  mask: radial-gradient(circle, #000 52%, transparent 70%);
+  -webkit-mask: radial-gradient(circle, #000 52%, transparent 70%);
+  animation: mr-pow 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+}
+@keyframes mr-pow {
+  0% { transform: scale(0.2) rotate(0deg); opacity: 1; }
+  45% { transform: scale(1.15) rotate(18deg); opacity: 1; }
+  100% { transform: scale(1.4) rotate(28deg); opacity: 0; }
+}
+.mr-spark {
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 2px;
+  background: var(--h, #fff);
+  box-shadow: 0 0 8px var(--h, #fff);
+  animation: mr-spark 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+@keyframes mr-spark {
+  from { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+  to { transform: translate(var(--tx), var(--ty)) rotate(200deg) scale(0.3); opacity: 0; }
+}
+/* o botão socado */
+.max-hit {
+  animation: max-hit 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) !important;
+  position: relative;
+  z-index: 2;
+}
+@keyframes max-hit {
+  0% { transform: none; box-shadow: none; }
+  18% { transform: translateX(calc(var(--hit-dir, -1) * 7px)) scale(0.9) rotate(calc(var(--hit-dir, -1) * -3deg)); box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.55), 0 0 26px rgba(255, 209, 102, 0.5); filter: brightness(1.35); }
+  45% { transform: translateX(calc(var(--hit-dir, -1) * -3px)) scale(1.04); }
+  70% { transform: translateX(calc(var(--hit-dir, -1) * 1.5px)) scale(0.99); box-shadow: 0 0 0 2px rgba(198, 168, 255, 0.3); }
+  100% { transform: none; box-shadow: none; filter: none; }
+}

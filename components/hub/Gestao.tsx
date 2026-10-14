@@ -1,5 +1,6 @@
 'use client';
-import { AlertCircle, ChevronDown, Download, Printer, RefreshCcw } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Download, FileText, RefreshCcw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../core/api';
 import { num } from '@/lib/almoxarifado/stockFormat';
@@ -58,9 +59,9 @@ export function Gestao({ version }: { version: number }) {
             <a className="btn btn-ghost" href={`/api/gestao/export?days=${days}`}>
               <Download size={18} /> Excel
             </a>
-            <button className="btn btn-ghost" onClick={() => window.print()}>
-              <Printer size={18} /> PDF
-            </button>
+            <a className="btn btn-ghost" href={`/api/gestao/pdf?days=${days}`}>
+              <FileText size={18} /> PDF
+            </a>
           </div>
         </div>
         {failed && !data ? (
@@ -80,12 +81,7 @@ export function Gestao({ version }: { version: number }) {
                 <small>Valor em estoque</small>
                 <b>{brl(data.stock.value)}</b>
               </div>
-              <div className="stat">
-                <small>Físico · reservado · disponível</small>
-                <b style={{ fontSize: 20 }}>
-                  {num(data.stock.physical)} · {num(data.stock.reserved)} · {num(data.stock.available)}
-                </b>
-              </div>
+              <StockCycler physical={data.stock.physical} reserved={data.stock.reserved} available={data.stock.available} />
               <div className="stat">
                 <small>Pedidos em aberto</small>
                 <b>{num(data.orders.open)}</b>
@@ -135,7 +131,7 @@ export function Gestao({ version }: { version: number }) {
                     </div>
                   </div>
                 ))}
-                <h3 style={{ marginTop: 14 }}>Por origem</h3>
+                {data.orders.byOrigin.length ? <h3 style={{ marginTop: 14 }}>Por origem</h3> : null}
                 {data.orders.byOrigin.map((o) => (
                   <div className="g-row" key={o.origin}>
                     <div>
@@ -164,7 +160,7 @@ export function Gestao({ version }: { version: number }) {
                     </div>
                   </div>
                 ))}
-                {data.stock.noCost ? <p className="help">{num(data.stock.noCost)} item(ns) sem custo cadastrado ficam fora do valor.</p> : null}
+                {data.stock.noCost ? <p className="help">{num(data.stock.noCost)} {data.stock.noCost === 1 ? 'item sem custo cadastrado fica' : 'itens sem custo cadastrado ficam'} fora do valor.</p> : null}
               </div>
 
               <div className="g-card">
@@ -220,7 +216,7 @@ export function Gestao({ version }: { version: number }) {
                     </div>
                   </div>
                 ))}
-                {data.replenish ? <p className="help">{num(data.replenish)} item(ns) com reposição sugerida na aba Compras do Almoxarifado.</p> : null}
+                {data.replenish ? <p className="help">{num(data.replenish)} {data.replenish === 1 ? 'item' : 'itens'} com reposição sugerida na aba Compras do Almoxarifado.</p> : null}
               </div>
 
               <div className="g-card">
@@ -287,6 +283,60 @@ export function Gestao({ version }: { version: number }) {
             <p className="help" style={{ marginTop: 12 }}>Atualizado {new Date(data.at).toLocaleString('pt-BR')}.</p>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Saldo físico, reservado e disponível: um de cada vez, alternando pelas setas. */
+const STOCK_VIEWS = [
+  { key: 'physical', label: 'Saldo físico', hint: 'unidades na prateleira' },
+  { key: 'reserved', label: 'Reservado', hint: 'separado para pedidos' },
+  { key: 'available', label: 'Disponível', hint: 'livre para usar' },
+] as const;
+function StockCycler(v: { physical: number; reserved: number; available: number }) {
+  const [i, setI] = useState(0);
+  const [dir, setDir] = useState(1);
+  const go = (d: number) => {
+    setDir(d);
+    setI((x) => (x + d + STOCK_VIEWS.length) % STOCK_VIEWS.length);
+  };
+  const cur = STOCK_VIEWS[i];
+  return (
+    <div className="stat g-cycler">
+      <div className="g-cycler-head">
+        <small>{cur.label}</small>
+        <span className="g-cycler-nav">
+          <button type="button" className="icon-btn" aria-label="Anterior" onClick={() => go(-1)}>
+            <ChevronLeft size={16} />
+          </button>
+          <button type="button" className="icon-btn" aria-label="Próximo" onClick={() => go(1)}>
+            <ChevronRight size={16} />
+          </button>
+        </span>
+      </div>
+      <div className="g-cycler-body">
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+          <motion.b
+            key={cur.key}
+            custom={dir}
+            initial={{ opacity: 0, rotateY: dir * 70, x: dir * 24 }}
+            animate={{ opacity: 1, rotateY: 0, x: 0 }}
+            exit={{ opacity: 0, rotateY: dir * -70, x: dir * -24 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformPerspective: 600 }}
+          >
+            {num(v[cur.key])}
+          </motion.b>
+        </AnimatePresence>
+      </div>
+      <div className="g-cycler-foot">
+        <span>{cur.hint}</span>
+        <span className="g-dots">
+          {STOCK_VIEWS.map((x, k) => (
+            <button key={x.key} type="button" aria-label={x.label} className={k === i ? 'is-on' : ''} onClick={() => { setDir(k > i ? 1 : -1); setI(k); }} />
+          ))}
+        </span>
       </div>
     </div>
   );

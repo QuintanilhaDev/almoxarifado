@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { MaxFace } from './MaxFace';
+import { MaxCap } from './MaxCap';
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -31,28 +32,30 @@ mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 float map(vec3 p){
   float t = u_time;
   float e = u_energy;
-  // núcleo que respira e ondula
+  // núcleo que respira e ondula (gelatina macia)
   vec3 q = p;
-  float br = 0.045 * sin(t * 2.3);
+  float br = 0.04 * sin(t * 2.3);
   q.x *= 1.0 + br; q.y *= 1.0 - br;
+  q.y += 0.035 * smoothstep(-0.2, -0.6, q.y); // base levemente achatada, apoiada
   float d = length(q) - (0.60 + 0.035 * u_pulse);
-  d += (0.022 + 0.03 * e) * sin(p.x * 5.2 + t * 2.1) * sin(p.y * 5.6 - t * 1.7) * sin(p.z * 4.6 + t * 2.6);
-  // quatro gotas que se esticam para fora, se fundem e voltam
+  d += (0.018 + 0.026 * e) * sin(p.x * 5.2 + t * 2.1) * sin(p.y * 5.6 - t * 1.7) * sin(p.z * 4.6 + t * 2.6);
+  // gotas que se esticam e voltam, só dos lados e de baixo (o topo é do boné)
   for (int i = 0; i < 4; i++) {
     float fi = float(i);
     float dir = mod(fi, 2.0) < 1.0 ? 1.0 : -1.0;
     float a = t * (0.85 + 0.21 * fi) * dir + fi * 1.7;
-    float reach = mix(0.20, 0.70 + 0.16 * e, 0.5 + 0.5 * sin(t * (1.5 + 0.33 * fi) + fi * 2.1));
+    float reach = mix(0.22, 0.66 + 0.14 * e, 0.5 + 0.5 * sin(t * (1.5 + 0.33 * fi) + fi * 2.1));
     vec3 c = vec3(cos(a), sin(a), 0.0) * reach;
     c.yz = rot(fi * 1.15 + 0.25 * t) * c.yz;
     c.xz = rot(fi * 0.7) * c.xz;
-    d = smin(d, length(p - c) - (0.205 - 0.02 * fi), 0.30);
+    c.y = min(c.y, 0.08);
+    d = smin(d, length(p - c) - (0.195 - 0.02 * fi), 0.30);
   }
   return d;
 }
 
 vec3 normalAt(vec3 p){
-  vec2 e = vec2(0.0025, -0.0025);
+  vec2 e = vec2(0.0022, -0.0022);
   return normalize(e.xyy * map(p + e.xyy) + e.yyx * map(p + e.yyx) + e.yxy * map(p + e.yxy) + e.xxx * map(p + e.xxx));
 }
 
@@ -63,11 +66,11 @@ void main(){
   float t = 1.6;
   float minD = 10.0;
   bool hit = false;
-  for (int i = 0; i < 56; i++) {
+  for (int i = 0; i < 72; i++) {
     float d = map(ro + rd * t);
     minD = min(minD, d);
-    if (d < 0.0016) { hit = true; break; }
-    t += d * 0.9;
+    if (d < 0.0012) { hit = true; break; }
+    t += d * 0.86;
     if (t > 4.8) break;
   }
   float px = 2.6 / min(u_res.x, u_res.y);
@@ -77,21 +80,34 @@ void main(){
     vec3 p = ro + rd * t;
     vec3 n = normalAt(p);
     vec3 v = -rd;
-    vec3 l = normalize(vec3(-0.55, 0.75, 0.65));
-    float wrap = 0.5 + 0.5 * dot(n, l);
-    float diff = max(dot(n, l), 0.0);
-    float fres = pow(1.0 - max(dot(n, v), 0.0), 2.6);
-    float spec = pow(max(dot(reflect(-l, n), v), 0.0), 46.0);
-    float under = max(dot(n, vec3(0.3, -0.9, 0.2)), 0.0);
-    col = mix(u_deep * 0.82, u_mid, wrap * wrap);
-    col = mix(col, u_light, diff * diff * diff * 0.5);
-    col += u_light * fres * 0.34;
-    col += vec3(1.0) * spec * 0.55;
-    col += u_mid * under * 0.12;
+    vec3 key = normalize(vec3(-0.55, 0.8, 0.7));
+    vec3 rim = normalize(vec3(0.75, 0.2, -0.6));
+    float ndl = dot(n, key);
+    float wrap = clamp(0.5 + 0.5 * ndl, 0.0, 1.0);
+    float diff = max(ndl, 0.0);
+    float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+    // brilho principal nítido + brilho largo (aspecto de gelatina polida)
+    vec3 h = normalize(key + v);
+    float spec = pow(max(dot(n, h), 0.0), 90.0);
+    float sheen = pow(max(dot(n, h), 0.0), 12.0);
+    // luz atravessando a gelatina (translucidez)
+    float sss = pow(clamp(dot(v, -rim + n * 0.55), 0.0, 1.0), 2.4);
+    float thick = clamp(map(p - n * 0.22) / -0.22, 0.0, 1.0);
+    // oclusão nas dobras onde as gotas encontram o corpo
+    float ao = clamp(0.35 + 0.65 * map(p + n * 0.12) / 0.12, 0.0, 1.0);
+    // reflexo de estúdio (céu claro em cima, chão escuro embaixo)
+    vec3 r = reflect(-v, n);
+    vec3 env = mix(u_deep * 0.35, u_light, smoothstep(-0.15, 0.85, r.y));
+    col = mix(u_deep * 0.7, u_mid, wrap * wrap);
+    col = mix(col, u_light, diff * diff * 0.42);
+    col *= mix(0.72, 1.0, ao);
+    col += u_light * sss * (1.0 - thick) * 0.42;
+    col += env * fres * 0.5;
+    col += u_mid * pow(max(dot(n, rim), 0.0), 2.0) * 0.28;
+    col += vec3(1.0) * spec * 0.9 + u_light * sheen * 0.1;
+    col = pow(col, vec3(0.94));
     alpha = 1.0;
   } else {
-    // fora da massa o canvas fica 100% transparente (só a borda é suavizada);
-    // o brilho em volta é feito em CSS, atrás do canvas
     alpha = 1.0 - smoothstep(0.0, px * 1.6, minD);
     col = mix(u_mid, u_light, 0.5);
   }
@@ -262,6 +278,7 @@ export function MaxOrb({ size, state = 'idle', className }: { size: number; stat
     <span className={`max-orb is-${state}${className ? ' ' + className : ''}`} style={{ width: size, height: size }} aria-hidden>
       {fallback ? <OrbFallback /> : <canvas ref={canvasRef} />}
       <MaxFace state={state} />
+      <MaxCap />
     </span>
   );
 }

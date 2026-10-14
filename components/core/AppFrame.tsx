@@ -78,7 +78,7 @@ export function AppFrame({
         ) : null}
         <nav className="nav" aria-label="Seções">
           {tabs.map((t) => (
-            <button key={t.id} className={`nav-item${tab === t.id ? ' is-active' : ''}`} onClick={() => onTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
+            <button key={t.id} data-tab={t.id} className={`nav-item${tab === t.id ? ' is-active' : ''}`} onClick={() => onTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
               {tab === t.id ? <motion.span layoutId="nav-bg" className="nav-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} /> : null}
               <t.icon size={19} />
               <span>{t.label}</span>
@@ -134,7 +134,7 @@ export function AppFrame({
 
       <nav className="tabbar" aria-label="Seções" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(58px, 1fr))` }}>
         {tabs.map((t) => (
-          <button key={t.id} className={`tab${tab === t.id ? ' is-active' : ''}`} onClick={() => onTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
+          <button key={t.id} data-tab={t.id} className={`tab${tab === t.id ? ' is-active' : ''}`} onClick={() => onTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
             {tab === t.id ? <motion.span layoutId="tab-bg" className="nav-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} /> : null}
             <t.icon size={20} />
             <span>{t.short}</span>
