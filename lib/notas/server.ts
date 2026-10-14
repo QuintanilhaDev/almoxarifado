@@ -1,4 +1,5 @@
 import 'server-only';
+import { nameKey } from '../compras/fornecedores';
 import { db } from '../supabaseAdmin';
 import { bestMatches, normalize } from '../max/text';
 import type { StockItem } from '../almoxarifado/types';
@@ -98,6 +99,18 @@ export async function ensureSupplier(name: string, cnpj: string | null): Promise
   if (cnpj) {
     const { data } = await db().from('suppliers').select('id').eq('cnpj', cnpj).maybeSingle();
     if (data) return data.id as string;
+  }
+  // mesmo nome (razão social ou fantasia) de um fornecedor já cadastrado em Compras: usa ele, sem duplicar
+  const key = nameKey(name);
+  if (key) {
+    const { data: all } = await db().from('suppliers').select('id, name, trade_name, cnpj').limit(20000);
+    const same = ((all ?? []) as { id: string; name: string; trade_name?: string | null; cnpj: string | null }[]).find(
+      (x) => (nameKey(x.name) === key || (x.trade_name ? nameKey(x.trade_name) === key : false)) && (!cnpj || !x.cnpj || x.cnpj === cnpj),
+    );
+    if (same) {
+      if (cnpj && !same.cnpj) await db().from('suppliers').update({ cnpj }).eq('id', same.id);
+      return same.id;
+    }
   }
   const { data, error } = await db().from('suppliers').insert({ name, cnpj }).select('id').single();
   if (error) {

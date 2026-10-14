@@ -1,4 +1,6 @@
 'use client';
+import { SupplierPicker } from '../compras/SupplierPicker';
+import { formatDoc } from '@/lib/compras/fornecedores';
 import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, AlertTriangle, CalendarClock, ChevronRight, Download, FileCode2, FilePlus2, PackageCheck, Plus, Receipt, RotateCcw, Search, X } from 'lucide-react';
@@ -457,7 +459,12 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             <label className="label" htmlFor="n-sup">
               Fornecedor
             </label>
-            <input id="n-sup" className="input" value={head.supplier} maxLength={160} onChange={(e) => setHead({ ...head, supplier: e.target.value })} />
+            <SupplierPicker
+              id="n-sup"
+              value={head.supplier}
+              onChange={(v) => setHead((h) => ({ ...h, supplier: v }))}
+              onPick={(sup) => setHead((h) => ({ ...h, supplier: sup.name, cnpj: sup.cnpj ? formatDoc(sup.cnpj) : h.cnpj }))}
+            />
           </div>
           <div>
             <label className="label" htmlFor="n-cnpj">

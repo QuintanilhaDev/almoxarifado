@@ -388,3 +388,74 @@
 .muted-t {
   color: var(--faint);
 }
+
+/* sugestões de fornecedor (caixa de texto com a lista do cadastro de Compras) */
+.sp-wrap {
+  position: relative;
+}
+.sp-list {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--onix-2, #17161d);
+  border: 1px solid var(--line, rgba(246, 244, 251, 0.1));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  max-height: 320px;
+  overflow-y: auto;
+  animation: sp-in 0.18s ease-out;
+}
+@keyframes sp-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.sp-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+.sp-opt.is-active {
+  background: var(--lilac-soft, rgba(198, 168, 255, 0.14));
+}
+.sp-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(246, 244, 251, 0.06);
+  color: var(--lilac, #c6a8ff);
+}
+.sp-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sp-txt b {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-txt small {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-hint {
+  padding: 8px 10px 4px;
+  font-size: 12px;
+  color: var(--faint, rgba(246, 244, 251, 0.45));
+  line-height: 1.4;
+}
