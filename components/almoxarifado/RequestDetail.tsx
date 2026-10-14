@@ -1,6 +1,8 @@
 'use client';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Check, Copy, Download, Mail, PackageMinus, Play, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardList, Copy, Download, Mail, PackageMinus, Play, Trash2, Undo2, X } from 'lucide-react';
+import { hasLevel } from '@/lib/permissions';
+import { maxEmit } from '@/lib/max/bus';
 import { useEffect, useState } from 'react';
 import { answerToText, formatBytes, formatDateTime, initials, protocolLabel } from '@/lib/format';
 import { STATUS_SINGULAR, type StockApplication, type AdminUser, type Attachment, type AuthorizedEmail, type RequestRow, type RequestStatus } from '@/lib/almoxarifado/types';
@@ -193,6 +195,7 @@ export function RequestDetail({
         ))}
       </div>
       <div className="status-note">{note}</div>
+      <OrderLink request={request} me={me} onChanged={onChanged} />
 
       <div className="contact">
         <span className="contact-icon">
@@ -359,6 +362,61 @@ export function RequestDetail({
         onConfirm={remove}
         onClose={() => setConfirmDelete(false)}
       />
+    </div>
+  );
+}
+
+/** Projeto 3: a solicitação vira pedido de material (reserva, entrega com termo e compra do que falta). */
+function OrderLink({ request, me, onChanged }: { request: RequestRow; me: AdminUser | null; onChanged: (r: RequestRow) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const can = hasLevel(me, 'almoxarifado', 'pedidos', 'edit');
+  const see = hasLevel(me, 'almoxarifado', 'pedidos', 'view');
+  if (!see) return null;
+  if (request.order_id)
+    return (
+      <div className="contact" style={{ marginTop: 10 }}>
+        <span className="contact-icon">
+          <ClipboardList size={19} />
+        </span>
+        <div className="contact-body">
+          <small>Pedido de material</small>
+          <b>Esta solicitação já virou um pedido</b>
+        </div>
+        <div className="contact-actions">
+          <button className="btn btn-ghost btn-sm" onClick={() => maxEmit('pedidos:open', { id: request.order_id! })}>
+            Abrir pedido
+          </button>
+        </div>
+      </div>
+    );
+  if (!can) return null;
+  const create = async () => {
+    setBusy(true);
+    try {
+      const j = await api<{ order: { id: string; number: number } }>('/api/pedidos/from-request', { method: 'POST', json: { request_id: request.id } });
+      toast({ kind: 'success', title: `Pedido #${String(j.order.number).padStart(4, '0')} criado`, text: 'Itens e tamanhos do formulário já estão no pedido.', action: { label: 'Abrir', onClick: () => maxEmit('pedidos:open', { id: j.order.id }) } }, 10000);
+      onChanged({ ...request, order_id: j.order.id });
+    } catch (e) {
+      toast({ kind: 'error', title: 'Não foi possível criar o pedido', text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="contact edit-only" style={{ marginTop: 10 }}>
+      <span className="contact-icon">
+        <ClipboardList size={19} />
+      </span>
+      <div className="contact-body">
+        <small>Pedido de material</small>
+        <b>Reservar, entregar com termo e pedir compra do que faltar</b>
+      </div>
+      <div className="contact-actions">
+        <button className="btn btn-ghost btn-sm" onClick={create} disabled={busy}>
+          {busy ? <span className="spinner" /> : null} Criar pedido
+        </button>
+      </div>
     </div>
   );
 }

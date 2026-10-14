@@ -8,6 +8,8 @@ import { useToast } from '../core/Toasts';
 import { api } from '../core/api';
 import { CategoryPicker } from './CategoryPicker';
 import { DEFAULT_CATEGORIES } from '@/lib/almoxarifado/categories';
+import { suggestClass } from '@/lib/catalog';
+import { CatalogSection, draftOf, useCatalog, type CatalogDraft } from './CatalogTools';
 
 export function Sheet({
   title,
@@ -102,13 +104,31 @@ export function ItemFormModal({
     setF((s) => ({ ...s, [k]: e.target.value }));
     setError('');
   };
+  // Projeto 3: código do catálogo, marca, CA, localização e reposição
+  const catalog = useCatalog();
+  const [cd, setCdState] = useState<CatalogDraft>(() => draftOf(item));
+  const [clsTouched, setClsTouched] = useState(Boolean(item?.code));
+  const setCd = (d: CatalogDraft) => {
+    if (d.cat !== cd.cat || d.grp !== cd.grp) setClsTouched(true);
+    setCdState(d);
+  };
+  const live = !clsTouched && !item?.code ? { ...cd, ...suggestClass(f.name) } : cd;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return setError('Dê um nome ao item.');
     setBusy(true);
     try {
-      const base = { name: f.name, size: f.size, unit: f.unit, min_quantity: f.min_quantity, cost: f.cost };
+      const extra: Record<string, unknown> = {};
+      if (catalog.ready) {
+        const before = draftOf(item);
+        for (const k of ['brand', 'ca_number', 'location', 'max_quantity', 'lead_days', 'safety_qty'] as const) if (live[k] !== before[k] || (!item && live[k])) extra[k] = live[k];
+        if (!item?.code) {
+          extra.cat_code = live.cat;
+          extra.grp_code = live.grp;
+        }
+      }
+      const base = { name: f.name, size: f.size, unit: f.unit, min_quantity: f.min_quantity, cost: f.cost, ...extra };
       // só manda as categorias se mudaram (assim o cadastro funciona mesmo antes do categorias.sql)
       const changed = (item?.categories ?? []).join('|') !== categories.join('|');
       const payload = changed ? { ...base, categories } : base;
@@ -128,6 +148,7 @@ export function ItemFormModal({
       title={item ? 'Editar item' : 'Novo item'}
       lead={item ? 'Para mudar o saldo, use Entrada, Saída ou Ajustar saldo no detalhe do item.' : undefined}
       onClose={onClose}
+      wide={catalog.ready}
       locked
     >
       <form onSubmit={submit} noValidate>
@@ -190,6 +211,7 @@ export function ItemFormModal({
               idPrefix="it-cat"
             />
           </div>
+          {catalog.ready ? <CatalogSection item={item} d={live} setD={setCd} groups={catalog.groups} suggestedFor={f.name} /> : null}
         </div>
         <ErrorLine text={error} />
         <div className="modal-actions">

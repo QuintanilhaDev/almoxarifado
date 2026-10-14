@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe29261012345678000199550010000043211000043214" versao="4.00">
+<ide><cUF>29</cUF><natOp>VENDA</natOp><mod>55</mod><serie>1</serie><nNF>4321</nNF><dhEmi>2026-10-10T09:15:00-03:00</dhEmi><tpNF>1</tpNF></ide>
+<emit><CNPJ>12345678000199</CNPJ><xNome>FARDAS BAHIA COMERCIO LTDA</xNome><xFant>Fardas Bahia</xFant></emit>
+<dest><CNPJ>11222333000144</CNPJ><xNome>MAX FORTE SEGURANCA LTDA</xNome></dest>
+<det nItem="1"><prod><cProd>BT-42</cProd><cEAN/><xProd>BOTA DE SEGURANCA PRETA N 42</xProd><NCM>64039990</NCM><CFOP>5102</CFOP><uCom>PAR</uCom><qCom>10.0000</qCom><vUnCom>120.0000000000</vUnCom><vProd>1200.00</vProd><vDesc>100.00</vDesc><vFrete>50.00</vFrete></prod><imposto><IPI><IPITrib><vIPI>0.00</vIPI></IPITrib></IPI></imposto></det>
+<det nItem="2"><prod><cProd>CAM-OP-M</cProd><cEAN/><xProd>CAMISA SOCIAL MANGA CURTA TAM M</xProd><NCM>62052000</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>20.0000</qCom><vUnCom>40.0000000000</vUnCom><vProd>800.00</vProd><vFrete>20.00</vFrete></prod><imposto><IPI><IPITrib><vIPI>40.00</vIPI></IPITrib></IPI></imposto></det>
+<det nItem="3"><prod><cProd>LT-REC</cProd><cEAN/><xProd>LANTERNA TATICA RECARREGAVEL</xProd><NCM>85131010</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>5.0000</qCom><vUnCom>89.9000000000</vUnCom><vProd>449.50</vProd></prod></det>
+<total><ICMSTot><vProd>2449.50</vProd><vDesc>100.00</vDesc><vFrete>70.00</vFrete><vSeg>0.00</vSeg><vOutro>0.00</vOutro><vIPI>40.00</vIPI><vTotTrib>312.40</vTotTrib><vNF>2459.50</vNF></ICMSTot></total>
+<cobr><fat><nFat>4321</nFat><vOrig>2459.50</vOrig><vLiq>2459.50</vLiq></fat><dup><nDup>001</nDup><dVenc>2026-11-10</dVenc><vDup>1229.75</vDup></dup><dup><nDup>002</nDup><dVenc>2026-12-10</dVenc><vDup>1229.75</vDup></dup></cobr>
+<pag><detPag><tPag>15</tPag><vPag>2459.50</vPag></detPag></pag>
+</infNFe></NFe><protNFe versao="4.00"><infProt><chNFe>29261012345678000199550010000043211000043214</chNFe><nProt>129260000000001</nProt></infProt></protNFe></nfeProc>

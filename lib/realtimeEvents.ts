@@ -8,4 +8,8 @@ export type RealtimeEvent =
   | 'stock:update'
   | 'postos:update'
   | 'purchase:new'
-  | 'purchase:update';
+  | 'purchase:update'
+  | 'order:new'
+  | 'order:update'
+  | 'note:update'
+  | 'collab:update';

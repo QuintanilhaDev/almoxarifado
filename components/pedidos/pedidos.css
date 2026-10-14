@@ -1,0 +1,477 @@
+/* ---------- Projeto 3: pedidos de material, notas, RH ---------- */
+.o-segs {
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.o-routing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.o-routing b {
+  display: block;
+  font-weight: 600;
+}
+.o-routing small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.o-drawer {
+  width: min(620px, 100%);
+}
+.o-flags {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(242, 200, 121, 0.08);
+  border: 1px solid rgba(242, 200, 121, 0.25);
+  color: var(--amber);
+  font-size: 13.5px;
+}
+.o-flags svg {
+  flex: none;
+  margin-top: 2px;
+}
+.o-flags ul {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
+}
+.o-plan {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(198, 168, 255, 0.08);
+  border: 1px solid rgba(198, 168, 255, 0.3);
+  display: grid;
+  gap: 6px;
+}
+.o-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lilac);
+}
+.o-plan p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.o-plan p > span {
+  color: var(--muted);
+}
+.o-plan-warn {
+  color: var(--amber);
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.o-plan-warn svg {
+  flex: none;
+  margin-top: 3px;
+}
+.o-actions {
+  flex-wrap: wrap;
+}
+.o-danger {
+  color: var(--danger) !important;
+}
+.o-items {
+  display: grid;
+  gap: 8px;
+}
+.o-item {
+  padding: 10px 12px;
+  background: var(--onix-3);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid transparent;
+}
+.o-item.is-check {
+  border-color: rgba(198, 168, 255, 0.35);
+}
+.o-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.o-item-top b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.o-nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.o-nums b {
+  color: var(--white);
+  font-weight: 700;
+}
+.o-nums .warn b {
+  color: var(--amber);
+}
+.o-buy,
+.o-note {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.o-buy {
+  color: #9ccbff;
+}
+.o-link-btn {
+  justify-self: start;
+}
+.o-link-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.o-link-row .p-line-item {
+  flex: 1;
+}
+.o-kv {
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  max-width: 65%;
+}
+.o-terms {
+  display: grid;
+  gap: 8px;
+}
+.o-term {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--onix-3);
+  display: grid;
+  gap: 4px;
+}
+.o-term-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.o-term-top b {
+  display: block;
+  font-weight: 600;
+}
+.o-term-top small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.o-term-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+}
+.o-term-line em {
+  font-style: normal;
+  color: var(--amber);
+}
+.link-btn {
+  color: var(--lilac);
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.link-btn:hover {
+  text-decoration: underline;
+}
+.o-history li span {
+  display: block;
+}
+.o-history a {
+  color: var(--lilac);
+}
+.o-qty-list {
+  display: grid;
+  gap: 8px;
+}
+.o-qty-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--onix-3);
+}
+.o-qty-row b {
+  display: block;
+  font-weight: 600;
+}
+.o-qty-row small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.o-qty-row .input {
+  text-align: right;
+}
+.o-min-text {
+  color: var(--amber);
+  line-height: 1.5;
+}
+.o-sizes > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.o-kit {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--lilac);
+  font-size: 13.5px;
+  margin: 0 0 10px;
+}
+.o-kit svg {
+  flex: none;
+  margin-top: 2px;
+}
+.o-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.o-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lilac);
+}
+
+/* tabelas simples (notas, colaboradores, troca anual, gestão) */
+.t-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--onix-2);
+}
+.t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.t-table th,
+.t-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.t-table th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.t-table tr:last-child td {
+  border-bottom: 0;
+}
+.t-table td.n,
+.t-table th.n {
+  text-align: right;
+  white-space: nowrap;
+}
+.t-table tbody tr.click {
+  cursor: pointer;
+}
+.t-table tbody tr.click:hover td {
+  background: var(--onix-3);
+}
+.t-table small {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.t-table .input,
+.t-table .select {
+  padding: 7px 10px;
+  font-size: 14px;
+}
+.t-table input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lilac);
+}
+.t-short {
+  color: var(--danger) !important;
+  font-weight: 700;
+}
+.g-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.g-card {
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+.g-card h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.g-bar {
+  height: 6px;
+  border-radius: 99px;
+  background: var(--onix-4);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.g-bar i {
+  display: block;
+  height: 100%;
+  background: var(--lilac);
+  border-radius: 99px;
+}
+.g-row {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.g-row:last-child {
+  border-bottom: 0;
+}
+.g-row > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.g-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.g-row b {
+  white-space: nowrap;
+}
+.n-review-head {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 14px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
+}
+.n-review-head small {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.n-review-head b {
+  overflow-wrap: anywhere;
+}
+.n-lines {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.n-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 84px;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--onix-3);
+}
+.n-line > div:first-child b {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.n-line small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.n-line .input {
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.n-via {
+  color: var(--mint) !important;
+}
+@media (max-width: 640px) {
+  .n-line {
+    grid-template-columns: minmax(0, 1fr) 76px;
+  }
+  .n-line > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .o-sizes > div {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+@media print {
+  .app-nav,
+  .nav,
+  .head-actions,
+  .max-dock,
+  .toolbar {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .o-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .o-toolbar .search {
+    grid-column: 1 / -1;
+  }
+  .o-toolbar .select-wrap {
+    width: auto;
+    min-width: 0;
+  }
+  .o-toolbar .select {
+    font-size: 13.5px;
+    padding-right: 30px;
+  }
+  .o-segs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}
+.n-line > div:nth-child(2) > b {
+  display: block;
+}
+.n-line > div:nth-child(2) > small {
+  display: block;
+}
+.o-segs button {
+  white-space: nowrap;
+}

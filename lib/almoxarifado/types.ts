@@ -53,6 +53,8 @@ export interface RequestRow {
   updated_at: string;
   /** baixas de estoque registradas pelo "Responder" (existe após rodar baixa_e_usuarios.sql) */
   stock_applications?: StockApplication[];
+  /** pedido de material criado a partir desta solicitação (Projeto 3) */
+  order_id?: string | null;
 }
 
 export interface AuthorizedEmail {
@@ -126,6 +128,22 @@ export interface StockItem {
   at_postos: number;
   created_at: string;
   updated_at: string;
+  /* ----- Projeto 3 (vazios enquanto o supabase/projeto3.sql não for rodado) ----- */
+  /** código do catálogo CC-GG-NNNN (imutável) */
+  code: string | null;
+  cat_code: string | null;
+  grp_code: string | null;
+  brand: string | null;
+  /** certificado de aprovação (EPI) */
+  ca_number: string | null;
+  location: string | null;
+  max_quantity: number | null;
+  /** prazo de reposição em dias */
+  lead_days: number | null;
+  safety_qty: number | null;
+  /** reservado para pedidos (não saiu fisicamente) */
+  reserved: number;
+  active: boolean;
 }
 
 export interface Posto {
@@ -159,7 +177,14 @@ export type MovementKind =
   | 'devolucao'
   | 'baixa_posto'
   | 'criacao'
-  | 'exclusao';
+  | 'exclusao'
+  /* Projeto 3 */
+  | 'entrega'
+  | 'estorno'
+  | 'perda'
+  | 'devolucao_fornecedor'
+  | 'inventario'
+  | 'devolucao_colaborador';
 
 export interface StockMovement {
   id: string;
@@ -185,6 +210,12 @@ export const MOVEMENT_LABEL: Record<MovementKind, string> = {
   baixa_posto: 'Baixa no posto',
   criacao: 'Item cadastrado',
   exclusao: 'Item excluído',
+  entrega: 'Entregue ao colaborador (termo)',
+  estorno: 'Estorno de nota fiscal',
+  perda: 'Baixa por perda ou avaria',
+  devolucao_fornecedor: 'Devolvido ao fornecedor',
+  inventario: 'Ajuste de inventário',
+  devolucao_colaborador: 'Devolvido pelo colaborador',
 };
 
 /** Resultado da leitura de uma planilha (pré-visualização antes de importar). */
