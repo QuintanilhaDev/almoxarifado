@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef } from 'react';
+import { frameTick, renderRatio } from '@/lib/gpuBudget';
 
 /**
  * Corpo inteiro da Max em 3D (corpo, braços, mãos, pernas e pés), desenhado em WebGL
@@ -35,6 +36,9 @@ uniform float u_dir;
 uniform vec3 u_light;
 uniform vec3 u_mid;
 uniform vec3 u_deep;
+/* esferas que envolvem cada membro (xyz centro, w raio) e o corpo inteiro: o que está longe nem é calculado */
+uniform vec4 u_lb[4];
+uniform vec4 u_all;
 
 float smin(float a, float b, float k){
   float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
@@ -63,25 +67,33 @@ float body(vec3 p){
 }
 
 /* membros: distância e se o ponto é mão/pé (para clarear a ponta) */
+float chain(vec3 p, vec3 a, vec3 b, vec3 c, float r, float rTip, vec4 bound, out float tip){
+  // longe do membro: a distância até a esfera que o envolve já basta (e é bem mais barata)
+  float far = length(p - bound.xyz) - bound.w;
+  if (far > 0.12) { tip = far; return far; }
+  float d = smin(capsule(p, a, b, r * 1.1, r), capsule(p, b, c, r, r * rTip), 0.07);
+  tip = 0.0;
+  return d;
+}
+
+/* membros: distância e se o ponto é mão/pé */
 vec2 limbs(vec3 p){
   float k = clamp(u_k * 1.4, 0.0, 1.0);
   float ra = 0.135 * k, rl = 0.152 * k;
-  // braços: ombro grosso afinando até o punho, cotovelo arredondado
-  float aL = smin(capsule(p, u_j[0], u_j[1], ra * 1.1, ra), capsule(p, u_j[1], u_j[2], ra, ra * 0.92), 0.07);
-  float aR = smin(capsule(p, u_j[3], u_j[4], ra * 1.1, ra), capsule(p, u_j[4], u_j[5], ra, ra * 0.92), 0.07);
-  // mãos: bolinhas fofas
-  float hL = length(p - u_j[2]) - 0.17 * k * u_fist.x;
-  float hR = length(p - u_j[5]) - 0.17 * k * u_fist.y;
-  // pernas
-  float lL = smin(capsule(p, u_j[6], u_j[7], rl * 1.1, rl), capsule(p, u_j[7], u_j[8], rl, rl * 0.95), 0.07);
-  float lR = smin(capsule(p, u_j[9], u_j[10], rl * 1.1, rl), capsule(p, u_j[10], u_j[11], rl, rl * 0.95), 0.07);
-  // pés: gotinhas achatadas apontando para onde ela vai (sem sapato)
+  float tA, tB, tC, tD;
+  float aL = chain(p, u_j[0], u_j[1], u_j[2], ra, 0.92, u_lb[0], tA);
+  float aR = chain(p, u_j[3], u_j[4], u_j[5], ra, 0.92, u_lb[1], tB);
+  float lL = chain(p, u_j[6], u_j[7], u_j[8], rl, 0.95, u_lb[2], tC);
+  float lR = chain(p, u_j[9], u_j[10], u_j[11], rl, 0.95, u_lb[3], tD);
+  float d = min(min(aL, aR), min(lL, lR));
+  // mãos e pés só perto de onde estão
+  float tips = 9.0;
+  if (tA < 0.12) tips = min(tips, length(p - u_j[2]) - 0.17 * k * u_fist.x);
+  if (tB < 0.12) tips = min(tips, length(p - u_j[5]) - 0.17 * k * u_fist.y);
   vec3 fo = vec3(0.06 * u_dir, -0.05, 0.03) * k;
   vec3 fr = vec3(0.19, 0.11, 0.15) * max(k, 0.001);
-  float fL = ellipsoid(p - u_j[8] - fo, fr);
-  float fR = ellipsoid(p - u_j[11] - fo, fr);
-  float tips = min(min(hL, hR), min(fL, fR));
-  float d = min(min(aL, aR), min(lL, lR));
+  if (tC < 0.12) tips = min(tips, ellipsoid(p - u_j[8] - fo, fr));
+  if (tD < 0.12) tips = min(tips, ellipsoid(p - u_j[11] - fo, fr));
   d = smin(d, tips, 0.07);
   return vec2(d, 0.0);
 }
@@ -105,15 +117,22 @@ void main(){
   vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / min(u_res.x, u_res.y) * 2.0;
   vec3 ro = vec3(0.0, 0.0, 3.1);
   vec3 rd = normalize(vec3(uv, -2.45));
-  float t = 1.5;
+  // o raio nem passa perto dela: pixel vazio, sem cálculo nenhum
+  vec3 oc = ro - u_all.xyz;
+  float bb = dot(oc, rd);
+  float hh = bb * bb - (dot(oc, oc) - u_all.w * u_all.w);
+  if (hh < 0.0) { gl_FragColor = vec4(0.0); return; }
+  hh = sqrt(hh);
+  float t = max(0.0, -bb - hh);
+  float tEnd = -bb + hh;
   float minD = 10.0;
   bool hit = false;
-  for (int i = 0; i < 90; i++) {
+  for (int i = 0; i < 64; i++) {
     float d = map(ro + rd * t);
     minD = min(minD, d);
-    if (d < 0.0012) { hit = true; break; }
-    t += d * 0.85;
-    if (t > 4.9) break;
+    if (d < 0.0015) { hit = true; break; }
+    t += d * 0.9;
+    if (t > tEnd) break;
   }
   float px = 5.2 / min(u_res.x, u_res.y);
   vec3 col;
@@ -133,7 +152,8 @@ void main(){
     float spec = pow(max(dot(n, h), 0.0), 90.0);
     float sheen = pow(max(dot(n, h), 0.0), 12.0);
     float sss = pow(clamp(dot(v, -rim + n * 0.55), 0.0, 1.0), 2.4);
-    float thick = clamp(map(p - n * 0.16) / -0.16, 0.0, 1.0);
+    // espessura aproximada pela borda (sem mais uma consulta à cena)
+    float thick = clamp(dot(n, v) * 1.2, 0.0, 1.0);
     float ao = clamp(0.3 + 0.7 * map(p + n * 0.1) / 0.1, 0.0, 1.0);
     // sombra de contato: o corpo escurece o que está logo atrás/abaixo dele
     vec3 r = reflect(-v, n);
@@ -174,8 +194,18 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
   return sh;
 }
 
-export function MaxBody3D({ size, rig, onFail }: { size: number; rig: React.MutableRefObject<Rig>; onFail?: () => void }) {
+/**
+ * `active` falso: o desenho fica pronto (o "shader" já compilado, o que leva um instante),
+ * mas parado, sem gastar nada. Assim, quando ela sai correndo, não há engasgo.
+ */
+export function MaxBody3D({ size, rig, onFail, active = true }: { size: number; rig: React.MutableRefObject<Rig>; onFail?: () => void; active?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const kick = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (active) kick.current();
+  }, [active]);
   const failRef = useRef(onFail);
   failRef.current = onFail;
 
@@ -207,17 +237,21 @@ export function MaxBody3D({ size, rig, onFail }: { size: number; rig: React.Muta
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     gl.clearColor(0, 0, 0, 0);
     const U = (n: string) => gl!.getUniformLocation(prog, n);
-    const u = { res: U('u_res'), time: U('u_time'), pulse: U('u_pulse'), j: U('u_j[0]') ?? U('u_j'), k: U('u_k'), fist: U('u_fist'), dir: U('u_dir'), light: U('u_light'), mid: U('u_mid'), deep: U('u_deep') };
+    const u = { res: U('u_res'), time: U('u_time'), pulse: U('u_pulse'), j: U('u_j[0]') ?? U('u_j'), k: U('u_k'), fist: U('u_fist'), dir: U('u_dir'), lb: U('u_lb[0]') ?? U('u_lb'), all: U('u_all'), light: U('u_light'), mid: U('u_mid'), deep: U('u_deep') };
     gl.uniform3f(u.light, ...LIGHT);
     gl.uniform3f(u.mid, ...MID);
     gl.uniform3f(u.deep, ...DEEP);
 
     let raf = 0;
     let dead = false;
+    const bounds = new Float32Array(16);
     const t0 = performance.now();
     const frame = (now: number) => {
+      raf = 0;
       if (dead || !gl) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (!activeRef.current) return;
+      frameTick(now);
+      const dpr = renderRatio();
       const w = Math.max(2, Math.round(canvas.clientWidth * dpr));
       const h = Math.max(2, Math.round(canvas.clientHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
@@ -231,13 +265,53 @@ export function MaxBody3D({ size, rig, onFail }: { size: number; rig: React.Muta
       gl.uniform1f(u.time, (now - t0) / 1000);
       gl.uniform1f(u.pulse, 0.5 + 0.5 * Math.sin(now / 95) * Math.sin(now / 173 + 1.3));
       gl.uniform3fv(u.j, R.j);
+      // esferas que envolvem cada membro e o corpo inteiro
+      const k = Math.min(1, R.k * 1.4);
+      let ar = 0.72; // o corpo (com a ondulação) cabe numa esfera de 0,72 no centro
+      for (let m = 0; m < 4; m++) {
+        let x0 = 9, y0 = 9, z0 = 9, x1 = -9, y1 = -9, z1 = -9;
+        for (let q = 0; q < 3; q++) {
+          const o = (m * 3 + q) * 3;
+          x0 = Math.min(x0, R.j[o]); x1 = Math.max(x1, R.j[o]);
+          y0 = Math.min(y0, R.j[o + 1]); y1 = Math.max(y1, R.j[o + 1]);
+          z0 = Math.min(z0, R.j[o + 2]); z1 = Math.max(z1, R.j[o + 2]);
+        }
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+        const r = Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2 + 0.26 * k * Math.max(1, m < 2 ? (m === 0 ? R.fistL : R.fistR) : 1) + 0.02;
+        bounds[m * 4] = cx; bounds[m * 4 + 1] = cy; bounds[m * 4 + 2] = cz; bounds[m * 4 + 3] = r;
+        ar = Math.max(ar, Math.hypot(cx, cy, cz) + r);
+      }
+      gl.uniform4fv(u.lb, bounds);
+      gl.uniform4f(u.all, 0, 0, 0, ar + 0.06);
       gl.uniform1f(u.k, R.k);
       gl.uniform2f(u.fist, R.fistL, R.fistR);
       gl.uniform1f(u.dir, R.dir);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       raf = requestAnimationFrame(frame);
     };
-    raf = requestAnimationFrame(frame);
+    kick.current = () => {
+      if (!raf && !dead) raf = requestAnimationFrame(frame);
+    };
+    // um quadro de verdade, minúsculo e invisível, força o navegador a terminar de preparar
+    // o desenho agora (com a página parada), e não no primeiro passo da corrida
+    if (!activeRef.current) {
+      canvas.width = 24;
+      canvas.height = 24;
+      gl.viewport(0, 0, 24, 24);
+      gl.uniform2f(u.res, 24, 24);
+      gl.uniform1f(u.k, 1);
+      gl.uniform2f(u.fist, 1, 1);
+      const warmJ = new Float32Array(36);
+      for (let q = 0; q < 12; q++) warmJ.set([q % 6 < 3 ? -0.5 : 0.5, q < 6 ? -0.1 - (q % 3) * 0.3 : -0.5 - (q % 3) * 0.3, 0.1], q * 3);
+      gl.uniform3fv(u.j, warmJ);
+      gl.uniform4fv(u.lb, new Float32Array([-0.5, -0.4, 0.1, 0.6, 0.5, -0.4, 0.1, 0.6, -0.5, -0.8, 0.1, 0.6, 0.5, -0.8, 0.1, 0.6]));
+      gl.uniform4f(u.all, 0, 0, 0, 1.6);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      const px = new Uint8Array(4);
+      gl.readPixels(12, 12, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); // espera o desenho terminar
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+    if (activeRef.current) kick.current();
     const onLost = (e: Event) => {
       e.preventDefault();
       dead = true;

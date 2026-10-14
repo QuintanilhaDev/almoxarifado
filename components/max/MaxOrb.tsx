@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MaxFace } from './MaxFace';
 import { MaxCap } from './MaxCap';
+import { frameTick, orbHidden, renderRatio } from '@/lib/gpuBudget';
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -63,15 +64,21 @@ void main(){
   vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / min(u_res.x, u_res.y);
   vec3 ro = vec3(0.0, 0.0, 3.1);
   vec3 rd = normalize(vec3(uv, -2.45));
-  float t = 1.6;
+  // fora da esfera que envolve a gelatina (com as gotas): pixel vazio, sem cálculo
+  float bb = dot(ro, rd);
+  float hh = bb * bb - (dot(ro, ro) - 1.12 * 1.12);
+  if (hh < 0.0) { gl_FragColor = vec4(0.0); return; }
+  hh = sqrt(hh);
+  float t = max(0.0, -bb - hh);
+  float tEnd = -bb + hh;
   float minD = 10.0;
   bool hit = false;
-  for (int i = 0; i < 72; i++) {
+  for (int i = 0; i < 56; i++) {
     float d = map(ro + rd * t);
     minD = min(minD, d);
-    if (d < 0.0012) { hit = true; break; }
-    t += d * 0.86;
-    if (t > 4.8) break;
+    if (d < 0.0015) { hit = true; break; }
+    t += d * 0.9;
+    if (t > tEnd) break;
   }
   float px = 2.6 / min(u_res.x, u_res.y);
   vec3 col;
@@ -92,7 +99,7 @@ void main(){
     float sheen = pow(max(dot(n, h), 0.0), 12.0);
     // luz atravessando a gelatina (translucidez)
     float sss = pow(clamp(dot(v, -rim + n * 0.55), 0.0, 1.0), 2.4);
-    float thick = clamp(map(p - n * 0.22) / -0.22, 0.0, 1.0);
+    float thick = clamp(dot(n, v) * 1.2, 0.0, 1.0);
     // oclusão nas dobras onde as gotas encontram o corpo
     float ao = clamp(0.35 + 0.65 * map(p + n * 0.12) / 0.12, 0.0, 1.0);
     // reflexo de estúdio (céu claro em cima, chão escuro embaixo)
@@ -203,8 +210,10 @@ export function MaxOrb({ size, state = 'idle', className }: { size: number; stat
     let raf = 0;
     let lost = false;
 
+    let drawn = 0;
+    let sleep: ReturnType<typeof setTimeout> | null = null;
     const fit = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = renderRatio();
       const px = Math.max(2, Math.round(canvas.clientWidth * dpr));
       const py = Math.max(2, Math.round(canvas.clientHeight * dpr));
       if (canvas.width !== px || canvas.height !== py) {
@@ -216,6 +225,15 @@ export function MaxOrb({ size, state = 'idle', className }: { size: number; stat
     const frame = (now: number) => {
       raf = 0;
       if (lost || !gl) return;
+      // escondida (a Max saiu correndo do canto): não desenha, só confere de vez em quando
+      if (orbHidden(canvas)) {
+        if (!sleep) sleep = setTimeout(() => ((sleep = null), (last = performance.now()), schedule()), 250);
+        return;
+      }
+      frameTick(now);
+      // parada, a gelatina se mexe devagar: 30 quadros por segundo bastam
+      if (stateRef.current === 'idle' && now - drawn < 31) return schedule();
+      drawn = now;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const target = LOOKS[stateRef.current];
@@ -259,6 +277,7 @@ export function MaxOrb({ size, state = 'idle', className }: { size: number; stat
 
     return () => {
       cancelAnimationFrame(raf);
+      if (sleep) clearTimeout(sleep);
       raf = 0;
       lost = true;
       canvas.removeEventListener('webglcontextlost', onLost);

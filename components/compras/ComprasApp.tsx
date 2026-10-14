@@ -16,9 +16,13 @@ import { useHashTab, useSession } from '@/lib/useSession';
 import { itemsSummary, purchaseLabel, type PurchaseRequest } from '@/lib/compras/types';
 import type { MaxHost } from '@/lib/max/types';
 import { PurchaseBoard } from './PurchaseBoard';
-import { Fornecedores } from './Fornecedores';
+import dynamic from 'next/dynamic';
+import { PanelSkeleton, usePreload } from '../core/lazy';
 import type { Supplier } from '@/lib/compras/fornecedores';
 import { usePurchases } from './usePurchases';
+
+const loadSuppliers = () => import('./Fornecedores');
+const Fornecedores = dynamic(() => loadSuppliers().then((m) => m.Fornecedores), { loading: PanelSkeleton });
 
 const SLUG = 'compras';
 type Tab = 'solicitacoes' | 'fornecedores' | 'equipe' | 'conta' | 'inicio';
@@ -47,6 +51,7 @@ export function ComprasApp() {
 }
 
 function Shell() {
+  usePreload([loadSuppliers]);
   const sector = getSector(SLUG)!;
   const toast = useToast();
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(SLUG));

@@ -3,6 +3,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef } from 'react';
 import { MaxRunner, type RunnerApi } from '../max/MaxRunner';
 import { setRunner, type RunStep } from '@/lib/max/runner';
+import { preloadSector } from '../setores/SectorApp';
 
 /**
  * Troca de tela. Pelo clique, a página troca direto (com a entrada em 3D das telas).
@@ -148,6 +149,9 @@ export function WarpProvider({ children }: { children: React.ReactNode }) {
               await r.punch(el, press);
               await wait(380); // a tela reage ao clique (abre a gaveta, começa o download)
             } else {
+              // o código do setor já começa a baixar enquanto ela corre
+              const sec = step.path.match(/^\/setor\/([a-z-]+)/);
+              if (sec) preloadSector(sec[1]);
               for (const p of plan(step.path)) {
                 let el = p.el();
                 // a tela nova pode ainda estar carregando os botões

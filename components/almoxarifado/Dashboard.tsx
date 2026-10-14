@@ -19,20 +19,32 @@ import type { AuthorizedEmail, Posto, RequestRow, StockItem } from '@/lib/almoxa
 import { isLow } from '@/lib/almoxarifado/stockFormat';
 import type { MaxHost } from '@/lib/max/types';
 import { Inbox } from './Inbox';
-import { FormEditor } from './FormEditor';
-import { EmailsManager } from './EmailsManager';
 import { Estoque } from './Estoque';
-import { Postos } from './Postos';
-import { Metricas } from './Metricas';
-import { PurchaseBoard } from '../compras/PurchaseBoard';
 import { usePurchases } from '../compras/usePurchases';
 import { STATUS_SPOKEN, purchaseLabel } from '@/lib/compras/types';
-import { OrdersPanel } from '../pedidos/OrdersPanel';
 import { usePedidos } from '../pedidos/usePedidos';
-import { NotasPanel } from '../notas/NotasPanel';
 import { maxEmit } from '@/lib/max/bus';
 import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/types';
 import type { PickItem } from '../pedidos/ui';
+import dynamic from 'next/dynamic';
+import { PanelSkeleton, usePreload } from '../core/lazy';
+
+// abas que não são a primeira tela: o código chega quando a pessoa abre (ou com a página parada)
+const loadForm = () => import('./FormEditor');
+const loadEmails = () => import('./EmailsManager');
+const loadPostos = () => import('./Postos');
+const loadMetricas = () => import('./Metricas');
+const loadPurchases = () => import('../compras/PurchaseBoard');
+const loadOrders = () => import('../pedidos/OrdersPanel');
+const loadNotas = () => import('../notas/NotasPanel');
+const FormEditor = dynamic(() => loadForm().then((m) => m.FormEditor), { loading: PanelSkeleton });
+const EmailsManager = dynamic(() => loadEmails().then((m) => m.EmailsManager), { loading: PanelSkeleton });
+const Postos = dynamic(() => loadPostos().then((m) => m.Postos), { loading: PanelSkeleton });
+const Metricas = dynamic(() => loadMetricas().then((m) => m.Metricas), { loading: PanelSkeleton });
+const PurchaseBoard = dynamic(() => loadPurchases().then((m) => m.PurchaseBoard), { loading: PanelSkeleton });
+const OrdersPanel = dynamic(() => loadOrders().then((m) => m.OrdersPanel), { loading: PanelSkeleton });
+const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
+const PRELOAD = [loadOrders, loadMetricas, loadNotas, loadPostos, loadPurchases, loadForm, loadEmails];
 
 const SLUG = 'almoxarifado';
 type ModuleTab = 'solicitacoes' | 'pedidos' | 'estoque' | 'notas' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'compras';
@@ -61,6 +73,7 @@ export function Dashboard() {
 
 function Shell() {
   const toast = useToast();
+  usePreload(PRELOAD);
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(SLUG));
   const warp = useWarp();
   const [tab, setTabState] = useState<Tab | null>(null);

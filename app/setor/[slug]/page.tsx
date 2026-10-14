@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { Dashboard } from '@/components/almoxarifado/Dashboard';
-import { SectorShell } from '@/components/setores/SectorShell';
-import { ComprasApp } from '@/components/compras/ComprasApp';
+import { SectorApp } from '@/components/setores/SectorApp';
 import { introScript } from '@/components/core/AppFrame';
 import { currentUser } from '@/lib/auth';
 import { canOpenSector, homePath } from '@/lib/permissions';
@@ -28,7 +26,7 @@ export default async function SectorPage({ params }: Props) {
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: introScript }} />
-      {sector.slug === 'almoxarifado' ? <Dashboard /> : sector.slug === 'compras' ? <ComprasApp /> : <SectorShell slug={sector.slug} />}
+      <SectorApp slug={sector.slug} />
     </>
   );
 }

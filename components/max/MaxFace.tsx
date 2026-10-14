@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import type { OrbState } from './MaxOrb';
+import { orbHidden } from '@/lib/gpuBudget';
 
 /**
  * O rostinho da Max, desenhado por cima da esfera.
@@ -87,8 +88,16 @@ export function MaxFace({ state }: { state: OrbState }) {
     let talkTarget = 0.5;
     let talkNext = 0;
 
+    // posição dela guardada (medir a cada movimento do mouse força a página a recalcular o layout)
+    let rect = svg.getBoundingClientRect();
+    let rectAt = performance.now();
     const onMove = (e: PointerEvent) => {
-      const r = svg.getBoundingClientRect();
+      const t = performance.now();
+      if (t - rectAt > 500) {
+        rect = svg.getBoundingClientRect();
+        rectAt = t;
+      }
+      const r = rect;
       if (!r.width) return;
       const dx = e.clientX - (r.left + r.width / 2);
       const dy = e.clientY - (r.top + r.height / 2);
@@ -110,8 +119,18 @@ export function MaxFace({ state }: { state: OrbState }) {
 
     const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
+    let drawn = 0;
+    let sleep: ReturnType<typeof setTimeout> | null = null;
     const frame = (now: number) => {
       raf = 0;
+      // escondida: não anima, só confere de vez em quando
+      if (orbHidden(svg)) {
+        if (!sleep) sleep = setTimeout(() => ((sleep = null), (last = performance.now()), schedule()), 250);
+        return;
+      }
+      // em repouso, 30 quadros por segundo bastam para piscar e olhar
+      if (stateRef.current === 'idle' && now - drawn < 31) return schedule();
+      drawn = now;
       const dt = Math.min(0.06, (now - last) / 1000);
       last = now;
       const st = stateRef.current;
@@ -225,6 +244,7 @@ export function MaxFace({ state }: { state: OrbState }) {
 
     return () => {
       cancelAnimationFrame(raf);
+      if (sleep) clearTimeout(sleep);
       window.removeEventListener('pointermove', onMove);
       document.documentElement.removeEventListener('pointerleave', onLeave);
       window.removeEventListener('blur', onLeave);

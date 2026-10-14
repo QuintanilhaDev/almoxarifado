@@ -1,5 +1,5 @@
 'use client';
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { MaxOrb } from './MaxOrb';
 import { MaxFace } from './MaxFace';
 import { MaxCap } from './MaxCap';
@@ -74,6 +74,13 @@ export const MaxRunner = forwardRef<RunnerApi>(function MaxRunner(_, ref) {
   const body = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLSpanElement>(null);
   const [gl, setGl] = useState(true);
+  // o corpo 3D é preparado com a página parada, para a primeira corrida não engasgar
+  const [warm, setWarm] = useState(false);
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+    const t = setTimeout(() => (w.requestIdleCallback ? w.requestIdleCallback(() => setWarm(true), { timeout: 3000 }) : setWarm(true)), 2500);
+    return () => clearTimeout(t);
+  }, []);
   const rig = useRef<Rig>({ j: new Float32Array(36), k: 0, fistL: 1, fistR: 1, dir: -1 });
   const fx = useRef<HTMLDivElement>(null);
   const st = useRef({ x: 0, y: 0, lean: 0, hop: 0, sx: 1, sy: 1, limbs: 0, dir: -1, phase: 0, pose: { ...STAND } as Pose, out: false, size: 128, yaw: 0 });
@@ -405,10 +412,10 @@ export const MaxRunner = forwardRef<RunnerApi>(function MaxRunner(_, ref) {
       <div className="mr-fx" ref={fx} aria-hidden />
       <div className={`mr${visible ? ' is-on' : ''}`} ref={wrap} aria-hidden>
         <div className="mr-body" ref={body} style={{ width: size, height: size }}>
+          {gl && (visible || warm) ? <MaxBody3D size={size} rig={rig} active={visible} onFail={() => setGl(false)} /> : null}
           {visible ? (
             gl ? (
               <>
-                <MaxBody3D size={size} rig={rig} onFail={() => setGl(false)} />
                 <span ref={head} className="max-orb is-speaking mr-head" style={{ width: size, height: size }}>
                   <MaxFace state="speaking" />
                   <MaxCap />

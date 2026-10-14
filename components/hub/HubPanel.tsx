@@ -12,9 +12,18 @@ import { useRealtime } from '@/lib/realtime';
 import { useHashTab, useSession } from '@/lib/useSession';
 import type { MaxHost } from '@/lib/max/types';
 import { SectorsOverview } from './SectorsOverview';
-import { UsersAdmin } from './UsersAdmin';
-import { MaxLearning } from './MaxLearning';
-import { Gestao } from './Gestao';
+import dynamic from 'next/dynamic';
+import { PanelSkeleton, usePreload } from '../core/lazy';
+import { loadAlmox, loadCompras, loadShell } from '../setores/SectorApp';
+
+const loadUsers = () => import('./UsersAdmin');
+const loadLearning = () => import('./MaxLearning');
+const loadGestao = () => import('./Gestao');
+const UsersAdmin = dynamic(() => loadUsers().then((m) => m.UsersAdmin), { loading: PanelSkeleton });
+const MaxLearning = dynamic(() => loadLearning().then((m) => m.MaxLearning), { loading: PanelSkeleton });
+const Gestao = dynamic(() => loadGestao().then((m) => m.Gestao), { loading: PanelSkeleton });
+// no painel master, o código das telas e dos setores chega com a página parada
+const PRELOAD = [loadGestao, loadUsers, loadAlmox, loadShell, loadCompras, loadLearning];
 import { useWarp } from '../core/Warp';
 import './hub.css';
 
@@ -38,6 +47,7 @@ export function HubPanel() {
 }
 
 function Shell() {
+  usePreload(PRELOAD);
   const { user, setUser, refresh, intro, endIntro, logout } = useSession('/hub');
   const [tab, setTab] = useHashTab<Tab>(VALID, 'setores');
   const warp = useWarp();

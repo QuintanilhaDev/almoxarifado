@@ -9,9 +9,15 @@ import { useWarp } from '../core/Warp';
 import { MaxAssistant } from '../max/MaxAssistant';
 import { OrdersPanel } from '../pedidos/OrdersPanel';
 import { usePedidos } from '../pedidos/usePedidos';
-import { NotasPanel } from '../notas/NotasPanel';
-import { Colaboradores } from '../rh/Colaboradores';
-import { TrocaAnual } from '../rh/TrocaAnual';
+import dynamic from 'next/dynamic';
+import { PanelSkeleton, usePreload } from '../core/lazy';
+
+const loadNotas = () => import('../notas/NotasPanel');
+const loadColab = () => import('../rh/Colaboradores');
+const loadTroca = () => import('../rh/TrocaAnual');
+const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
+const Colaboradores = dynamic(() => loadColab().then((m) => m.Colaboradores), { loading: PanelSkeleton });
+const TrocaAnual = dynamic(() => loadTroca().then((m) => m.TrocaAnual), { loading: PanelSkeleton });
 import { chime } from '@/lib/chime';
 import { maxEmit, useMaxBus } from '@/lib/max/bus';
 import { canManageSector, hasLevel } from '@/lib/permissions';
@@ -51,6 +57,7 @@ export function SectorShell({ slug }: { slug: string }) {
 }
 
 function Shell({ slug }: { slug: string }) {
+  usePreload(slug === 'rh' ? [loadColab, loadTroca] : slug === 'financeiro' ? [loadNotas] : []);
   const sector = getSector(slug)!;
   const toast = useToast();
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(slug));

@@ -24,7 +24,7 @@ export function DiagonalField() {
     let t0 = performance.now();
 
     const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       w = window.innerWidth;
       h = window.innerHeight;
       gap = w < 640 ? 22 : 26;
@@ -56,13 +56,22 @@ export function DiagonalField() {
     const radius = () => Math.max(160, Math.min(w, h) * 0.28);
     const BASE = -Math.PI / 4; // diagonal "/"
 
+    let drawn = 0;
     const draw = (now: number) => {
+      // mouse longe e parado: a ondulação é lenta, 30 quadros por segundo bastam
+      if (pointer.energy < 0.01 && pointer.targetEnergy === 0 && now - drawn < 31) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      drawn = now;
       const time = (now - t0) / 1000;
       pointer.x += (pointer.tx - pointer.x) * 0.14;
       pointer.y += (pointer.ty - pointer.y) * 0.14;
       pointer.energy += (pointer.targetEnergy - pointer.energy) * 0.06;
 
       ctx.clearRect(0, 0, w, h);
+      // os traços parados vão todos num desenho só (milhares de traços, um único "stroke")
+      const base = new Path2D();
       const R = radius();
       const R2 = R * R;
       const half = gap * 0.32;
@@ -94,16 +103,18 @@ export function DiagonalField() {
           const cy = Math.sin(angle) * len;
 
           const alpha = 0.07 + f * 0.75;
-          if (f > 0.02) {
+          if (f <= 0.02) {
+            base.moveTo(x - cx, y - cy);
+            base.lineTo(x + cx, y + cy);
+            continue;
+          }
+          {
             // mistura branco -> lilás
             const r = Math.round(246 + (198 - 246) * f);
             const g = Math.round(244 + (168 - 244) * f);
             const b = Math.round(251 + (255 - 251) * f);
             ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
             ctx.lineWidth = 1.2 + f * 1.3;
-          } else {
-            ctx.strokeStyle = `rgba(246,244,251,${alpha})`;
-            ctx.lineWidth = 1.2;
           }
           ctx.beginPath();
           ctx.moveTo(x - cx, y - cy);
@@ -111,6 +122,10 @@ export function DiagonalField() {
           ctx.stroke();
         }
       }
+
+      ctx.strokeStyle = 'rgba(246,244,251,0.07)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke(base);
 
       // brilho suave seguindo o cursor
       if (pointer.energy > 0.01) {
