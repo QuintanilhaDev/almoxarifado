@@ -142,6 +142,7 @@ const CASES: Case[] = [
   // manual (explicações passo a passo)
   [almox, 'Max me explique passo a passo como funciona o setor do almoxarifado por favor', 'explain'], [almox, 'Max como funciona este setor', 'explain'], [almox, 'Max como eu lanço uma nota fiscal', 'explain'],
   [almox, 'Max como faço o inventário', 'explain'], [almox, 'Max o que é saldo reservado', 'explain'], [rh, 'Max como funciona a troca anual', 'explain'], [hub, 'Max explica como funciona o RH', 'explain'],
+  [hub, 'Max, explique o painel de master geral', 'explain'], [hub, 'Max, explique a auditoria', 'explain'], [hub, 'Max, me fala sobre o painel master', 'explain'], [hub, 'Max, o que faz o painel master', 'explain'], [almox, 'Max, explique o estoque', 'explain'],
   [almox, 'Max como está o estoque', 'almox-stock-summary'], [almox, 'Max abrir o estoque', 'go-tab'],
   // setor ainda vazio
   [rh, 'Max, desejo ver as métricas da última semana', 'sector-not-ready'], [rh, 'Max abrir o setor financeiro', null], [rh, 'Max minha conta', 'go-tab'], [rh, 'Max que horas são', 'time'],

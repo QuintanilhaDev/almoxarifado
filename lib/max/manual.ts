@@ -103,8 +103,24 @@ export const MANUAL: ManualTopic[] = [
       'Gestão: os números do estoque, pedidos, compras e notas, com Excel e PDF.',
       'Usuários: criar pessoas, escolher o setor, o papel (master ou membro) e desativar.',
       'Aprendizado da Max: o que eu aprendi e as perguntas que ainda não soube responder.',
+      'Auditoria: tudo o que cada pessoa faz no sistema, ao vivo.',
     ],
     ask: 'Max, como funciona o painel master?',
+  },
+  {
+    id: 'auditoria',
+    title: 'Auditoria',
+    sector: 'hub',
+    tab: 'auditoria',
+    keys: ['auditoria', 'registros', 'historico de acoes', 'quem fez o que', 'atividades', 'log', 'logs'],
+    summary: 'A Auditoria mostra ao vivo, sem precisar atualizar, tudo o que cada pessoa faz no Max Hub. Os registros ficam só na memória e zeram a cada nova versão do sistema.',
+    steps: [
+      'Abra Auditoria no Painel master.',
+      'Cada linha mostra quem fez, o quê, quando e se deu certo: entradas no sistema, telas abertas, alterações, pedidos à Max e a área da empresa.',
+      'Filtre por pessoa ou por tipo, ou busque por uma palavra.',
+      'Toque em Pausar para ler com calma; o que chegar nesse tempo aparece quando você continuar.',
+    ],
+    ask: 'Max, como funciona a auditoria?',
   },
   {
     id: 'usuarios',
@@ -462,7 +478,7 @@ export const ORDER_RE = /^(abr\w+|abre|ir |vai |va |mostr\w+|filtr\w+|baix\w+|sa
 
 /** A frase pede explicação ("como funciona", "passo a passo", "como faço para"…)? */
 export const EXPLAIN_RE =
-  /\b(como (e que |eu |que eu |a gente |se |posso |devo |vou |faco pra |faco para )?(funciona\w*|func\w+|faco|faz|fazer|faria|uso|usa|usar|utiliz\w+|mexo|mexe|opero|opera|lanc\w+|registr\w+|cadastr\w+|crio|cria|criar|peco|pede|pedir|abro|abrir|troc\w+|dou|dar|liber\w+|reserv\w+|entreg\w+|import\w+|classific\w+|autoriz\w+|respond\w+|estorn\w+|valid\w+|encaminh\w+)|passo a passo|tutorial|me (ensina|ensine|explica|explique|mostra como)|explic\w+|o que (e|sao|significa)|para que serve|pra que serve|qual (a )?funcao|nao sei (como|usar|mexer)|onde (eu )?(fico|vejo|acho|encontro|fica)|treinamento|manual|guia)\b/;
+  /\b(como (e que |eu |que eu |a gente |se |posso |devo |vou |faco pra |faco para )?(funciona\w*|func\w+|faco|faz|fazer|faria|uso|usa|usar|utiliz\w+|mexo|mexe|opero|opera|lanc\w+|registr\w+|cadastr\w+|crio|cria|criar|peco|pede|pedir|abro|abrir|troc\w+|dou|dar|liber\w+|reserv\w+|entreg\w+|import\w+|classific\w+|autoriz\w+|respond\w+|estorn\w+|valid\w+|encaminh\w+)|passo a passo|tutorial|me (ensina|ensine|explica|explique|mostra como)|expli[cq]\w*|fal\w* (sobre|d[oae]s?)|o que (e|sao|significa|faz)|para que serve|pra que serve|qual (a )?funcao|nao sei (como|usar|mexer)|onde (eu )?(fico|vejo|acho|encontro|fica)|treinamento|manual|guia)\b/;
 
 const GENERIC_HERE = /\b(este setor|esse setor|aqui|essa tela|esta tela|essa ferramenta|esta ferramenta|meu setor|o setor|a ferramenta)\b/;
 const QUESTION_WORDS = new Set(['como', 'funciona', 'funcionam', 'passo', 'explique', 'explica', 'explicar', 'me', 'max', 'faco', 'fazer', 'faz', 'eu', 'por', 'favor', 'setor', 'sobre', 'que', 'e', 'o', 'a', 'do', 'da', 'de', 'para', 'pra', 'tela', 'aba', 'detalhe', 'detalhes', 'tutorial', 'ensina', 'ensine', 'voce', 'pode', 'poderia', 'quero', 'saber', 'gostaria', 'entender']);

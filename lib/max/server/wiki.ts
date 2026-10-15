@@ -6,8 +6,12 @@ import { getJson } from './net';
 
 const QUESTION = /^(quem (e|foi|eram|sao|era|descobriu|inventou|criou|fundou|escreveu|pintou|ganhou|venceu)|o que (e|sao|foi|significa|quer dizer)|que e|qual (e|foi|era)|quais (sao|foram)|onde (fica|e|esta|nasceu|ficava)|quando (foi|e|nasceu|morreu|comecou|terminou|aconteceu)|como (funciona|surgiu|e feito|se faz)|por ?que|defina|definicao de|significado de|me (fale|fala|conta|conte|explica|explique) (sobre|de|o que e|quem e|quem foi)|fale sobre|fala sobre|explique|explica|pesquis\w+|procur\w+ (sobre|por)|busc\w+ (sobre|por)|sabe (o que e|quem e|quem foi)|conhece|historia d[eoa]|capital d[eoa]|populacao d[eoa]|significado d[eoa])\b/;
 
+/** assuntos do próprio Max Hub: a Wikipédia nunca responde sobre eles */
+const PLATFORM = /\b(painel|master|max hub|setor(es)?|almoxarifado|estoque|solicitac\w+|pedidos? de (material|compra)|fornecedor\w*|usuarios?|permiss\w+|auditoria|metricas|inventario|colaborador\w*|operacional|minha conta|plataforma|nesta tela|nessa tela|nesta aba|nessa aba)\b/;
+
 export function looksLikeQuestion(text: string): boolean {
-  return QUESTION.test(normalize(text));
+  const n = normalize(text);
+  return QUESTION.test(n) && !PLATFORM.test(n);
 }
 
 /** Tira o "quem foi / o que é / me fale sobre" para sobrar o assunto. */
