@@ -300,7 +300,7 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 - Cartões de resumo (itens, unidades, valor), busca sem acento, filtros (**Estoque baixo**, **Sem saldo**, **Nos postos**) e ordenação.
 - Item com saldo igual ou menor que o **estoque mínimo** ganha um aviso, e o menu mostra quantos estão assim.
 - **Histórico:** toda movimentação fica registrada (quem fez, quando, saldo depois).
-- **Exportar** baixa um `.csv` que abre direto no Excel. **Importar planilha** cadastra só os itens novos (mesmo nome + tamanho = já existe e não é mexido).
+- **Exportar** baixa um `.csv` que abre direto no Excel. **Importar planilha** cadastra os itens novos e **atualiza os que já existem** (mesmo nome + tamanho): saldo, mínimo e custo ficam iguais aos da planilha. A pré-visualização mostra cada mudança (ex.: saldo ~~12~~ → **0**) antes de gravar. A mudança de saldo entra no histórico como **ajuste** ("Atualizado pela planilha"); nada do histórico é apagado, e itens que não estão na planilha ficam como estão. Na planilha do Almoxarifado vale a coluna **SALDO** (já com entradas e saídas), e saldos calculados por fórmula que dão 0 são lidos como 0.
 
 **Postos** (`/setor/almoxarifado#postos`)
 - Lista de postos com o que cada um tem. Toque em um posto para ver o estoque dele, **devolver** ao almoxarifado, dar **baixa** (consumido no posto), **enviar itens**, editar ou **remover**. Ao remover um posto, o que estava nele volta para o almoxarifado.

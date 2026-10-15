@@ -878,3 +878,15 @@ details.imp-cols ul {
 .is-readonly .readonly-only {
   display: flex;
 }
+
+/* importação: valor atual riscado → valor da planilha */
+.imp-table td.imp-diff {
+  white-space: nowrap;
+}
+.imp-table td.imp-diff s {
+  color: var(--faint);
+}
+.imp-table td.imp-diff b {
+  color: var(--lilac);
+  font-weight: 650;
+}

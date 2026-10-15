@@ -62,7 +62,7 @@ const ORDER_ACT: Record<string, string> = {
 type B = Record<string, unknown>;
 const RULES: { re: RegExp; m?: string; say: (b: B, mt: RegExpMatchArray, method: string) => string }[] = [
   { re: /^\/api\/almoxarifado\/stock\/move$/, say: (b) => MOVE[String(b.kind)] ?? 'Movimentou o estoque' },
-  { re: /^\/api\/almoxarifado\/stock\/import$/, say: () => 'Importou itens por planilha' },
+  { re: /^\/api\/almoxarifado\/stock\/import$/, say: () => 'Importou ou atualizou itens por planilha' },
   { re: /^\/api\/almoxarifado\/stock\/[\w-]+$/, say: (_b, _m, me) => (me === 'DELETE' ? 'Excluiu um item do estoque' : 'Editou um item do estoque') },
   { re: /^\/api\/almoxarifado\/stock$/, say: () => 'Cadastrou um item no estoque' },
   { re: /^\/api\/almoxarifado\/(inventario|inventory)/, say: () => 'Lançou um inventário' },

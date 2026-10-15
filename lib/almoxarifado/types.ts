@@ -221,7 +221,10 @@ export const MOVEMENT_LABEL: Record<MovementKind, string> = {
 /** Resultado da leitura de uma planilha (pré-visualização antes de importar). */
 export interface ImportPreviewRow {
   data: Record<string, string | number | null>;
-  status: 'new' | 'exists' | 'duplicate' | 'invalid';
+  /** "update": já existe e a planilha traz saldo, mínimo ou custo diferentes */
+  status: 'new' | 'exists' | 'update' | 'duplicate' | 'invalid';
+  /** valores atuais do item que já existe (para mostrar o "de → para") */
+  current?: Record<string, string | number | null>;
   /** por que a linha não entra (status "invalid") */
   error?: string;
   /** onde a linha está na planilha, ex.: "Folha1, linha 12" */

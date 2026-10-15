@@ -261,7 +261,13 @@ export async function loadSheets(buf: Buffer, filename: string): Promise<ParsedS
         for (let c = 1; c <= colCount; c++) {
           let s = '';
           try {
-            s = cellToString(row.getCell(c).value);
+            const cell = row.getCell(c);
+            let v: unknown = cell.value;
+            // fórmula que deu 0: o ExcelJS some com o resultado no .value (fica só em .result)
+            if (v && typeof v === 'object' && ('formula' in v || 'sharedFormula' in v) && (v as { result?: unknown }).result === undefined) {
+              v = (cell as unknown as { result?: unknown }).result ?? null;
+            }
+            s = cellToString(v);
           } catch {
             s = '';
           }

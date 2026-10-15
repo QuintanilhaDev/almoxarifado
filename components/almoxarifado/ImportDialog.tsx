@@ -44,7 +44,7 @@ const CONFIG: Record<
     title: 'Importar itens por planilha',
     singular: 'item',
     plural: 'itens',
-    lead: 'Itens que já existem (mesmo nome e tamanho) não são alterados: só os novos entram.',
+    lead: 'Os itens novos entram. Nos que já existem (mesmo nome e tamanho), o saldo, o mínimo e o custo ficam iguais aos da planilha, e a mudança de saldo fica registrada no histórico como ajuste.',
     cols: [
       { key: 'name', label: 'Item' },
       { key: 'size', label: 'Tam.' },
@@ -129,11 +129,12 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
 
   const fresh = preview?.rows.filter((r) => r.status === 'new') ?? [];
   const known = preview?.rows.filter((r) => r.status === 'exists') ?? [];
+  const changes = preview?.rows.filter((r) => r.status === 'update') ?? [];
   const exists = known.length;
   const dup = preview?.rows.filter((r) => r.status === 'duplicate').length ?? 0;
   const invalid = preview?.rows.filter((r) => r.status === 'invalid').length ?? 0;
   /** o que vai ser gravado */
-  const toSave = cfg.updates ? [...fresh, ...known] : fresh;
+  const toSave = cfg.updates ? [...fresh, ...known] : [...fresh, ...changes];
 
   const save = async () => {
     if (!toSave.length) return;
@@ -157,7 +158,7 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
           text: errs.length
             ? `${errs.length} ${errs.length === 1 ? 'linha não entrou' : 'linhas não entraram'}: ${errs.slice(0, 2).join('; ')}`
             : j.skipped
-              ? `${j.skipped} já existia${j.skipped > 1 ? 'm' : ''} e foi mantido como estava`
+              ? `${j.skipped} já estava${j.skipped > 1 ? 'm' : ''} igual${j.skipped > 1 ? 'is' : ''} à planilha`
               : undefined,
         },
         errs.length ? 10000 : undefined,
@@ -224,11 +225,18 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
             <span className="badge green">
               <CheckCircle2 size={13} /> {num(fresh.length)} {fresh.length === 1 ? 'novo' : 'novos'}
             </span>
+            {changes.length ? (
+              <span className="badge lilac">
+                {num(changes.length)} já cadastrado{changes.length > 1 ? 's' : ''}: {changes.length > 1 ? 'serão atualizados' : 'será atualizado'}
+              </span>
+            ) : null}
             {exists ? (
               cfg.updates ? (
                 <span className="badge lilac">{num(exists)} já cadastrado{exists > 1 ? 's' : ''}: {exists > 1 ? 'serão completados' : 'será completado'}</span>
               ) : (
-                <span className="badge gray">{num(exists)} já cadastrado{exists > 1 ? 's' : ''}</span>
+                <span className="badge gray">
+                  {num(exists)} já {exists > 1 ? 'estão iguais' : 'está igual'} à planilha
+                </span>
               )
             ) : null}
             {invalid ? <span className="badge amber">{num(invalid)} com problema</span> : null}
@@ -275,7 +283,7 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
               </thead>
               <tbody>
                 {preview.rows.slice(0, SHOW).map((r, i) => (
-                  <tr key={i} className={r.status === 'new' || (cfg.updates && r.status === 'exists') ? '' : 'skip'} title={r.error ? `${r.source}: ${r.error}` : r.source}>
+                  <tr key={i} className={r.status === 'new' || r.status === 'update' || (cfg.updates && r.status === 'exists') ? '' : 'skip'} title={r.error ? `${r.source}: ${r.error}` : r.source}>
                     <td>
                       {r.status === 'new' ? (
                         <span className="badge green">novo</span>
@@ -283,15 +291,26 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
                         <span className="badge amber" title={r.error} style={{ maxWidth: 230, overflow: "hidden", textOverflow: "ellipsis", display: "inline-block" }}>
                           {r.error}
                         </span>
+                      ) : r.status === 'update' ? (
+                        <span className="badge lilac">atualiza</span>
                       ) : r.status === 'exists' && cfg.updates ? (
                         <span className="badge lilac">completa</span>
                       ) : (
-                        <span className="badge gray">{r.status === 'exists' ? 'já existe' : 'repetido'}</span>
+                        <span className="badge gray">{r.status === 'exists' ? (kind === 'itens' ? 'igual' : 'já existe') : 'repetido'}</span>
                       )}
                     </td>
                     {cfg.cols.map((c) => {
                       const v = r.data[c.key] ?? null;
-                      return <td key={c.key}>{c.fmt ? c.fmt(v) : (v ?? '')}</td>;
+                      const show = (x: string | number | null) => (c.fmt ? c.fmt(x) : (x ?? ''));
+                      const before = r.status === 'update' && r.current && c.key in r.current ? r.current[c.key] : undefined;
+                      if (before !== undefined && v !== null && Number(before) !== Number(v)) {
+                        return (
+                          <td key={c.key} className="imp-diff">
+                            <s>{show(before)}</s> → <b>{show(v)}</b>
+                          </td>
+                        );
+                      }
+                      return <td key={c.key}>{show(v)}</td>;
                     })}
                   </tr>
                 ))}
@@ -323,10 +342,14 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
             <button className="btn btn-primary" onClick={save} disabled={busy !== '' || !toSave.length}>
               {busy === 'saving' ? <span className="spinner" /> : null}
               {!toSave.length
-                ? 'Nada novo para adicionar'
+                ? changes.length === 0 && exists
+                  ? 'Tudo já está igual à planilha'
+                  : 'Nada novo para adicionar'
                 : cfg.updates && exists
                   ? `Gravar ${num(toSave.length)} ${toSave.length === 1 ? cfg.singular : cfg.plural}`
-                  : `Adicionar ${num(fresh.length)} ${fresh.length === 1 ? cfg.singular : cfg.plural}`}
+                  : changes.length
+                    ? [fresh.length ? `Adicionar ${num(fresh.length)}` : '', `${fresh.length ? 'atualizar' : 'Atualizar'} ${num(changes.length)} ${changes.length === 1 ? cfg.singular : cfg.plural}`].filter(Boolean).join(' e ')
+                    : `Adicionar ${num(fresh.length)} ${fresh.length === 1 ? cfg.singular : cfg.plural}`}
             </button>
           </div>
         </>
