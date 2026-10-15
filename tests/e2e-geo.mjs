@@ -1,7 +1,7 @@
 /**
- * Cerca de localização (rodar com GEO_FENCE=on no servidor de teste).
+ * Cerca de localização (rodar com GEO_FENCE=on no servidor de teste). Só o @uesley tem cerca.
  * Dentro do terreno: funciona. Fora, sem GPS preciso ou sem permitir: tela bloqueada e rotas recusadas.
- * O master geral entra de qualquer lugar. O formulário público dos supervisores não é afetado.
+ * Os outros usuários e o master geral entram de qualquer lugar. O formulário público dos supervisores não é afetado.
  */
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -32,41 +32,53 @@ const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable
 try {
   console.log('\n[1] Dentro do terreno');
   let page = await newPage(browser, EMPRESA);
-  await login(page, 'neilton', '/setor/almoxarifado');
+  await login(page, 'uesley', '/setor/operacional');
   ok((await page.locator('.geo-block').count()) === 0, 'sem bloqueio');
-  ok((await api(page, '/api/almoxarifado/stock')).status === 200, 'o sistema responde');
+  ok((await api(page, '/api/pedidos?scope=operacao')).status === 200, 'o sistema responde');
 
   console.log('\n[2] Saiu do terreno (a posição muda com a tela aberta)');
   await page.context().setGeolocation(LONGE);
   await page.waitForSelector('.geo-block', { timeout: 30000 });
   const txt = await page.locator('.geo-card').textContent();
   ok(/Você está fora da empresa/.test(txt) && /km dela/.test(txt), 'tela bloqueada, com a distância: ' + txt.slice(0, 90));
-  const r = await api(page, '/api/almoxarifado/stock');
+  const r = await api(page, '/api/pedidos?scope=operacao');
   ok(r.status === 403 && r.body.geo === true, 'e o sistema recusa (403) mesmo chamando direto');
   await page.screenshot({ path: SHOTS + '/g1-fora.png' });
 
   console.log('\n[3] Voltou para o terreno');
   await page.context().setGeolocation(EMPRESA);
   await page.waitForSelector('.geo-block', { state: 'detached', timeout: 30000 });
-  ok((await api(page, '/api/almoxarifado/stock')).status === 200, 'libera sozinho ao voltar');
+  ok((await api(page, '/api/pedidos?scope=operacao')).status === 200, 'libera sozinho ao voltar');
   await page.context().close();
 
   console.log('\n[4] Sem permitir a localização');
   page = await newPage(browser, null, false);
-  await login(page, 'neilton', '/setor/almoxarifado');
+  await login(page, 'uesley', '/setor/operacional');
   await page.waitForSelector('.geo-block', { timeout: 30000 });
   ok(/Permita a localização/.test(await page.locator('.geo-card').textContent()), 'pede para permitir a localização');
-  ok((await api(page, '/api/almoxarifado/stock')).status === 403, 'sistema recusa sem localização');
+  ok((await api(page, '/api/pedidos?scope=operacao')).status === 403, 'sistema recusa sem localização');
   await page.context().close();
 
   console.log('\n[5] GPS impreciso (localização aproximada demais)');
   page = await newPage(browser, { ...EMPRESA, accuracy: 3000 });
-  await login(page, 'neilton', '/setor/almoxarifado');
+  await login(page, 'uesley', '/setor/operacional');
   await page.waitForSelector('.geo-block', { timeout: 30000 });
   ok(/Localização imprecisa/.test(await page.locator('.geo-card').textContent()), 'impreciso: bloqueia e explica');
   await page.context().close();
 
-  console.log('\n[6] Master geral entra de qualquer lugar');
+  console.log('\n[6] Outros usuários não têm cerca');
+  page = await newPage(browser, LONGE);
+  await login(page, 'neilton', '/setor/almoxarifado');
+  await page.waitForTimeout(1500);
+  ok((await page.locator('.geo-block').count()) === 0 && (await api(page, '/api/almoxarifado/stock')).status === 200, 'neilton longe da empresa: sem bloqueio');
+  await page.context().close();
+  page = await newPage(browser, null, false);
+  await login(page, 'carla', '/setor/rh');
+  await page.waitForTimeout(1500);
+  ok((await page.locator('.geo-block').count()) === 0, 'carla sem permitir localização: sem bloqueio');
+  await page.context().close();
+
+  console.log('\n[6b] Master geral entra de qualquer lugar');
   page = await newPage(browser, LONGE);
   await login(page, 'mateus', '/hub');
   ok((await page.locator('.geo-block').count()) === 0 && (await api(page, '/api/hub/users')).status === 200, 'master longe da empresa: sem bloqueio');

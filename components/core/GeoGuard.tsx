@@ -11,9 +11,9 @@ const INSIDE_AREA = /^\/(hub|setor|sem-setor|dashboard)(\/|$)/;
 const HEARTBEAT_MS = 60_000;
 
 /**
- * Vigia a localização o tempo todo nas áreas internas. Fora do terreno da empresa
- * (ou sem permitir a localização), a tela fica bloqueada até a pessoa voltar.
- * O master geral não tem cerca (o servidor responde "isento" sem pedir a localização).
+ * Vigia a localização o tempo todo nas áreas internas, para quem tem cerca (hoje só o @uesley).
+ * Fora do terreno da empresa (ou sem permitir a localização), a tela fica bloqueada até a pessoa voltar.
+ * Quem não tem cerca nem chega a ser perguntado: o servidor responde "isento" logo de cara.
  */
 export function GeoGuard() {
   const pathname = usePathname();

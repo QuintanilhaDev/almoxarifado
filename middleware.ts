@@ -5,8 +5,8 @@ import { GEO_COOKIE, geoConfig, geoFree, verifyGeo } from './lib/geoFence';
 /**
  * Primeira barreira:
  *  - páginas internas sem sessão válida voltam para o login;
- *  - rotas do sistema (/api) só respondem a quem está dentro do terreno da empresa
- *    (permissão de localização válida; o master geral recebe uma permissão sem cerca).
+ *  - rotas do sistema (/api) exigem a permissão de localização: quem tem cerca (hoje só o
+ *    @uesley) só a recebe dentro do terreno; os demais recebem uma permissão sem cerca.
  * Quem PODE ver cada setor é decidido nas próprias páginas e rotas, consultando o banco.
  */
 export async function middleware(req: NextRequest) {

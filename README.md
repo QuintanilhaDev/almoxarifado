@@ -74,9 +74,12 @@ Módulos do Almoxarifado: Solicitações, Estoque, Postos, Métricas, Formulári
 
 ### Cerca de localização (só dentro do terreno da empresa)
 
-O Max Hub acompanha a localização de quem está usando o sistema o tempo inteiro. Fora do terreno da empresa, a tela trava e o servidor recusa qualquer ação, mesmo que a chamada seja feita diretamente. Quando a pessoa volta, a tela libera sozinha. Também trava quando ela não permite a localização ou quando o aparelho não consegue dizer com precisão onde está.
+A cerca vale **só para o usuário @uesley**. Os outros usuários, os que já existem e os que forem criados, entram de qualquer lugar e nem são perguntados pela localização.
+
+O Max Hub acompanha a localização do @uesley o tempo inteiro. Fora do terreno da empresa, a tela trava e o servidor recusa qualquer ação, mesmo que a chamada seja feita diretamente. Quando a pessoa volta, a tela libera sozinha. Também trava quando ele não permite a localização ou quando o aparelho não consegue dizer com precisão onde está.
 
 - O **master geral** entra de qualquer lugar.
+- Para pôr ou tirar alguém da cerca, use a variável `GEO_USERS` (veja a tabela).
 - O **formulário público** de solicitação e a tela de login continuam abertos.
 - Para ajustar, cadastre estas variáveis na Vercel (opcionais) e faça um novo deploy:
 
@@ -85,6 +88,7 @@ O Max Hub acompanha a localização de quem está usando o sistema o tempo intei
 | `GEO_LAT` / `GEO_LNG` | `-12.986892099250628` / `-38.489956547863` | O centro do terreno |
 | `GEO_RADIUS_M` | `150` | O raio liberado, em metros |
 | `GEO_MAX_ACCURACY_M` | `200` | A partir desta imprecisão (em metros), a localização não é aceita |
+| `GEO_USERS` | `uesley` | Usuários com cerca, separados por vírgula (ex.: `uesley,joao`) |
 | `GEO_FENCE` | ligada | `off` desliga a cerca |
 
 Computadores sem Wi-Fi nem GPS costumam dar uma localização imprecisa. Nesse caso, ligue o Wi-Fi do computador.

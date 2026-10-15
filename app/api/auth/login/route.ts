@@ -3,6 +3,7 @@ import { audit } from '@/lib/audit';
 import bcrypt from 'bcryptjs';
 import { fail, readJson, serverError } from '@/lib/http';
 import { SESSION_COOKIE, signSession } from '@/lib/session';
+import { GEO_COOKIE, GEO_EXEMPT_TTL_S, geoFenced, signGeo } from '@/lib/geoFence';
 import { findUserForLogin, sessionCookieOptions } from '@/lib/auth';
 import { homePath } from '@/lib/permissions';
 import { db } from '@/lib/supabaseAdmin';
@@ -59,6 +60,9 @@ export async function POST(req: Request) {
     void _hash;
     const res = NextResponse.json({ user: safe, home: homePath(user) });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+    // quem não tem cerca de localização já sai liberado; quem tem espera a posição do aparelho
+    if (geoFenced(user)) res.cookies.set(GEO_COOKIE, '', { ...sessionCookieOptions(), maxAge: 0 });
+    else res.cookies.set(GEO_COOKIE, await signGeo(user.id, true), { ...sessionCookieOptions(), maxAge: GEO_EXEMPT_TTL_S });
     return res;
   } catch (e) {
     return serverError(e);

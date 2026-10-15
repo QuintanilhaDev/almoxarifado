@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/auth';
 import { fail, readJson } from '@/lib/http';
-import { GEO_COOKIE, GEO_EXEMPT_TTL_S, GEO_TTL_S, geoConfig, judge, signGeo, type GeoStatus } from '@/lib/geoFence';
+import { GEO_COOKIE, GEO_EXEMPT_TTL_S, GEO_TTL_S, geoConfig, geoFenced, judge, signGeo, type GeoStatus } from '@/lib/geoFence';
 import { audit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return fail('Faça login.', 401);
   const cfg = geoConfig();
-  if (!cfg.on || user.is_master) {
+  if (!geoFenced(user)) {
     const res = NextResponse.json({ status: cfg.on ? 'isento' : 'desligado' });
     res.cookies.set(GEO_COOKIE, await signGeo(user.id, true), cookieOpts(GEO_EXEMPT_TTL_S));
     return res;

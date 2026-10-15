@@ -2,22 +2,26 @@ import { SignJWT, jwtVerify } from 'jose';
 import { secretKey } from './session';
 
 /**
- * Cerca de localização: a plataforma só funciona dentro do terreno da empresa.
+ * Cerca de localização: para os usuários da lista (hoje só o @uesley), a plataforma só
+ * funciona dentro do terreno da empresa. Os demais entram de qualquer lugar.
  *
  * O navegador manda a posição; o servidor confere a distância até o ponto da empresa e,
  * se a pessoa está dentro, dá uma permissão curta (cookie assinado de 3 minutos), renovada
  * enquanto ela continua lá dentro. Sem essa permissão, as rotas do sistema recusam.
- * O master geral não tem cerca. O formulário público dos supervisores não é afetado.
+ * Quem não está na lista (e o master geral) recebe uma permissão sem cerca.
+ * O formulário público dos supervisores não é afetado.
  *
  * Ajustes (variáveis de ambiente na Vercel):
  *   GEO_FENCE=off           desliga a cerca
+ *   GEO_USERS               usuários com cerca, separados por vírgula (padrão: uesley)
  *   GEO_LAT / GEO_LNG       ponto da empresa
  *   GEO_RADIUS_M            raio do terreno, em metros (padrão 150)
  *   GEO_MAX_ACCURACY_M      precisão mínima aceita do GPS, em metros (padrão 200)
  */
 export const GEO_COOKIE = 'maxhub_geo';
 export const GEO_TTL_S = 180;
-export const GEO_EXEMPT_TTL_S = 12 * 3600;
+/** quem não tem cerca: a permissão dura o mesmo que o login (e é conferida de novo a cada tela aberta) */
+export const GEO_EXEMPT_TTL_S = 7 * 24 * 3600;
 
 export function geoConfig() {
   const num = (v: string | undefined, d: number) => (v && Number.isFinite(Number(v)) ? Number(v) : d);
@@ -27,7 +31,18 @@ export function geoConfig() {
     lng: num(process.env.GEO_LNG, -38.489956547863),
     radius: num(process.env.GEO_RADIUS_M, 150),
     maxAccuracy: num(process.env.GEO_MAX_ACCURACY_M, 200),
+    users: (process.env.GEO_USERS ?? 'uesley')
+      .split(',')
+      .map((u) => u.trim().toLowerCase().replace(/^@/, ''))
+      .filter(Boolean),
   };
+}
+
+/** esta pessoa só pode usar o sistema dentro do terreno? */
+export function geoFenced(user: { username?: string | null; is_master?: boolean | null }): boolean {
+  const c = geoConfig();
+  if (!c.on || user.is_master) return false;
+  return c.users.includes(String(user.username ?? '').trim().toLowerCase().replace(/^@/, ''));
 }
 
 /** distância em metros entre dois pontos (fórmula de haversine) */
