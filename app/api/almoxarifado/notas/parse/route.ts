@@ -9,6 +9,9 @@ import { missingP3, p3Fail } from '@/lib/pedidos/server';
 import { NfeError, parseNfe, validAccessKey } from '@/lib/notas/nfe';
 import { learnedFor, suggestItem } from '@/lib/notas/server';
 import { bestMatches } from '@/lib/max/text';
+import { hasPC } from '@/lib/notas/server';
+import { toPO } from '@/lib/compras/pcServer';
+import { PO_OPEN, poLeft } from '@/lib/compras/pc';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -49,11 +52,12 @@ export async function POST(req: Request) {
     const { supplierId, map } = await learnedFor(nfe.supplier.cnpj);
     const lines = nfe.items.map((it) => {
       const s = suggestItem(it, items, map);
-      return { ...it, item_id: s.item_id, via: s.via, options: s.options, received: 0 };
+      return { ...it, item_id: s.item_id, via: s.via, options: s.options, received: 0, factor: s.factor ?? 1 };
     });
     // solicitação de compra que esta nota atende (mesmos itens, ainda não entregue)
     const { data: prs } = await db().from('purchase_requests').select('id, number, status, items, supplier').in('status', ['em_cotacao', 'comprada', 'nova']).order('created_at', { ascending: false }).limit(100);
-    const linked = new Set(lines.map((l) => l.item_id).filter(Boolean));
+    // para achar a compra/pedido, vale também a sugestão forte pelo nome (ligar, só com confirmação)
+    const linked = new Set(lines.map((l) => l.item_id ?? (l.options[0] && l.options[0].score >= 0.9 ? l.options[0].id : null)).filter(Boolean));
     const purchases = (prs ?? [])
       .map((p) => {
         const pi = (p.items as { item_id: string | null; name: string }[]) ?? [];
@@ -63,7 +67,22 @@ export async function POST(req: Request) {
       .filter((p) => p.match > 0)
       .sort((a, b) => b.match - a.match || (b.status === 'comprada' ? 1 : 0) - (a.status === 'comprada' ? 1 : 0))
       .slice(0, 5);
-    return NextResponse.json({ nfe: { ...nfe, items: lines }, supplier_id: supplierId, duplicate: dup, purchases, xml: up.buf.toString('utf8').slice(0, 2_000_000) });
+    // pedidos de compra em aberto deste fornecedor (o mais parecido primeiro)
+    let orders: { id: string; number: number; status: string; supplier: string; match: number; left: number; due: string | null }[] = [];
+    if (await hasPC()) {
+      const { data: os } = await db().from('purchase_orders').select('*').in('status', PO_OPEN).order('created_at', { ascending: false }).limit(200);
+      orders = (os ?? [])
+        .map((r) => toPO(r as Record<string, unknown>))
+        .filter((o) => (o.cnpj && nfe.supplier.cnpj ? o.cnpj === nfe.supplier.cnpj : o.supplier_id === supplierId))
+        .map((o) => {
+          const open = o.items.filter((i) => poLeft(i) > 0);
+          const hit = open.filter((i) => i.item_id && linked.has(i.item_id)).length;
+          return { id: o.id, number: o.number, status: o.status, supplier: o.supplier_name, match: open.length ? hit / open.length : 0, left: open.reduce((t, i) => t + poLeft(i), 0), due: o.promised_date ?? o.expected_date };
+        })
+        .sort((a, b) => b.match - a.match || String(a.due).localeCompare(String(b.due)))
+        .slice(0, 6);
+    }
+    return NextResponse.json({ nfe: { ...nfe, items: lines }, supplier_id: supplierId, duplicate: dup, purchases, orders, xml: up.buf.toString('utf8').slice(0, 2_000_000) });
   } catch (e) {
     if (missingP3(e)) return p3Fail();
     return serverError(e);

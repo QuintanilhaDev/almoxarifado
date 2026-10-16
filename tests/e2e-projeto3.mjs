@@ -179,7 +179,10 @@ try {
   await neilton.waitForSelector('.modal:has-text("Nota 4321")', { timeout: 10000 });
   const head = await neilton.locator('.n-review-head').textContent();
   ok(/FARDAS BAHIA/.test(head) && /12345678000199/.test(head), 'fornecedor e CNPJ do XML');
-  ok(await neilton.locator('.n-line:has-text("BOTA") b:has-text("Bota de segurança 42")').count() === 1, 'bota da nota ligada sozinha ao item do estoque');
+  // pela descrição o sistema só sugere: confirma com um clique (a 1ª ligação de cada código é validada por alguém)
+  await neilton.locator('.n-line', { hasText: 'BOTA' }).locator('.link-btn:has-text("Bota de segurança 42")').first().click();
+  await neilton.locator('.n-line', { hasText: 'CAMISA SOCIAL' }).locator('.link-btn:has-text("Camisa social manga curta M")').first().click();
+  ok(await neilton.locator('.n-line:has-text("BOTA") b:has-text("Bota de segurança 42")').count() === 1, 'bota da nota ligada ao item sugerido com um clique');
   ok((await neilton.locator('#n-pr').inputValue()) !== '', 'compra que a nota atende já escolhida');
   ok(await neilton.locator('.n-line:has-text("CAMISA SOCIAL") b:has-text("Camisa social manga curta M")').count() === 1, 'camisa da nota ligada ao tamanho certo (M)');
   // a lanterna não existe no estoque: fica para depois (recebido 0)

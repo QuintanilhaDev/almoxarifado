@@ -26,6 +26,7 @@ import { usePedidos } from '../pedidos/usePedidos';
 import { maxEmit } from '@/lib/max/bus';
 import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/types';
 import type { PickItem } from '../pedidos/ui';
+import type { PurchaseOrder } from '@/lib/compras/pc';
 import dynamic from 'next/dynamic';
 import { PanelSkeleton, usePreload } from '../core/lazy';
 
@@ -34,14 +35,14 @@ const loadForm = () => import('./FormEditor');
 const loadEmails = () => import('./EmailsManager');
 const loadPostos = () => import('./Postos');
 const loadMetricas = () => import('./Metricas');
-const loadPurchases = () => import('../compras/PurchaseBoard');
+const loadPurchases = () => import('./ComprasAlmox');
 const loadOrders = () => import('../pedidos/OrdersPanel');
 const loadNotas = () => import('../notas/NotasPanel');
 const FormEditor = dynamic(() => loadForm().then((m) => m.FormEditor), { loading: PanelSkeleton });
 const EmailsManager = dynamic(() => loadEmails().then((m) => m.EmailsManager), { loading: PanelSkeleton });
 const Postos = dynamic(() => loadPostos().then((m) => m.Postos), { loading: PanelSkeleton });
 const Metricas = dynamic(() => loadMetricas().then((m) => m.Metricas), { loading: PanelSkeleton });
-const PurchaseBoard = dynamic(() => loadPurchases().then((m) => m.PurchaseBoard), { loading: PanelSkeleton });
+const ComprasAlmox = dynamic(() => loadPurchases().then((m) => m.ComprasAlmox), { loading: PanelSkeleton });
 const OrdersPanel = dynamic(() => loadOrders().then((m) => m.OrdersPanel), { loading: PanelSkeleton });
 const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
 const PRELOAD = [loadOrders, loadMetricas, loadNotas, loadPostos, loadPurchases, loadForm, loadEmails];
@@ -88,6 +89,9 @@ function Shell() {
   const [adminsVersion, setAdminsVersion] = useState(0);
   const knownIds = useRef<Set<string> | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState<string | null>(null);
+  const [poOpen, setPoOpen] = useState<string | null>(null);
+  const [receivePO, setReceivePO] = useState<PurchaseOrder | null>(null);
+  const [noteFocus, setNoteFocus] = useState<string | null>(null);
   const [purchasePrefill, setPurchasePrefill] = useState<string | null>(null);
   const userRef = useRef(user);
   userRef.current = user;
@@ -437,24 +441,55 @@ function Shell() {
               />
             )}
             {current === 'compras' && (
-              <PurchaseBoard
-                mode="almox"
+              <ComprasAlmox
                 requests={purchases.requests}
                 failed={purchases.failed}
                 canEdit={perms.edit('compras')}
+                canNotes={perms.edit('notas')}
                 reload={purchases.reload}
                 items={items}
                 prefill={purchasePrefill}
                 onPrefillUsed={() => setPurchasePrefill(null)}
                 openId={purchaseOpen}
                 setOpenId={setPurchaseOpen}
+                toRelease={(pedidos.data?.orders ?? []).filter((o) => o.stage === 'encaminhado').length}
+                onReceive={(o) => {
+                  setReceivePO(o);
+                  setTab('notas');
+                }}
+                onRelease={() => setTab('pedidos')}
+                onNote={(id) => {
+                  setNoteFocus(id);
+                  setTab('notas');
+                }}
+                poOpen={poOpen}
+                setPoOpen={setPoOpen}
+                onBuy={(id) => setPurchasePrefill(id)}
               />
             )}
             {current === 'pedidos' && (
               <OrdersPanel scope="almox" user={user} data={pedidos.data} failed={pedidos.failed} setup={pedidos.setup} reload={pedidos.reload} canEdit={perms.edit('pedidos')} openId={orderOpen} setOpenId={setOrderOpen} stockItems={pickItems} />
             )}
             {current === 'notas' && (
-              <NotasPanel mode="almox" canEdit={perms.edit('notas')} items={pickItems} onOrders={(id) => { setTab('pedidos'); if (id) setOrderOpen(id); }} />
+              <NotasPanel
+                mode="almox"
+                canEdit={perms.edit('notas')}
+                items={pickItems}
+                onOrders={(id) => {
+                  setTab('pedidos');
+                  if (id) setOrderOpen(id);
+                }}
+                canTreat={Boolean(user.is_master) || hasLevel(user, 'compras', 'solicitacoes', 'edit') || hasLevel(user, 'compras', 'aprovacao', 'edit')}
+                canAuthorize={Boolean(user.is_master) || hasLevel(user, 'compras', 'aprovacao', 'edit')}
+                receive={receivePO}
+                onReceiveUsed={() => setReceivePO(null)}
+                onOrder={(id) => {
+                  setPoOpen(id);
+                  setTab('compras');
+                }}
+                focus={noteFocus}
+                onFocusUsed={() => setNoteFocus(null)}
+              />
             )}
             {current === 'postos' && <Postos postos={postos} items={items} reload={reloadStock} version={stockVersion} failed={stockFailed && postos === null} />}
             {current === 'metricas' && <Metricas version={stockVersion + detailVersion} />}

@@ -29,6 +29,7 @@ const sqlFiles = [
   ...(env('NOCOMPRAS') ? [] : ['compras.sql']),
   ...(env('NOP3') || !fs.existsSync(path.join(ROOT, 'pedidos_e_notas.sql')) ? [] : ['pedidos_e_notas.sql']),
   ...(env('NOP3') || env('NOFORN') ? [] : ['fornecedores.sql']),
+  ...(env('NOP3') || env('NOFORN') || env('NOCPED') ? [] : ['compras_pedidos.sql']),
 ];
 
 /* ------------------------------------------------------------------ */
@@ -275,9 +276,42 @@ const serial = (fn) => {
   return p;
 };
 
+/* ---------- Storage (arquivos em memória, só para os testes) ---------- */
+const files = new Map(); // "bucket/caminho" → { body, type }
+async function storage(req, res, url) {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const buf = Buffer.concat(chunks);
+  const p = decodeURIComponent(url.pathname.replace(/^\/storage\/v1\//, ''));
+  if (p.startsWith('bucket')) {
+    if (req.method === 'GET') return send(res, 200, { id: p.split('/')[1] || 'anexos', name: p.split('/')[1] || 'anexos', public: false });
+    return send(res, 200, { name: 'anexos' });
+  }
+  const m = p.match(/^object\/(?:authenticated\/|public\/)?(.+)$/);
+  if (!m) return send(res, 404, { error: 'not found' });
+  const key = m[1];
+  if (req.method === 'POST' || req.method === 'PUT') {
+    if (files.has(key) && req.method === 'POST' && req.headers['x-upsert'] !== 'true') return send(res, 409, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' });
+    files.set(key, { body: buf, type: req.headers['content-type'] || 'application/octet-stream' });
+    return send(res, 200, { Key: key, Id: key });
+  }
+  if (req.method === 'DELETE') {
+    let prefixes = [];
+    try { prefixes = JSON.parse(buf.toString() || '{}').prefixes || []; } catch {}
+    const bucket = key.split('/')[0];
+    for (const x of prefixes) files.delete(`${bucket}/${x}`);
+    return send(res, 200, prefixes.map((name) => ({ name })));
+  }
+  const f = files.get(key);
+  if (!f) return send(res, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' });
+  res.writeHead(200, { 'Content-Type': f.type, 'Content-Length': f.body.length });
+  return res.end(f.body);
+}
+
 async function handle(req, res) {
   if (req.method === 'OPTIONS') return send(res, 204);
   const url = new URL(req.url, 'http://x');
+  if (url.pathname.startsWith('/storage/v1/')) return storage(req, res, url);
   let raw = '';
   for await (const c of req) raw += c;
   const body = raw ? JSON.parse(raw) : null;

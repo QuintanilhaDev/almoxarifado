@@ -24,7 +24,7 @@ export const SECTOR_TABS: Record<string, { id: string; label: string; aliases: s
     { id: 'metricas', label: 'Métricas', aliases: ['metricas', 'graficos'] },
     { id: 'formulario', label: 'Formulário', aliases: ['formulario', 'perguntas'] },
     { id: 'emails', label: 'E-mails autorizados', aliases: ['emails', 'e-mails', 'emails autorizados', 'supervisores'] },
-    { id: 'compras', label: 'Compras', aliases: ['pedidos de compra', 'solicitacoes de compra', 'aba compras'] },
+    { id: 'compras', label: 'Compras', aliases: ['pedidos de compra', 'solicitacoes de compra', 'aba compras', 'painel do recebimento', 'a receber', 'o que esta chegando'] },
     { id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes'] },
   ],
   rh: [
@@ -42,8 +42,11 @@ export const SECTOR_TABS: Record<string, { id: string; label: string; aliases: s
     { id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes'] },
   ],
   compras: [
-    { id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'solicitacoes de compra', 'pedidos de compra'] },
-    { id: 'fornecedores', label: 'Fornecedores', aliases: ['fornecedores', 'cadastro de fornecedores'] },
+    { id: 'painel', label: 'Painel', aliases: ['painel de compras', 'painel', 'pendencias de compras'] },
+    { id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'solicitacoes de compra', 'requisicoes de compra'] },
+    { id: 'cotacoes', label: 'Cotações', aliases: ['cotacoes', 'cotacao', 'mapa comparativo', 'propostas', 'orcamentos'] },
+    { id: 'pedidos-compra', label: 'Pedidos de compra', aliases: ['pedidos de compra', 'ordens de compra', 'aprovacoes de compra'] },
+    { id: 'fornecedores', label: 'Fornecedores', aliases: ['fornecedores', 'cadastro de fornecedores', 'homologacao'] },
     { id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes'] },
   ],
   hub: [

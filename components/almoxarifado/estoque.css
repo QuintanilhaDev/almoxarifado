@@ -890,3 +890,27 @@ details.imp-cols ul {
   color: var(--lilac);
   font-weight: 650;
 }
+
+/* saldos que não se confundem: físico, reservado, disponível, pendente, em compra, em conferência */
+.pc-saldos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--onix-3);
+  border: 1px solid var(--line);
+}
+.pc-saldos small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.pc-saldos b {
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+.pc-saldos .full {
+  grid-column: 1 / -1;
+  margin: 0;
+}

@@ -38,6 +38,7 @@ import '../almoxarifado/estoque.css';
 import './compras.css';
 import '../pedidos/pedidos.css';
 import { ReplenishSheet, useReplenishCount } from './Replenish';
+import type { DirectDraft } from './PedidosCompra';
 
 export type BoardMode = 'almox' | 'compras';
 type Filter = 'abertas' | 'novas' | 'andamento' | 'concluidas' | 'todas';
@@ -75,7 +76,16 @@ export function PurchaseBoard({
   onPrefillUsed,
   openId,
   setOpenId,
+  onQuote,
+  onDirect,
+  newSignal,
 }: {
+  /** muda de valor = abrir "Nova solicitação de compra" (botão de fora do quadro) */
+  newSignal?: number;
+  /** Compras: abrir cotação desta solicitação */
+  onQuote?: (id: string) => void;
+  /** Compras: pedido direto (itens de contrato) */
+  onDirect?: (d: DirectDraft) => void;
   mode: BoardMode;
   requests: PurchaseRequest[] | null;
   failed: string;
@@ -94,6 +104,9 @@ export function PurchaseBoard({
   const [creating, setCreating] = useState<{ itemId?: string } | null>(null);
   const [replenish, setReplenish] = useState(false);
   const repCount = useReplenishCount(mode === 'almox' && canEdit, requests);
+  useEffect(() => {
+    if (newSignal && canEdit && mode === 'almox') setCreating({});
+  }, [newSignal, canEdit, mode]);
 
   useEffect(() => {
     if (prefill && canEdit && mode === 'almox' && items?.length) {
@@ -248,7 +261,7 @@ export function PurchaseBoard({
       </div>
 
       <AnimatePresence>
-        {open ? <PurchaseDrawer key={open.id} mode={mode} req={open} canEdit={canEdit} onClose={() => setOpenId(null)} reload={reload} modalOpen={Boolean(creating)} /> : null}
+        {open ? <PurchaseDrawer key={open.id} mode={mode} req={open} canEdit={canEdit} onClose={() => setOpenId(null)} reload={reload} modalOpen={Boolean(creating)} onQuote={onQuote} onDirect={onDirect} /> : null}
       </AnimatePresence>
       <AnimatePresence>
         {replenish ? (
@@ -292,7 +305,11 @@ function PurchaseDrawer({
   onClose,
   reload,
   modalOpen,
+  onQuote,
+  onDirect,
 }: {
+  onQuote?: (id: string) => void;
+  onDirect?: (d: DirectDraft) => void;
   mode: BoardMode;
   req: PurchaseRequest;
   canEdit: boolean;
@@ -340,6 +357,24 @@ function PurchaseDrawer({
   };
 
   const closed = req.status === 'cancelada';
+  // fornecedor de contrato que cobre todos os itens: dá para comprar direto, sem cotação
+  const [contract, setContract] = useState<{ id: string; name: string; days: number | null } | null>(null);
+  useEffect(() => {
+    if (mode !== 'compras' || !onDirect || !['nova', 'em_cotacao'].includes(req.status)) return;
+    const ids = req.items.map((i) => i.item_id).filter(Boolean) as string[];
+    if (ids.length !== req.items.length || !ids.length) return;
+    let alive = true;
+    api<{ hints: Record<string, { supplier_id: string; name: string; in_contract: boolean; lead_days: number | null }[]> }>(`/api/compras/sugestoes?items=${ids.join(',')}`)
+      .then((j) => {
+        const first = j.hints[ids[0]]?.filter((h) => h.in_contract) ?? [];
+        const all = first.find((h) => ids.every((id) => j.hints[id]?.some((x) => x.supplier_id === h.supplier_id && x.in_contract)));
+        if (alive && all) setContract({ id: all.supplier_id, name: all.name, days: all.lead_days });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [mode, onDirect, req.status, req.items]);
   const total = req.items.reduce((t, i) => t + i.quantity, 0);
   return (
     <motion.div className="drawer-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -423,6 +458,30 @@ function PurchaseDrawer({
             </div>
           </div>
 
+          {mode === 'compras' && canEdit && ['nova', 'em_cotacao'].includes(req.status) && (onQuote || contract) ? (
+            <div className="drawer-actions pc-actions">
+              {onQuote && req.status === 'nova' ? (
+                <button className="btn btn-primary btn-sm" onClick={() => onQuote(req.id)} data-max="cotar-solicitacao">
+                  Cotar esta solicitação
+                </button>
+              ) : null}
+              {contract && onDirect ? (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() =>
+                    onDirect({
+                      supplier: { id: contract.id, name: contract.name },
+                      items: req.items.map((i) => ({ item_id: i.item_id, name: i.name, size: i.size, unit: i.unit, qty: i.quantity })),
+                      reason: `Itens do contrato ${contract.name}`,
+                      request_ids: [req.id],
+                    })
+                  }
+                >
+                  Comprar direto do contrato ({contract.name}{contract.days !== null ? `, ${contract.days} dias úteis` : ''})
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {mode === 'compras' && canEdit && !closed ? (
             <div>
               <h3 className="sec-title">Andamento</h3>

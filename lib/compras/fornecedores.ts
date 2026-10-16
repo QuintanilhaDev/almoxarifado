@@ -18,6 +18,16 @@ export interface Supplier {
   created_by: string | null;
   created_at: string;
   updated_at: string | null;
+  /* homologação e condições (existem depois do supabase/compras_pedidos.sql) */
+  homologation?: 'pendente' | 'homologado' | 'bloqueado';
+  homologation_note?: string | null;
+  homologated_by?: string | null;
+  homologated_at?: string | null;
+  exclusive?: boolean;
+  lead_days?: number | null;
+  lead_business?: boolean;
+  payment_terms?: string | null;
+  brands?: string | null;
   /** resumo das notas fiscais deste fornecedor (calculado na leitura) */
   notes_count?: number;
   last_note?: string | null;
@@ -25,6 +35,14 @@ export interface Supplier {
 }
 
 export const SUPPLIER_COLS = 'id, name, trade_name, cnpj, phone, email, contact, category, city, uf, address, notes, active, created_by, created_at, updated_at';
+/** com homologação, prazo e condições padrão */
+export const SUPPLIER_COLS_PC = SUPPLIER_COLS + ', homologation, homologation_note, homologated_by, homologated_at, exclusive, lead_days, lead_business, payment_terms, brands';
+
+export const HOMOLOGATION: Record<NonNullable<Supplier['homologation']>, { label: string; tone: string }> = {
+  pendente: { label: 'Aguardando homologação', tone: 'amber' },
+  homologado: { label: 'Homologado', tone: 'green' },
+  bloqueado: { label: 'Bloqueado', tone: 'red' },
+};
 
 /**
  * Quem vê e quem mexe:

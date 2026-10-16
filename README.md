@@ -338,6 +338,100 @@ O Almoxarifado pede, o setor de Compras atende — tudo em tempo real.
 
 ---
 
+## Compras completo: cotação, pedido de compra e recebimento pelo pedido
+
+Feito a partir das especificações da gerência ("Módulo de Compras" e "Estoque/Recebimento/NF/Pagamentos").
+
+**Ativar:** no SQL Editor do Supabase, rode `supabase/compras_pedidos.sql` (depois de `compras.sql`, `pedidos_e_notas.sql` e `fornecedores.sql`). Ele só **acrescenta** tabelas e colunas e pode ser rodado de novo. Os fornecedores que já existiam ficam homologados, e as equivalências antigas ficam validadas. Também ficam validadas as parcelas das notas antigas que já fechavam com o total. Antes do SQL, o site continua funcionando como antes, e as telas novas avisam que falta ativar.
+
+### O caminho de uma compra
+
+1. **Solicitação:** o Almoxarifado pede, como antes.
+2. **Cotação (Compras):** no **Painel**, o botão **Cotar** junta as solicitações; itens iguais viram uma linha só e cada parte guarda a origem.
+   - Os fornecedores que já vendem cada item entram sozinhos (cadastro de itens do fornecedor, contrato, notas e pedidos anteriores, ramo).
+   - **Pedir orçamento** abre o e-mail pronto; também há o PDF da solicitação de orçamento.
+   - Em cada proposta ficam o preço por item e o primeiro preço, quando houve negociação. Também ficam frete, desconto, pagamento, prazo em dias úteis (pronta entrega ou produção), marca/modelo, aderência, validade e anexos.
+3. **Mapa comparativo:** compara o **custo efetivo** de cada item (preço + a parte do frete e do desconto), o prazo e o pagamento.
+   - A opção de menor custo já vem marcada. Escolher outra exige **justificativa**.
+   - Fornecedor **não homologado** pode cotar, mas não é contratado. Proposta vencida não é usada.
+   - As propostas perdedoras ficam guardadas.
+4. **Pedido de compra (PC 0001…):** nasce em rascunho, um por fornecedor.
+   - **Aprovação:** abaixo da **alçada** (configurável em **Painel › Regras e alçada**) aprova sozinho. Acima dela, aprova o master geral ou quem tem a permissão nova **"Aprovação de compras"**. Quem emitiu não aprova o próprio pedido.
+   - **Alteração depois de aprovado:** exige motivo e fica no histórico. Se mudar item, quantidade, preço, fornecedor, custos ou pagamento, volta para aprovação; se a alteração for recusada, o pedido volta exatamente ao aprovado.
+   - **Envio:** PDF do pedido e e-mail pronto; a previsão de chegada é calculada em dias úteis (sem feriados nacionais e o 2 de Julho).
+   - **Confirmação:** a data que o fornecedor confirmou passa a valer. Passou da data sem chegar, o pedido fica **atrasado**.
+   - **Compra direta** (sem cotação, com motivo): para itens de contrato ou de fornecedor exclusivo. A solicitação mostra **Comprar direto do contrato** quando todos os itens estão no contrato de um fornecedor; o prazo vem do item, por exemplo Marvin com 5 dias úteis no contrato e 30 no que é produzido.
+5. **Recebimento (Almoxarifado):** **Entradas › Receber pelo pedido** (ou **Compras › Painel do recebimento › Receber**).
+   - As linhas vêm do pedido com o que falta receber e o preço combinado.
+   - **DANFE:** foto ou PDF. A **chave de acesso** é lida do código de barras (foto) ou do texto (PDF) e preenche número, série e CNPJ; o PDF traz também o valor total e a data. Tudo é conferido antes de gravar, e a chave que não bate com o número ou com o CNPJ é recusada.
+   - **Conferência física** por linha: chegou, aceito, recusado (com motivo). **Só o aceito entra no estoque.** Falta de mercadoria deixa a nota em recebimento parcial, e o resto continua a receber.
+   - **Divergências** com o pedido (preço, quantidade acima do pedido, item fora do pedido, outro CNPJ, frete ou pagamento diferente) travam a entrada até Compras/gestão tratar, com justificativa. Para **autorizar** uma exceção é preciso ter a aprovação. O pedido **nunca** é alterado para bater com a nota.
+   - **Parcelas:** vêm da condição de pagamento do pedido; a pessoa confere e valida. A soma precisa ser igual ao total da nota, ao centavo (se não for, a tela mostra a diferença). Toda alteração fica no histórico. As parcelas do XML que já fecham com o total valem sozinhas.
+   - **Sem divergência,** "Registrar e dar entrada" é um clique só. Na entrada, o "a receber" do pedido baixa sozinho e a solicitação vira **Entregue** quando tudo chega.
+   - **Estorno:** desfaz a entrada e devolve ao "a receber" do pedido.
+
+### Saldos que não se confundem
+
+No **Estoque**, cada item mostra separados:
+
+- físico;
+- reservado;
+- disponível;
+- requisições pendentes;
+- **em compra (a receber)**, com a previsão e o atraso;
+- **em conferência**.
+
+Pedido de compra nunca soma ao físico.
+
+### Equivalência de códigos
+
+Em **Entradas › Equivalências** fica a ligação entre o código do fornecedor e o item do estoque. A chave é o CNPJ + código + unidade, e cada ligação guarda o fator de conversão (ex.: 1 caixa = 10 unidades). Um item interno pode ter vários fornecedores e códigos, e o estoque continua um só.
+
+- A primeira ligação de cada código é confirmada por alguém; daí em diante vem sozinha.
+- Pela descrição o sistema só **sugere**.
+
+### Painéis e relatórios
+
+- **Compras › Painel (Pedro):**
+  - o que precisa de alguém (solicitações novas, pedidos para aprovar, divergências de nota, propostas vencidas, atrasos);
+  - o que chega em 14 dias e os itens críticos (com **Comprar**);
+  - desempenho dos fornecedores (pontualidade, atraso médio em dias úteis, divergências, total comprado) e a economia.
+- **Compras › Fornecedores:** homologação, condições padrão, itens fornecidos com prazo, desempenho, histórico de preços e códigos.
+- **Almoxarifado › Compras › Painel do recebimento (Juliana):** requisições a liberar, abaixo do mínimo, pedidos a receber, atrasos, recebimentos parciais e divergências de nota.
+- **Entradas › Vencimentos:**
+  - filtra por período e fornecedor e mostra o total por mês e por fornecedor;
+  - exporta **planilha** e **PDF**;
+  - é previsão de desembolso, sem afirmar pagamento.
+- **Painel master › Gestão:**
+  - valor comprado por mês, fornecedor e categoria;
+  - itens críticos;
+  - economia por critério definido:
+    - **negociada** = (primeiro preço − preço final) × quantidade;
+    - **sobre a média** = (média das outras propostas válidas − preço escolhido) × quantidade.
+
+### Permissões
+
+- **Compras › "Solicitações, cotações e pedidos":** cota, decide e emite pedidos.
+- **Compras › "Aprovação de compras"** (nova): aprova pedidos e autoriza exceções das notas. O master geral também.
+- **Almoxarifado › Entradas (notas):** recebe, confere, valida parcelas e mantém as equivalências.
+- **Almoxarifado › Compras:** consulta pedidos de compra e condições.
+- **Financeiro:** consulta notas e vencimentos.
+
+### Ainda a confirmar com a gerência
+
+Ficou configurável, sem nada presumido:
+
+- **Alçada:** hoje todo pedido passa por aprovação. Ajuste o valor em Painel › Regras e alçada e dê a permissão "Aprovação de compras" a quem aprova.
+- **Itens e prazos do contrato Marvin:** cadastre na ficha do fornecedor, item por item, marcando se o prazo já foi confirmado em contrato.
+- **Estoque mínimo e de segurança:** continuam no cadastro de cada item.
+
+### Testes
+
+- `tests/api-compras.mjs`: 88 verificações dos critérios de aceite das duas especificações.
+- `tests/e2e-compras-fluxo.mjs`: o fluxo inteiro nas telas, inclusive a leitura do DANFE em PDF e por foto do código de barras.
+
+---
+
 ## Animações 3D e o manual da Max
 
 - **3D em toda a plataforma:** cena 3D ao fundo das ferramentas (piso em perspectiva, sólidos girando, câmera que acompanha o mouse), telas que giram ao trocar de aba, gavetas e janelas que abrem em 3D, listas e cartões que "desdobram" ao aparecer, cartões e botões que inclinam com o mouse e botões que afundam ao clicar.

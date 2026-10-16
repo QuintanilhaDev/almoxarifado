@@ -528,3 +528,8 @@
   width: 16px;
   background: var(--lilac);
 }
+.g-sub {
+  font-family: var(--font-display);
+  font-size: 20px;
+  margin: 26px 0 12px;
+}

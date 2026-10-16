@@ -3,26 +3,26 @@ import { SupplierPicker } from '../compras/SupplierPicker';
 import { formatDoc } from '@/lib/compras/fornecedores';
 import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, AlertTriangle, CalendarClock, ChevronRight, Download, FileCode2, FilePlus2, PackageCheck, Plus, Receipt, RotateCcw, Search, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ChevronRight, FileCode2, FilePlus2, PackageCheck, PackageOpen, Plus, Receipt, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../core/api';
 import { useToast } from '../core/Toasts';
 import { Sheet } from '../almoxarifado/StockModals';
-import { formatDateTime } from '@/lib/format';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
 import type { FiscalNote, NoteLine } from '@/lib/notas/server';
 import { ItemPicker, brl, dateBR, todayLocal, type PickItem } from '../pedidos/ui';
+import { N_STATUS, NoteDrawer, noteTotal } from './NoteDrawer';
+import { ReceiveSheet, InstallmentsEditor } from './ReceiveSheet';
+import { DuesView } from './DuesView';
+import { Equivalencias } from './Equivalencias';
+import { installmentsGap } from '@/lib/notas/conferencia';
+import { parseMoney } from '../compras/pcui';
+import { poLabel, type PurchaseOrder } from '@/lib/compras/pc';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
 import '../pedidos/pedidos.css';
 
-const N_STATUS: Record<FiscalNote['status'], { label: string; tone: string }> = {
-  aberta: { label: 'Aguardando conferência', tone: 'lilac' },
-  parcial: { label: 'Recebida em parte', tone: 'amber' },
-  lancada: { label: 'Lançada', tone: 'green' },
-  estornada: { label: 'Estornada', tone: 'gray' },
-};
-const total = (n: FiscalNote) => Number(n.totals?.total ?? n.items.reduce((t, l) => t + (Number(l.total) || 0), 0));
+const total = noteTotal;
 type Waiting = { id: string; label: string; who: string | null; lines: { name: string; size: string | null; missing: number }[] };
 
 /**
@@ -30,12 +30,54 @@ type Waiting = { id: string; label: string; who: string | null; lines: { name: s
  *  - Almoxarifado: importa o XML (ou digita), confere o recebimento (tudo ou parte) e estorna.
  *  - Financeiro: consulta notas, parcelas e vencimentos (só leitura; o recebimento não aprova pagamento).
  */
-export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' | 'financeiro'; canEdit: boolean; items?: PickItem[] | null; onOrders?: (orderId?: string) => void }) {
+export function NotasPanel({
+  mode,
+  canEdit,
+  items,
+  onOrders,
+  canTreat = false,
+  canAuthorize = false,
+  receive,
+  onReceiveUsed,
+  onOrder,
+  focus,
+  onFocusUsed,
+}: {
+  mode: 'almox' | 'financeiro';
+  canEdit: boolean;
+  items?: PickItem[] | null;
+  onOrders?: (orderId?: string) => void;
+  /** Compras/gestão: trata divergência; aprovação: autoriza exceção */
+  canTreat?: boolean;
+  canAuthorize?: boolean;
+  /** abrir já o recebimento deste pedido de compra */
+  receive?: PurchaseOrder | null;
+  onReceiveUsed?: () => void;
+  /** abrir o pedido de compra ligado */
+  onOrder?: (poId: string) => void;
+  /** abrir já esta nota */
+  focus?: string | null;
+  onFocusUsed?: () => void;
+}) {
   const toast = useToast();
   const [notes, setNotes] = useState<FiscalNote[] | null>(null);
   const [failed, setFailed] = useState('');
-  const [view, setView] = useState<'notas' | 'vencimentos'>(mode === 'financeiro' ? 'vencimentos' : 'notas');
-  const [filter, setFilter] = useState<'todas' | 'conferir' | 'lancadas' | 'estornadas'>('todas');
+  const [view, setView] = useState<'notas' | 'vencimentos' | 'equivalencias'>(mode === 'financeiro' ? 'vencimentos' : 'notas');
+  const [filter, setFilter] = useState<'todas' | 'conferir' | 'divergencia' | 'lancadas' | 'estornadas'>('todas');
+  const [receiving, setReceiving] = useState<{ po: PurchaseOrder | null } | null>(null);
+  useEffect(() => {
+    if (focus) {
+      setView('notas');
+      setOpenId(focus);
+      onFocusUsed?.();
+    }
+  }, [focus, onFocusUsed]);
+  useEffect(() => {
+    if (receive && canEdit) {
+      setReceiving({ po: receive });
+      onReceiveUsed?.();
+    }
+  }, [receive, canEdit, onReceiveUsed]);
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [review, setReview] = useState<ParseResult | null>(null);
@@ -55,6 +97,11 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
   useEffect(() => {
     load();
   }, [load]);
+  // sem o tempo real (rede bloqueada), confere de minuto em minuto
+  useEffect(() => {
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), 60_000);
+    return () => clearInterval(t);
+  }, [load]);
   useEffect(() => {
     const on = () => load();
     window.addEventListener('maxhub:notes', on);
@@ -65,7 +112,8 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
   const shown = useMemo(() => {
     const t = fold(query.trim());
     return list.filter((n) => {
-      if (filter === 'conferir' && !(n.status === 'aberta' || n.status === 'parcial')) return false;
+      if (filter === 'conferir' && !['aberta', 'conferencia', 'divergencia', 'parcial'].includes(n.status)) return false;
+      if (filter === 'divergencia' && !(n.divergences ?? []).some((d) => d.status !== 'resolvida')) return false;
       if (filter === 'lancadas' && n.status !== 'lancada') return false;
       if (filter === 'estornadas' && n.status !== 'estornada') return false;
       if (!t) return true;
@@ -76,14 +124,10 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
   const today = todayLocal();
   const soon = new Date(Date.now() - 3 * 3_600_000 + 30 * 86_400_000).toISOString().slice(0, 10);
   const dues = useMemo(() => {
-    const rows = list
-      .filter((n) => n.status !== 'estornada')
-      .flatMap((n) => n.installments.map((p) => ({ note: n, ...p })))
-      .filter((p) => fold(`${p.note.number} ${p.note.supplier_name}`).includes(fold(query.trim())))
-      .sort((a, b) => String(a.due ?? '9999').localeCompare(String(b.due ?? '9999')));
+    const rows = list.filter((n) => n.status !== 'estornada').flatMap((n) => n.installments.map((p) => ({ note: n, ...p })));
     const sum = (f: (d: string) => boolean) => rows.filter((r) => r.due && f(r.due)).reduce((t, r) => t + Number(r.value || 0), 0);
     return { rows, overdue: sum((d) => d < today), soon: sum((d) => d >= today && d <= soon), later: sum((d) => d > soon) };
-  }, [list, query, today, soon]);
+  }, [list, today, soon]);
 
   const pickFile = async (f: File) => {
     setParsing(true);
@@ -103,9 +147,14 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
   };
 
   const open = openId ? list.find((n) => n.id === openId) ?? null : null;
+  // abriu uma nota: busca a versão mais nova (mesmo sem o tempo real)
+  useEffect(() => {
+    if (openId) void load();
+  }, [openId, load]);
   const counts = {
     todas: list.length,
-    conferir: list.filter((n) => n.status === 'aberta' || n.status === 'parcial').length,
+    conferir: list.filter((n) => ['aberta', 'conferencia', 'divergencia', 'parcial'].includes(n.status)).length,
+    divergencia: list.filter((n) => (n.divergences ?? []).some((d) => d.status !== 'resolvida')).length,
     lancadas: list.filter((n) => n.status === 'lancada').length,
     estornadas: list.filter((n) => n.status === 'estornada').length,
   };
@@ -127,8 +176,11 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
               <button data-max="nota-digitar" className="btn btn-ghost edit-only" onClick={() => setManual(true)} disabled={!canEdit || !items}>
                 <FilePlus2 size={18} /> Digitar nota
               </button>
-              <button data-max="nota-importar" data-max-file="#nota-file" className="btn btn-primary edit-only" onClick={() => fileRef.current?.click()} disabled={!canEdit || parsing}>
+              <button data-max="nota-importar" data-max-file="#nota-file" className="btn btn-ghost edit-only" onClick={() => fileRef.current?.click()} disabled={!canEdit || parsing}>
                 {parsing ? <span className="spinner" /> : <FileCode2 size={18} />} Importar XML
+              </button>
+              <button data-max="receber-pedido" className="btn btn-primary edit-only" onClick={() => setReceiving({ po: null })} disabled={!canEdit}>
+                <PackageOpen size={18} /> Receber pelo pedido
               </button>
               <input ref={fileRef} id="nota-file" type="file" accept=".xml,text/xml,application/xml" hidden onChange={(e) => e.target.files?.[0] && pickFile(e.target.files[0])} aria-label="Arquivo XML da nota" />
             </div>
@@ -162,11 +214,18 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
             <button className={view === 'vencimentos' ? 'is-active' : ''} onClick={() => setView('vencimentos')}>
               Vencimentos
             </button>
+            {mode === 'almox' ? (
+              <button className={view === 'equivalencias' ? 'is-active' : ''} onClick={() => setView('equivalencias')}>
+                Equivalências
+              </button>
+            ) : null}
           </div>
-          <div className="search">
-            <Search size={17} />
-            <input className="input" placeholder="Buscar por número, fornecedor, CNPJ ou item" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar notas" />
-          </div>
+          {view === 'notas' ? (
+            <div className="search">
+              <Search size={17} />
+              <input className="input" placeholder="Buscar por número, fornecedor, CNPJ ou item" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar notas" />
+            </div>
+          ) : null}
         </div>
 
         {failed && !notes ? (
@@ -189,7 +248,8 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
               {(
                 [
                   ['todas', 'Todas'],
-                  ['conferir', 'Em conferência'],
+                  ['conferir', 'A conferir'],
+                  ['divergencia', 'Com divergência'],
                   ['lancadas', 'Lançadas'],
                   ['estornadas', 'Estornadas'],
                 ] as const
@@ -218,10 +278,13 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
                         <b>{n.supplier_name}</b>
                         <small>
                           {brl(total(n))} · {n.items.length} {n.items.length === 1 ? 'item' : 'itens'} · emitida {dateBR(n.issue_date)}
+                          {n.purchase_order_id ? ' · pelo pedido de compra' : ''}
                           {next && n.status !== 'estornada' ? ` · próxima parcela ${dateBR(next.due)}` : ''}
                         </small>
                       </span>
                       <span className="p-tags">
+                        {(n.divergences ?? []).some((d) => d.status !== 'resolvida') && n.status !== 'divergencia' ? <span className="pbadge red">Divergência</span> : null}
+                        {n.installments_status === 'incompleta' && n.status !== 'estornada' ? <span className="pbadge amber">Parcelas a conferir</span> : null}
                         <span className={`pbadge ${N_STATUS[n.status].tone}`}>{N_STATUS[n.status].label}</span>
                       </span>
                       <ChevronRight size={18} className="row-chevron" />
@@ -231,48 +294,17 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
               </div>
             )}
           </>
-        ) : dues.rows.length === 0 ? (
-          <div className="empty">
-            <span className="empty-icon">
-              <CalendarClock size={24} />
-            </span>
-            <strong>Nenhuma parcela</strong>
-            <span>As parcelas aparecem aqui quando a nota tem duplicatas (vêm do XML).</span>
-          </div>
+        ) : view === 'vencimentos' ? (
+          <DuesView notes={list} onOpen={(id) => setOpenId(id)} />
         ) : (
-          <div className="t-wrap">
-            <table className="t-table">
-              <thead>
-                <tr>
-                  <th>Vencimento</th>
-                  <th>Nota</th>
-                  <th>Fornecedor</th>
-                  <th>Parcela</th>
-                  <th className="n">Valor</th>
-                  <th>Recebimento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dues.rows.map((p, i) => (
-                  <tr key={i} className="click" onClick={() => setOpenId(p.note.id)}>
-                    <td className={p.due && p.due < today ? 't-short' : ''}>{dateBR(p.due)}</td>
-                    <td>NF {p.note.number}</td>
-                    <td>{p.note.supplier_name}</td>
-                    <td>{p.n}</td>
-                    <td className="n">{brl(Number(p.value))}</td>
-                    <td>
-                      <span className={`pbadge ${N_STATUS[p.note.status].tone}`}>{N_STATUS[p.note.status].label}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Equivalencias items={items ?? []} canEdit={canEdit} />
         )}
       </div>
 
       <AnimatePresence>
-        {open ? <NoteDrawer key={open.id} note={open} canEdit={mode === 'almox' && canEdit} items={items ?? []} onClose={() => setOpenId(null)} reload={load} onOrders={onOrders} modalOpen={Boolean(review || manual)} /> : null}
+        {open ? (
+          <NoteDrawer key={open.id} note={open} canEdit={mode === 'almox' && canEdit} canTreat={canTreat} canAuthorize={canAuthorize} items={items ?? []} onClose={() => setOpenId(null)} reload={load} onOrders={onOrders} onOrder={onOrder} modalOpen={Boolean(review || manual || receiving)} />
+        ) : null}
       </AnimatePresence>
       <AnimatePresence>
         {review ? (
@@ -285,6 +317,18 @@ export function NotasPanel({ mode, canEdit, items, onOrders }: { mode: 'almox' |
               setReview(null);
               await load();
               setOpenId(id);
+            }}
+          />
+        ) : null}
+        {receiving ? (
+          <ReceiveSheet
+            key="recv"
+            initial={receiving.po}
+            onClose={() => setReceiving(null)}
+            onDone={async (note) => {
+              setReceiving(null);
+              await load();
+              setOpenId(note.id);
             }}
           />
         ) : null}
@@ -325,6 +369,7 @@ interface ParseResult {
   };
   duplicate: { id: string; number: string; status: string } | null;
   purchases: { id: string; number: number; status: string; supplier: string | null; match: number }[];
+  orders?: { id: string; number: number; status: string; supplier: string; match: number; left: number; due: string | null }[];
   xml: string;
 }
 interface RLine {
@@ -359,6 +404,9 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
   const [inst, setInst] = useState(parsed?.nfe.installments ?? []);
   const best = parsed?.purchases.find((p) => p.match >= 0.5);
   const [purchase, setPurchase] = useState<string>(best?.id ?? '');
+  const bestPO = parsed?.orders?.find((o) => o.match >= 0.5) ?? (parsed?.orders?.length === 1 ? parsed.orders[0] : undefined);
+  const [poId, setPoId] = useState<string>(bestPO?.id ?? '');
+  const [instOk, setInstOk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (key: number, p: Partial<RLine>) => {
@@ -385,7 +433,8 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             company: parsed.nfe.company.name,
             company_cnpj: parsed.nfe.company.cnpj,
             items: filled.map((l) => ({ ...l.raw, item_id: l.item_id })),
-            purchase_request_id: purchase || null,
+            purchase_request_id: poId ? null : purchase || null,
+            purchase_order_id: poId || null,
             xml: parsed.xml,
           }
         : {
@@ -394,14 +443,26 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             number: head.number.trim(),
             series: head.series.trim() || null,
             issue_date: head.issue || null,
-            items: filled.map((l) => ({ code: l.code, description: l.description.trim() || l.text, qty: Number(l.qty) || 0, total: l.total.replace(',', '.'), item_id: l.item_id, unit: 'UN' })),
+            items: filled.map((l) => ({ code: l.code, description: l.description.trim() || l.text, qty: Number(l.qty) || 0, total: parseMoney(l.total) ?? 0, item_id: l.item_id, unit: 'UN' })),
             installments: inst.filter((p) => p.value > 0),
+            validate_installments: instOk && installmentsGap(inst.filter((p) => p.value > 0), manualTotal) === 0,
           };
       const j = await api<{ note: FiscalNote }>('/api/almoxarifado/notas', { method: 'POST', json: body });
       if (post) {
         const toPost = filled.map((l, i) => ({ i, qty: Number(l.receive) || 0, item_id: l.item_id })).filter((x) => x.qty > 0);
         if (toPost.length) {
-          const r = await api<{ note: FiscalNote; purchase: { number: number } | null; waiting: Waiting[] }>(`/api/almoxarifado/notas/${j.note.id}/post`, { method: 'POST', json: { lines: toPost } });
+          let r: { note: FiscalNote; purchase: { number: number } | null; waiting: Waiting[] };
+          try {
+            r = await api<{ note: FiscalNote; purchase: { number: number } | null; waiting: Waiting[] }>(`/api/almoxarifado/notas/${j.note.id}/post`, { method: 'POST', json: { lines: toPost } });
+          } catch (e) {
+            // registrada, mas a entrada espera (parcelas a conferir ou divergência com o pedido)
+            if (e instanceof ApiError && e.status === 409 && Array.isArray(e.data?.blockers)) {
+              toast({ kind: 'info', title: `NF ${j.note.number} registrada, sem entrada ainda`, text: `Falta: ${(e.data.blockers as string[]).join('; ')}.` }, 12000);
+              onDone(j.note.id);
+              return;
+            }
+            throw e;
+          }
           toast({ kind: 'success', title: r.note.status === 'lancada' ? `NF ${j.note.number} lançada no estoque` : `NF ${j.note.number}: entrada parcial lançada`, text: [r.purchase ? `Compra nº ${r.purchase.number} marcada como entregue` : '', r.waiting.length ? `${r.waiting.length} pedido(s) esperavam estes itens` : ''].filter(Boolean).join(' · ') || undefined }, 10000);
           if (r.waiting.length) sessionStorage.setItem(`waiting:${j.note.id}`, JSON.stringify(r.waiting));
         }
@@ -414,6 +475,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
   };
 
   const unlinked = lines.filter((l) => !l.item_id).length;
+  const manualTotal = Math.round(lines.reduce((t, l) => t + (parseMoney(String(l.total)) ?? 0), 0) * 100) / 100;
   return (
     <Sheet title={parsed ? `Nota ${parsed.nfe.number}${parsed.nfe.series ? '/' + parsed.nfe.series : ''} · conferência` : 'Digitar nota fiscal'} lead={parsed ? 'Confira os itens e as quantidades recebidas.' : undefined} onClose={onClose} wide locked>
       {parsed?.duplicate ? (
@@ -493,7 +555,23 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
         </div>
       )}
 
-      {parsed && parsed.purchases.length ? (
+      {parsed && parsed.orders?.length ? (
+        <div style={{ margin: '4px 0 12px' }}>
+          <label className="label" htmlFor="n-po">
+            Pedido de compra que esta nota atende
+          </label>
+          <select id="n-po" className="select input" value={poId} onChange={(e) => setPoId(e.target.value)}>
+            <option value="">Nenhum (nota sem pedido)</option>
+            {parsed.orders.map((o) => (
+              <option key={o.id} value={o.id}>
+                {poLabel(o.number)} · {o.supplier} · {o.left} a receber{o.due ? ` até ${dateBR(o.due)}` : ''} · {Math.round(o.match * 100)}% dos itens
+              </option>
+            ))}
+          </select>
+          <small className="help">Ligada ao pedido, a nota é comparada com ele (itens, preços, frete e pagamento) e o "a receber" baixa sozinho.</small>
+        </div>
+      ) : null}
+      {parsed && parsed.purchases.length && !poId ? (
         <div style={{ margin: '4px 0 12px' }}>
           <label className="label" htmlFor="n-pr">
             Solicitação de compra que esta nota atende
@@ -575,22 +653,19 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             <Plus size={15} /> Adicionar item
           </button>
           <h3 className="sec-title">Parcelas</h3>
-          {inst.map((p, i) => (
-            <div key={i} className="o-sizes" style={{ marginBottom: 6 }}>
-              <div>
-                <input className="input" aria-label={`Parcela ${i + 1}`} value={p.n} onChange={(e) => setInst(inst.map((x, k) => (k === i ? { ...x, n: e.target.value.slice(0, 6) } : x)))} />
-                <input className="input" type="date" aria-label={`Vencimento ${i + 1}`} value={p.due ?? ''} onChange={(e) => setInst(inst.map((x, k) => (k === i ? { ...x, due: e.target.value } : x)))} />
-                <input className="input" inputMode="decimal" aria-label={`Valor ${i + 1}`} value={p.value || ''} onChange={(e) => setInst(inst.map((x, k) => (k === i ? { ...x, value: Number(e.target.value.replace(',', '.')) || 0 } : x)))} placeholder="Valor" />
-              </div>
-            </div>
-          ))}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setInst([...inst, { n: String(inst.length + 1).padStart(3, '0'), due: null, value: 0 }])} style={{ marginBottom: 12 }}>
-            <Plus size={15} /> Adicionar parcela
-          </button>
+          <InstallmentsEditor list={inst.map((p) => ({ ...p, obs: null, method: null, ref: null }))} total={manualTotal} onChange={(l) => { setInst(l.map((p) => ({ n: p.n, due: p.due, value: p.value }))); setInstOk(false); }} />
+          <label className="pc-check">
+            <input type="checkbox" checked={instOk} onChange={(e) => setInstOk(e.target.checked)} disabled={!inst.length || installmentsGap(inst, manualTotal) !== 0} /> Conferi as parcelas (soma igual ao total da nota)
+          </label>
         </>
       ) : parsed.nfe.installments.length ? (
-        <p className="help">Parcelas: {parsed.nfe.installments.map((p) => `${p.n} · ${dateBR(p.due)} · ${brl(p.value)}`).join(' | ')}</p>
-      ) : null}
+        <p className="help">
+          Parcelas do XML: {parsed.nfe.installments.map((p) => `${p.n} · ${dateBR(p.due)} · ${brl(p.value)}`).join(' | ')}
+          {installmentsGap(parsed.nfe.installments, Number(parsed.nfe.totals.total)) === 0 ? ' — conferem com o total.' : ' — a soma não bate com o total: confira depois de registrar.'}
+        </p>
+      ) : (
+        <p className="help">O XML não traz parcelas: registre e informe as parcelas na nota antes da entrada.</p>
+      )}
       {error ? (
         <div className="sx-error" role="alert">
           <AlertCircle size={16} /> {error}
@@ -611,256 +686,3 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
   );
 }
 
-/* ------------------------------------------------------------------ */
-function NoteDrawer({ note: n, canEdit, items, onClose, reload, onOrders, modalOpen }: { note: FiscalNote; canEdit: boolean; items: PickItem[]; onClose: () => void; reload: () => Promise<void>; onOrders?: (orderId?: string) => void; modalOpen: boolean }) {
-  const toast = useToast();
-  const [recv, setRecv] = useState<Record<number, string>>(() => Object.fromEntries(n.items.map((l, i) => [i, String(Math.max(0, l.qty - l.received))])));
-  const [links, setLinks] = useState<Record<number, string | null>>({});
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [reverse, setReverse] = useState(false);
-  const [reason, setReason] = useState('');
-  const [waiting, setWaiting] = useState<Waiting[]>(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem(`waiting:${n.id}`) || '[]');
-    } catch {
-      return [];
-    }
-  });
-  const openNote = n.status === 'aberta' || n.status === 'parcial';
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && !modalOpen && !reverse && onClose();
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  }, [onClose, modalOpen, reverse]);
-  const label = (id: string | null) => {
-    const it = id ? items.find((i) => i.id === id) : null;
-    return it ? `${it.name}${it.size ? ' ' + it.size : ''}` : null;
-  };
-
-  const post = async () => {
-    setBusy('post');
-    setError('');
-    try {
-      const lines = n.items.map((l, i) => ({ i, qty: Number(recv[i]) || 0, item_id: links[i] ?? l.item_id })).filter((x) => x.qty > 0);
-      if (!lines.length) throw new ApiError('Informe o que chegou.', 400, {});
-      const r = await api<{ note: FiscalNote; purchase: { number: number } | null; waiting: Waiting[] }>(`/api/almoxarifado/notas/${n.id}/post`, { method: 'POST', json: { lines } });
-      toast({ kind: 'success', title: r.note.status === 'lancada' ? 'Nota lançada no estoque' : 'Entrada parcial lançada', text: r.purchase ? `Compra nº ${r.purchase.number} marcada como entregue` : undefined });
-      setWaiting(r.waiting);
-      await reload();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
-  const doReverse = async () => {
-    setBusy('reverse');
-    setError('');
-    try {
-      await api(`/api/almoxarifado/notas/${n.id}/reverse`, { method: 'POST', json: { reason } });
-      toast({ kind: 'success', title: `NF ${n.number} estornada` });
-      setReverse(false);
-      await reload();
-    } catch (e) {
-      setError((e as Error).message);
-      setReverse(false);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return (
-    <motion.div className="drawer-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.aside className="drawer o-drawer" role="dialog" aria-modal="true" aria-label={`Nota ${n.number}`} initial={{ x: 60, opacity: 0, rotateY: deg(-24), transformPerspective: 1400 }} animate={{ x: 0, opacity: 1, rotateY: 0, transitionEnd: { transform: 'none' } }} exit={{ x: 60, opacity: 0, rotateY: deg(-18) }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} onClick={(e) => e.stopPropagation()}>
-        <div className="drawer-top">
-          <div style={{ minWidth: 0 }}>
-            <h2 className="p-title">
-              NF {n.number}
-              {n.series ? `/${n.series}` : ''} <span className={`pbadge ${N_STATUS[n.status].tone}`}>{N_STATUS[n.status].label}</span>
-            </h2>
-            <p>
-              {n.supplier_name}
-              {n.cnpj ? ` · CNPJ ${n.cnpj}` : ''}
-            </p>
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Fechar">
-            <X size={19} />
-          </button>
-        </div>
-        <div className="drawer-body">
-          <div className="mini-stats">
-            <div>
-              <small>Total</small>
-              <b className="p-date">{brl(total(n))}</b>
-            </div>
-            <div>
-              <small>Emissão</small>
-              <b className="p-date">{dateBR(n.issue_date)}</b>
-            </div>
-            <div>
-              <small>Recebida</small>
-              <b className="p-date">{dateBR(n.received_date)}</b>
-            </div>
-          </div>
-
-          {waiting.length ? (
-            <div className="o-plan">
-              <div className="o-plan-head">
-                <PackageCheck size={16} /> <b>Pedidos que esperavam estes itens</b>
-              </div>
-              {waiting.map((w) => (
-                <p key={w.id}>
-                  <span>{w.label}{w.who ? ` · ${w.who}` : ''}:</span> {w.lines.map((l) => `${l.missing} ${l.name}${l.size ? ' ' + l.size : ''}`).join(', ')}
-                </p>
-              ))}
-              {onOrders ? (
-                <div className="drawer-actions">
-                  <button className="btn btn-primary btn-sm" onClick={() => onOrders(waiting[0].id)}>
-                    Ir para os pedidos e reservar
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {error ? (
-            <div className="sx-error" role="alert">
-              <AlertCircle size={16} /> {error}
-            </div>
-          ) : null}
-
-          <div>
-            <h3 className="sec-title">Itens{openNote && canEdit ? ' · conferência' : ''}</h3>
-            <div className="o-items">
-              {n.items.map((l, i) => {
-                const left = l.qty - l.received;
-                const linked = links[i] !== undefined ? links[i] : l.item_id;
-                return (
-                  <div key={i} className={`o-item${!linked ? ' is-check' : ''}`}>
-                    <div className="o-item-top">
-                      <b>{l.description}</b>
-                      <span className={`pbadge ${left <= 0 ? 'green' : l.received ? 'amber' : 'lilac'}`}>{left <= 0 ? 'Recebido' : l.received ? `Faltam ${left}` : 'A receber'}</span>
-                    </div>
-                    <div className="o-nums">
-                      <span>
-                        Na nota <b>{num(l.qty)}</b>
-                      </span>
-                      <span>
-                        Recebido <b>{num(l.received)}</b>
-                      </span>
-                      <span>
-                        Custo <b>{brl(l.unit_cost)}</b>
-                      </span>
-                      {l.discount ? (
-                        <span>
-                          Desconto <b>{brl(l.discount)}</b>
-                        </span>
-                      ) : null}
-                    </div>
-                    <small className="o-note">{linked ? `Estoque: ${label(linked) ?? 'item ligado'}` : 'Ainda sem item do estoque'}</small>
-                    {openNote && canEdit && left > 0 ? (
-                      <div className="o-qty-row" style={{ background: 'transparent', padding: 0 }}>
-                        {!l.received ? (
-                          <ItemPicker label={`Item do estoque, linha ${i + 1}`} value={{ item_id: null, text: '' }} items={items} placeholder={linked ? 'Trocar o item do estoque…' : 'Escolha o item do estoque'} onPick={(it) => setLinks((x) => ({ ...x, [i]: it.id }))} onText={() => undefined} />
-                        ) : (
-                          <span />
-                        )}
-                        <input className="input" inputMode="numeric" aria-label={`Chegou agora, ${l.description}`} value={recv[i] ?? ''} onChange={(e) => setRecv((r) => ({ ...r, [i]: e.target.value.replace(/\D/g, '').slice(0, 6) }))} />
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          {openNote && canEdit ? (
-            <div className="drawer-actions">
-              <button className="btn btn-primary btn-sm" onClick={post} disabled={Boolean(busy)}>
-                {busy === 'post' ? <span className="spinner" /> : <PackageCheck size={15} />} Dar entrada no que chegou
-              </button>
-            </div>
-          ) : null}
-
-          {n.installments.length ? (
-            <div>
-              <h3 className="sec-title">Parcelas</h3>
-              {n.installments.map((p, i) => (
-                <div className="kv-row" key={i}>
-                  <span>
-                    {p.n} · vence {dateBR(p.due)}
-                  </span>
-                  <b>{brl(Number(p.value))}</b>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          <div>
-            <h3 className="sec-title">Dados</h3>
-            {[
-              ['Chave de acesso', n.access_key],
-              ['Empresa compradora', n.company],
-              ['Pagamento', n.payment],
-              ['Desconto', n.totals?.discount ? brl(n.totals.discount) : null],
-              ['Frete', n.totals?.freight ? brl(n.totals.freight) : null],
-              ['Registrada por', n.created_by],
-            ]
-              .filter(([, v]) => v)
-              .map(([k, v]) => (
-                <div className="kv-row" key={k as string}>
-                  <span>{k}</span>
-                  <b className="o-kv">{v}</b>
-                </div>
-              ))}
-            {n.access_key ? (
-              <a className="btn btn-ghost btn-sm" href={`/api/almoxarifado/notas/${n.id}?xml=1`} style={{ marginTop: 8 }} data-max="nota-xml">
-                <Download size={14} /> Baixar XML
-              </a>
-            ) : null}
-          </div>
-
-          <div>
-            <h3 className="sec-title">Histórico</h3>
-            <ol className="p-history o-history">
-              {[...n.history].reverse().map((h, i) => (
-                <li key={i}>
-                  <span>
-                    <em>{h.what}</em>
-                    {h.by} · {formatDateTime(h.at)}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {canEdit && (n.status === 'parcial' || n.status === 'lancada') ? (
-            <div className="drawer-actions" style={{ marginTop: 'auto' }}>
-              <button className="btn btn-danger btn-sm" onClick={() => setReverse(true)} disabled={Boolean(busy)}>
-                <RotateCcw size={15} /> Estornar nota
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </motion.aside>
-      <AnimatePresence>
-        {reverse ? (
-          <Sheet key="rev" title={`Estornar a NF ${n.number}?`} lead="As quantidades desta nota saem do estoque." onClose={() => setReverse(false)} locked={Boolean(reason)}>
-            <label className="label" htmlFor="n-rev">
-              Motivo
-            </label>
-            <textarea id="n-rev" className="textarea" rows={3} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setReverse(false)} disabled={Boolean(busy)}>
-                Voltar
-              </button>
-              <button className="btn btn-danger" onClick={doReverse} disabled={Boolean(busy) || !reason.trim()}>
-                {busy ? <span className="spinner" /> : <RotateCcw size={16} />} Estornar
-              </button>
-            </div>
-          </Sheet>
-        ) : null}
-      </AnimatePresence>
-    </motion.div>
-  );
-}

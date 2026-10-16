@@ -1,5 +1,5 @@
 'use client';
-import { BellRing, Building2, Inbox as InboxIcon, Lock, UserRound, UsersRound } from 'lucide-react';
+import { BellRing, Building2, Gauge, Inbox as InboxIcon, Lock, Scale, ShoppingBag, UserRound, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -20,13 +20,23 @@ import dynamic from 'next/dynamic';
 import { PanelSkeleton, usePreload } from '../core/lazy';
 import type { Supplier } from '@/lib/compras/fornecedores';
 import { usePurchases } from './usePurchases';
+import { usePC } from './pcui';
+import type { DirectDraft } from './PedidosCompra';
+import { brl, poLabel } from '@/lib/compras/pc';
 
 const loadSuppliers = () => import('./Fornecedores');
 const Fornecedores = dynamic(() => loadSuppliers().then((m) => m.Fornecedores), { loading: PanelSkeleton });
+const loadQuotes = () => import('./Cotacoes');
+const Cotacoes = dynamic(() => loadQuotes().then((m) => m.Cotacoes), { loading: PanelSkeleton });
+const NewQuoteSheet = dynamic(() => loadQuotes().then((m) => m.NewQuoteSheet));
+const loadOrders = () => import('./PedidosCompra');
+const PedidosCompra = dynamic(() => loadOrders().then((m) => m.PedidosCompra), { loading: PanelSkeleton });
+const loadPainel = () => import('./PainelCompras');
+const PainelCompras = dynamic(() => loadPainel().then((m) => m.PainelCompras), { loading: PanelSkeleton });
 
 const SLUG = 'compras';
-type Tab = 'solicitacoes' | 'fornecedores' | 'equipe' | 'conta' | 'inicio';
-const VALID: Tab[] = ['solicitacoes', 'fornecedores', 'equipe', 'conta', 'inicio'];
+type Tab = 'painel' | 'solicitacoes' | 'cotacoes' | 'pedidos-compra' | 'fornecedores' | 'equipe' | 'conta' | 'inicio';
+const VALID: Tab[] = ['painel', 'solicitacoes', 'cotacoes', 'pedidos-compra', 'fornecedores', 'equipe', 'conta', 'inicio'];
 /** sem o Realtime (rede bloqueada), a lista ainda se atualiza sozinha neste intervalo */
 const POLL_MS = 8000;
 
@@ -51,11 +61,11 @@ export function ComprasApp() {
 }
 
 function Shell() {
-  usePreload([loadSuppliers]);
+  usePreload([loadSuppliers, loadQuotes, loadOrders, loadPainel]);
   const sector = getSector(SLUG)!;
   const toast = useToast();
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(SLUG));
-  const [tab, setTab] = useHashTab<Tab>(VALID, 'solicitacoes');
+  const [tab, setTab] = useHashTab<Tab>(VALID, 'painel');
   const warp = useWarp();
   const [teamVersion, setTeamVersion] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -64,6 +74,13 @@ function Shell() {
   const canEdit = hasLevel(user, SLUG, 'solicitacoes', 'edit');
   const canSup = hasLevel(user, SLUG, 'fornecedores', 'view');
   const canSupEdit = hasLevel(user, SLUG, 'fornecedores', 'edit');
+  const canApprove = Boolean(user?.is_master) || hasLevel(user, SLUG, 'aprovacao', 'edit');
+  const seesPC = canView || canApprove;
+  const pc = usePC(Boolean(user) && seesPC);
+  const [quoteId, setQuoteId] = useState<string | null>(null);
+  const [poId, setPoId] = useState<string | null>(null);
+  const [direct, setDirect] = useState<DirectDraft | null>(null);
+  const [newQuote, setNewQuote] = useState<string[] | null>(null);
   const suppliersRef = useRef<Supplier[] | null>(null);
   const canViewRef = useRef(canView);
   canViewRef.current = canView;
@@ -143,29 +160,79 @@ function Shell() {
   }, []);
 
   const newCount = useMemo(() => (purchases.requests ?? []).filter((r) => r.status === 'nova').length, [purchases.requests]);
+  const toApprove = useMemo(() => (canApprove ? (pc.orders ?? []).filter((o) => o.status === 'aguardando_aprovacao').length : 0), [pc.orders, canApprove]);
+  const openQuotes = useMemo(() => (pc.quotes ?? []).filter((q) => q.status === 'aberta').length, [pc.quotes]);
+  // chegou pedido para aprovar: avisa quem aprova (com a voz da Max)
+  const seenAwait = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!canApprove || !pc.orders) return;
+    const now = pc.orders.filter((o) => o.status === 'aguardando_aprovacao' && o.created_by !== user?.display_name);
+    if (seenAwait.current) {
+      const fresh = now.filter((o) => !seenAwait.current!.has(o.id));
+      if (fresh.length) {
+        const o = fresh[0];
+        chime();
+        toast({ kind: 'info', title: fresh.length > 1 ? `${fresh.length} pedidos de compra para aprovar` : `Pedido de compra ${poLabel(o.number)} para aprovar`, text: `${o.supplier_name} · ${brl(o.total)}`, action: { label: 'Ver', onClick: () => go.order(o.id) } }, 15000);
+        maxEmit('max:announce', { text: fresh.length > 1 ? `Chegaram ${fresh.length} pedidos de compra para aprovar.` : `O pedido de compra ${o.number}, da ${o.supplier_name}, está esperando a sua aprovação.`, tone: 'alert' });
+      }
+    }
+    seenAwait.current = new Set(now.map((o) => o.id));
+  }, [pc.orders, canApprove, user?.display_name]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     document.title = newCount ? `(${newCount}) Compras · Max Hub` : 'Compras · Max Hub';
   }, [newCount]);
 
   const tabs = useMemo<FrameTab[]>(
     () => [
+      ...(seesPC ? [{ id: 'painel', label: 'Painel', short: 'Painel', icon: Gauge, badge: toApprove, badgeTitle: 'Pedidos para aprovar' }] : []),
       ...(canView
-        ? [{ id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon, badge: newCount, badgeTitle: 'Solicitações novas' }]
-        : user && !canSup
+        ? [
+            { id: 'solicitacoes', label: 'Solicitações', short: 'Pedidos', icon: InboxIcon, badge: newCount, badgeTitle: 'Solicitações novas' },
+            { id: 'cotacoes', label: 'Cotações', short: 'Cotações', icon: Scale, badge: openQuotes, badgeTitle: 'Cotações abertas' },
+          ]
+        : user && !canSup && !canApprove
           ? [{ id: 'inicio', label: 'Início', short: 'Início', icon: Lock }]
           : []),
+      ...(seesPC ? [{ id: 'pedidos-compra', label: 'Pedidos de compra', short: 'Compras', icon: ShoppingBag }] : []),
       ...(canSup ? [{ id: 'fornecedores', label: 'Fornecedores', short: 'Fornec.', icon: Building2 }] : []),
       ...(manager ? [{ id: 'equipe', label: 'Equipe', short: 'Equipe', icon: UsersRound }] : []),
       { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
     ],
-    [canView, canSup, manager, newCount, user],
+    [canView, canSup, manager, newCount, user, seesPC, toApprove, openQuotes, canApprove],
   );
-  const home: Tab = canView ? 'solicitacoes' : canSup ? 'fornecedores' : 'inicio';
+  const home: Tab = seesPC ? 'painel' : canSup ? 'fornecedores' : 'inicio';
   const current: Tab = !user
     ? tab
-    : (tab === 'equipe' && !manager) || (tab === 'solicitacoes' && !canView) || (tab === 'fornecedores' && !canSup) || (tab === 'inicio' && home !== 'inicio')
+    : (tab === 'equipe' && !manager) ||
+        ((tab === 'solicitacoes' || tab === 'cotacoes') && !canView) ||
+        ((tab === 'painel' || tab === 'pedidos-compra') && !seesPC) ||
+        (tab === 'fornecedores' && !canSup) ||
+        (tab === 'inicio' && home !== 'inicio')
       ? home
       : tab;
+  const go = {
+    quote: (id: string) => {
+      setTab('cotacoes');
+      setQuoteId(id);
+    },
+    order: (id: string) => {
+      setTab('pedidos-compra');
+      setPoId(id);
+    },
+    request: (id: string) => {
+      setTab('solicitacoes');
+      setOpenId(id);
+    },
+    newQuote: (ids: string[]) => setNewQuote(ids),
+    direct: (d: DirectDraft) => {
+      setTab('pedidos-compra');
+      setDirect(d);
+    },
+  };
+  const reloadAll = () => {
+    void reload();
+    void pc.reload();
+  };
 
   const requestsRef = useRef(purchases.requests);
   requestsRef.current = purchases.requests;
@@ -175,7 +242,10 @@ function Shell() {
       sector,
       user,
       tabs: [
-        ...(canView ? [{ id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'pedidos', 'solicitacoes de compra', 'pedidos de compra', 'inicio'] }] : []),
+        ...(seesPC ? [{ id: 'painel', label: 'Painel', aliases: ['painel', 'inicio', 'resumo', 'painel de compras', 'o que tenho para fazer', 'pendencias'] }] : []),
+        ...(canView ? [{ id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'solicitacoes de compra', 'fila', 'requisicoes', 'requisicoes de compra'] }] : []),
+        ...(canView ? [{ id: 'cotacoes', label: 'Cotações', aliases: ['cotacoes', 'cotacao', 'mapa', 'mapa comparativo', 'propostas', 'orcamentos'] }] : []),
+        ...(seesPC ? [{ id: 'pedidos-compra', label: 'Pedidos de compra', aliases: ['pedidos de compra', 'pedidos', 'ordens de compra', 'oc', 'pc', 'aprovacoes', 'aprovar pedidos'] }] : []),
         ...(canSup ? [{ id: 'fornecedores', label: 'Fornecedores', aliases: ['fornecedores', 'fornecedor', 'cadastro de fornecedores', 'lista de fornecedores'] }] : []),
         ...(manager ? [{ id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes', 'time', 'pessoas'] }] : []),
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
@@ -188,7 +258,7 @@ function Shell() {
       compras: { requests: () => (canViewRef.current ? requestsRef.current : null) },
       fornecedores: canSup ? { list: () => suppliersRef.current, canEdit: canSupEdit } : undefined,
     }),
-    [sector, user, canView, canSup, canSupEdit, manager, current, setTab, logout, warp],
+    [sector, user, canView, canSup, canSupEdit, manager, current, setTab, logout, warp, seesPC],
   );
 
   // a Max pede para abrir uma solicitação ("abrir a solicitação de compra 3")
@@ -229,9 +299,67 @@ function Shell() {
                 <BellRing size={15} /> Clique em qualquer lugar da tela para ligar os avisos com som e a voz da Max.
               </div>
             ) : null}
+            {pc.setup && seesPC && (current === 'painel' || current === 'cotacoes' || current === 'pedidos-compra') ? (
+              <div className="section-pad wide">
+                <div className="banner">{pc.failed}</div>
+              </div>
+            ) : null}
+            {current === 'painel' && seesPC && !pc.setup && <PainelCompras canEdit={canEdit} canApprove={canApprove} config={pc.config} reloadAll={reloadAll} go={go} />}
             {current === 'solicitacoes' && canView && (
-              <PurchaseBoard mode="compras" requests={purchases.requests} failed={purchases.failed} canEdit={canEdit} reload={reload} openId={openId} setOpenId={setOpenId} />
+              <PurchaseBoard
+                mode="compras"
+                requests={purchases.requests}
+                failed={purchases.failed}
+                canEdit={canEdit}
+                reload={reload}
+                openId={openId}
+                setOpenId={setOpenId}
+                onQuote={(id) => setNewQuote([id])}
+                onDirect={(d) => go.direct(d)}
+              />
             )}
+            {current === 'cotacoes' && canView && !pc.setup && (
+              <Cotacoes
+                quotes={pc.quotes}
+                requests={purchases.requests}
+                config={pc.config?.config ?? null}
+                canEdit={canEdit}
+                reload={reloadAll}
+                openId={quoteId}
+                setOpenId={setQuoteId}
+                onOrders={(os) => {
+                  setQuoteId(null);
+                  if (os[0]) go.order(os[0].id);
+                }}
+              />
+            )}
+            {current === 'pedidos-compra' && seesPC && !pc.setup && (
+              <PedidosCompra
+                mode="compras"
+                orders={pc.orders}
+                config={pc.config?.config ?? null}
+                canEdit={canEdit}
+                canApprove={canApprove}
+                me={user.display_name}
+                reload={reloadAll}
+                openId={poId}
+                setOpenId={setPoId}
+                direct={direct}
+                setDirect={setDirect}
+              />
+            )}
+            {newQuote ? (
+              <NewQuoteSheet
+                requests={purchases.requests ?? []}
+                preselect={newQuote}
+                onClose={() => setNewQuote(null)}
+                onDone={(q) => {
+                  setNewQuote(null);
+                  reloadAll();
+                  go.quote(q.id);
+                }}
+              />
+            ) : null}
             {current === 'fornecedores' && canSup && (
               <Fornecedores
                 canEdit={canSupEdit}

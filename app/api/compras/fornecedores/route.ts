@@ -3,7 +3,7 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { rateLimit } from '@/lib/rateLimit';
-import { SUPPLIER_COLS, nameKey, supplierEdit, supplierFields, supplierView, type Supplier } from '@/lib/compras/fornecedores';
+import { SUPPLIER_COLS, SUPPLIER_COLS_PC, nameKey, supplierEdit, supplierFields, supplierView, type Supplier } from '@/lib/compras/fornecedores';
 import { missingSuppliers, suppliersSetup } from '@/lib/compras/fornecedoresServer';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,9 @@ export async function GET() {
   try {
     const user = await requireUser();
     if (!supplierView(user)) throw new AccessError(403, 'Você não tem acesso aos fornecedores.');
-    const { data, error } = await db().from('suppliers').select(SUPPLIER_COLS).order('name').limit(10000);
+    let { data, error } = (await db().from('suppliers').select(SUPPLIER_COLS_PC).order('name').limit(10000)) as { data: Row[] | null; error: { code?: string } | null };
+    // sem o supabase/compras_pedidos.sql: lista sem homologação
+    if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) ({ data, error } = (await db().from('suppliers').select(SUPPLIER_COLS).order('name').limit(10000)) as { data: Row[] | null; error: { code?: string } | null });
     if (error) throw error;
     // resumo das notas (sem as estornadas)
     const stats = new Map<string, { n: number; last: string | null; total: number }>();

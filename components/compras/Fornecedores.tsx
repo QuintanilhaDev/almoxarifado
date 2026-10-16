@@ -8,7 +8,8 @@ import { useToast } from '../core/Toasts';
 import { Sheet } from '../almoxarifado/StockModals';
 import { ImportDialog } from '../almoxarifado/ImportDialog';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
-import { formatDoc, type Supplier } from '@/lib/compras/fornecedores';
+import { HOMOLOGATION, formatDoc, type Supplier } from '@/lib/compras/fornecedores';
+import { SupplierProfile } from './SupplierProfile';
 import { useMaxBus } from '@/lib/max/bus';
 import { brl, dateBR } from '../pedidos/ui';
 import '../almoxarifado/estoque.css';
@@ -141,7 +142,10 @@ export function Fornecedores({ canEdit, onList }: { canEdit: boolean; onList?: (
                 {shown.slice(0, 500).map((s) => (
                   <tr key={s.id} className="click" onClick={() => setOpenId(s.id)} data-max-fornecedor={s.id}>
                     <td>
-                      <b>{s.trade_name || s.name}</b>
+                      <b>
+                        {s.trade_name || s.name}{' '}
+                        {s.homologation && s.homologation !== 'homologado' ? <span className={`pbadge ${HOMOLOGATION[s.homologation].tone}`}>{HOMOLOGATION[s.homologation].label}</span> : null}
+                      </b>
                       <small>{[s.trade_name ? s.name : null, s.cnpj ? formatDoc(s.cnpj) : 'Sem CNPJ'].filter(Boolean).join(' · ')}</small>
                     </td>
                     <td>{s.category ?? <span className="muted-t">—</span>}</td>
@@ -177,6 +181,7 @@ export function Fornecedores({ canEdit, onList }: { canEdit: boolean; onList?: (
             modalOpen={Boolean(form)}
             onClose={() => setOpenId(null)}
             onEdit={() => setForm({ s: open })}
+            onChanged={load}
             onToggle={async () => {
               try {
                 await api(`/api/compras/fornecedores/${open.id}`, { method: 'PATCH', json: { active: !open.active } });
@@ -212,7 +217,7 @@ export function Fornecedores({ canEdit, onList }: { canEdit: boolean; onList?: (
 
 /* ------------------------------------------------------------------ */
 
-function SupplierDrawer({ s, canEdit, modalOpen, onClose, onEdit, onToggle }: { s: Supplier; canEdit: boolean; modalOpen: boolean; onClose: () => void; onEdit: () => void; onToggle: () => void }) {
+function SupplierDrawer({ s, canEdit, modalOpen, onClose, onEdit, onToggle, onChanged }: { s: Supplier; canEdit: boolean; modalOpen: boolean; onClose: () => void; onEdit: () => void; onToggle: () => void; onChanged: () => void }) {
   const [notes, setNotes] = useState<{ id: string; number: string; series: string | null; issue_date: string | null; status: string; totals: { total?: number } | null }[] | null>(null);
   useEffect(() => {
     api<{ notes: NonNullable<typeof notes> }>(`/api/compras/fornecedores/${s.id}`)
@@ -317,6 +322,8 @@ function SupplierDrawer({ s, canEdit, modalOpen, onClose, onEdit, onToggle }: { 
               ) : null}
             </div>
           ) : null}
+
+          <SupplierProfile id={s.id} canEdit={canEdit} onChanged={onChanged} />
 
           <h3 className="sec-title" style={{ justifyContent: "flex-start", marginTop: 6 }}>
             <Receipt size={15} /> Notas fiscais

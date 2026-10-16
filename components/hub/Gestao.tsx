@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../core/api';
 import { num } from '@/lib/almoxarifado/stockFormat';
 import type { Indicators } from '@/lib/gestao';
+import type { Painel } from '../compras/PainelCompras';
 import { brl, dateBR } from '../pedidos/ui';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
@@ -280,6 +281,7 @@ export function Gestao({ version }: { version: number }) {
                 </div>
               ) : null}
             </div>
+            <ComprasGestao version={version} />
             <p className="help" style={{ marginTop: 12 }}>Atualizado {new Date(data.at).toLocaleString('pt-BR')}.</p>
           </>
         )}
@@ -339,5 +341,120 @@ function StockCycler(v: { physical: number; reserved: number; available: number 
         </span>
       </div>
     </div>
+  );
+}
+
+/** Compras na Gestão: valor comprado (mês, fornecedor, categoria), economia e itens críticos. */
+function ComprasGestao({ version }: { version: number }) {
+  const [d, setD] = useState<Painel | null>(null);
+  useEffect(() => {
+    api<Painel>('/api/compras/painel')
+      .then(setD)
+      .catch(() => setD(null));
+  }, [version]);
+  if (!d) return null;
+  const g = d.gestao;
+  const maxM = Math.max(1, ...g.by_month.map((m) => m.total));
+  const maxS = Math.max(1, ...g.by_supplier.map((m) => m.total));
+  const maxC = Math.max(1, ...g.by_category.map((m) => m.total));
+  const month = (m: string) => `${m.slice(5, 7)}/${m.slice(2, 4)}`;
+  return (
+    <>
+      <h2 className="g-sub">Compras</h2>
+      <div className="g-grid">
+        <div className="g-card">
+          <h3>Comprado e economia (12 meses)</h3>
+          <div className="g-row">
+            <div>
+              <span>Total comprado (pedidos aprovados)</span>
+              <b>{brl(g.bought)}</b>
+            </div>
+          </div>
+          <div className="g-row">
+            <div>
+              <span>Economia negociada</span>
+              <b>{brl(g.savings.negotiated)}</b>
+            </div>
+          </div>
+          <div className="g-row">
+            <div>
+              <span>Economia sobre a média das propostas</span>
+              <b>{brl(g.savings.vs_average)}</b>
+            </div>
+          </div>
+          <p className="help">{g.savings.criterion}</p>
+          <div className="g-row">
+            <div>
+              <span>Pedidos a receber · atrasados</span>
+              <b>
+                {num(d.counts.po_open ?? 0)} · {num(d.counts.po_late ?? 0)}
+              </b>
+            </div>
+          </div>
+        </div>
+        <div className="g-card">
+          <h3>Comprado por mês</h3>
+          {g.by_month.length ? (
+            g.by_month.map((m) => (
+              <div className="g-row" key={m.month}>
+                <div>
+                  <span>{month(m.month)}</span>
+                  <b>{brl(m.total)}</b>
+                </div>
+                <div className="g-bar">
+                  <i style={{ width: `${(m.total / maxM) * 100}%` }} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="help">Sem pedidos aprovados ainda.</p>
+          )}
+        </div>
+        <div className="g-card">
+          <h3>Comprado por fornecedor</h3>
+          {g.by_supplier.map((m) => (
+            <div className="g-row" key={m.name}>
+              <div>
+                <span>{m.name}</span>
+                <b>{brl(m.total)}</b>
+              </div>
+              <div className="g-bar">
+                <i style={{ width: `${(m.total / maxS) * 100}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="g-card">
+          <h3>Comprado por categoria</h3>
+          {g.by_category.map((m) => (
+            <div className="g-row" key={m.name}>
+              <div>
+                <span>{m.name}</span>
+                <b>{brl(m.total)}</b>
+              </div>
+              <div className="g-bar">
+                <i style={{ width: `${(m.total / maxC) * 100}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        {g.critical.length ? (
+          <div className="g-card">
+            <h3>Itens críticos</h3>
+            {g.critical.slice(0, 10).map((i) => (
+              <div className="g-row" key={i.item_id}>
+                <div>
+                  <span>{i.name}</span>
+                  <b>
+                    {num(i.available)} / mín. {num(i.min)}
+                    {i.on_order ? ` · ${num(i.on_order)} a receber${i.late ? ' (atrasado)' : ''}` : ' · sem compra'}
+                  </b>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </>
   );
 }

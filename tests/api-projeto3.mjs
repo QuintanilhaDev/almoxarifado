@@ -162,10 +162,10 @@ ok(r.status === 200 && r.body.nfe.number === '4321' && r.body.nfe.items.length =
 const nfe = r.body.nfe;
 ok(nfe.installments.length === 2 && nfe.supplier.cnpj === '12345678000199', 'parcelas e CNPJ do fornecedor vieram do XML');
 const nb = nfe.items.find((l) => l.code === 'BT-42');
-ok(nb && nb.item_id === find(items, 'Bota de segurança', '42').id, 'linha "BOTA" ligada sozinha à Bota 42: ' + nb?.options?.[0]?.label);
+ok(nb && nb.item_id === null && nb.options[0]?.id === find(items, 'Bota de segurança', '42').id, 'linha "BOTA" sugere a Bota 42 (pelo nome só sugere: a 1ª ligação é confirmada por alguém): ' + nb?.options?.[0]?.label);
 items = await stock();
 const calca = find(items, 'Calça tática', '44');
-const linkd = nfe.items.map((l) => ({ ...l, item_id: l.code === 'LT-REC' ? null : l.code === 'CAM-OP-M' ? calca.id : l.item_id }));
+const linkd = nfe.items.map((l) => ({ ...l, item_id: l.code === 'LT-REC' ? null : l.code === 'CAM-OP-M' ? calca.id : l.code === 'BT-42' ? l.options[0].id : l.item_id }));
 r = await neilton.post('/api/almoxarifado/notas', { ...nfe, supplier_name: nfe.supplier.name, cnpj: nfe.supplier.cnpj, company: nfe.company.name, company_cnpj: nfe.company.cnpj, items: linkd, purchase_request_id: pr.id, xml: r.body.xml });
 ok(r.status === 200 && r.body.note.status === 'aberta', 'nota registrada (aguarda conferência física)');
 const note = r.body.note;
@@ -199,7 +199,7 @@ ok(r.body.waiting.some((w) => w.id === adm.id), 'avisa que o pedido da admissão
 r = await carlos.get('/api/compras/requests');
 ok(r.body.requests.find((x) => x.id === pr.id)?.status === 'entregue', 'Compras vê a solicitação entregue');
 // estorno: nota digitada à mão, lançada e estornada
-r = await neilton.post('/api/almoxarifado/notas', { number: '99', series: '1', supplier_name: 'Loja do Bairro', cnpj: '11222333000181', issue_date: today, items: [{ code: 'X1', description: 'Boné azul', qty: 5, total: 50, item_id: find(items, 'Boné', null).id }], installments: [{ n: '1', due: plusDays(10), value: 50 }] });
+r = await neilton.post('/api/almoxarifado/notas', { number: '99', series: '1', supplier_name: 'Loja do Bairro', cnpj: '11222333000181', issue_date: today, items: [{ code: 'X1', description: 'Boné azul', qty: 5, total: 50, item_id: find(items, 'Boné', null).id }], installments: [{ n: '1', due: plusDays(10), value: 50 }], validate_installments: true });
 ok(r.status === 200 && r.body.note.items[0].unit_cost === 10, 'nota digitada à mão (sem XML), custo 10 por unidade');
 const manual = r.body.note;
 items = await stock();

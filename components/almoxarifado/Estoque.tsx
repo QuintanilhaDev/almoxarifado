@@ -65,6 +65,13 @@ export function CategoryTags({ list, empty }: { list: string[]; empty?: string }
   );
 }
 
+/** em compra, em conferência e demanda por item (vem de /api/almoxarifado/stock/a-receber) */
+export interface BuyInfo {
+  on_order: Record<string, { qty: number; next: string | null; late: boolean; orders?: { id: string; number: number; left: number; due: string | null; late: boolean; supplier: string }[] }>;
+  quarantine: Record<string, number>;
+  demand: Record<string, number>;
+}
+
 export function Estoque({
   items,
   postos,
@@ -102,6 +109,13 @@ export function Estoque({
   const [writeoff, setWriteoff] = useState<StockItem | null>(null);
   const catalog = useCatalog();
   const toast = useToast();
+  // em compra (a receber), em conferência e requisições pendentes: nada disso é saldo físico
+  const [buy, setBuy] = useState<BuyInfo | null>(null);
+  useEffect(() => {
+    api<BuyInfo>('/api/almoxarifado/stock/a-receber')
+      .then(setBuy)
+      .catch(() => undefined);
+  }, [version]);
 
   // pedidos da Max: "o que está com estoque baixo", "quanto tem de bota 42"
   useMaxBus('almox:estoque', (p) => {
@@ -365,7 +379,16 @@ export function Estoque({
                         {i.active === false ? <em className="cat-tag" style={{ marginLeft: 6 }}>inativo</em> : null}
                       </b>
                       <small>
-                        {[i.code, i.size ? `Tam. ${i.size}` : null, i.unit, i.code ? null : `Ref. ${refLabel(i.ref)}`, i.reserved ? `${num(i.reserved)} reservado(s) · disponível ${num(i.quantity - i.reserved)}` : null].filter(Boolean).join(' · ')}
+                        {[
+                          i.code,
+                          i.size ? `Tam. ${i.size}` : null,
+                          i.unit,
+                          i.code ? null : `Ref. ${refLabel(i.ref)}`,
+                          i.reserved ? `${num(i.reserved)} reservado(s) · disponível ${num(i.quantity - i.reserved)}` : null,
+                          buy?.on_order[i.id]?.qty ? `${num(buy.on_order[i.id].qty)} a receber${buy.on_order[i.id].next ? ` até ${buy.on_order[i.id].next!.split('-').reverse().slice(0, 2).join('/')}` : ''}${buy.on_order[i.id].late ? ' (atrasado)' : ''}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </small>
                       <CategoryTags list={i.categories} />
                     </span>
@@ -422,6 +445,7 @@ export function Estoque({
             onDelete={() => setDel(openItem)}
             onPurchase={onPurchase ? () => onPurchase(openItem.id) : undefined}
             onWriteoff={catalog.ready ? () => setWriteoff(openItem) : undefined}
+            buy={buy}
             groupLabel={openItem.cat_code ? `${categoryName(openItem.cat_code) ?? ''} › ${groupName(catalog.groups, openItem.cat_code, openItem.grp_code) ?? ''}` : null}
             modalOpen={Boolean(form || qty || send || importing || del || writeoff)}
           />
@@ -489,11 +513,13 @@ function ItemDrawer({
   onDelete,
   onPurchase,
   onWriteoff,
+  buy,
   groupLabel,
   modalOpen,
 }: {
   onPurchase?: () => void;
   onWriteoff?: () => void;
+  buy?: BuyInfo | null;
   groupLabel?: string | null;
   item: StockItem;
   options: string[];
@@ -602,6 +628,39 @@ function ItemDrawer({
             <p className="help" style={{ margin: '-6px 0 0' }}>
               {num(item.reserved)} {item.reserved === 1 ? 'unidade reservada' : 'unidades reservadas'} para pedidos de material (ainda no almoxarifado, mas já separadas).
             </p>
+          ) : null}
+          {buy && (buy.on_order[item.id]?.qty || buy.quarantine[item.id] || buy.demand[item.id] || item.reserved) ? (
+            <div className="pc-saldos">
+              <div>
+                <small>Físico</small>
+                <b>{num(item.quantity)}</b>
+              </div>
+              <div>
+                <small>Reservado</small>
+                <b>{num(item.reserved)}</b>
+              </div>
+              <div>
+                <small>Disponível</small>
+                <b>{num(item.quantity - item.reserved)}</b>
+              </div>
+              <div>
+                <small>Requisições pendentes</small>
+                <b>{num(buy.demand[item.id] ?? 0)}</b>
+              </div>
+              <div>
+                <small>Em compra (a receber)</small>
+                <b className={buy.on_order[item.id]?.late ? 't-short' : ''}>{num(buy.on_order[item.id]?.qty ?? 0)}</b>
+              </div>
+              <div>
+                <small>Em conferência</small>
+                <b>{num(buy.quarantine[item.id] ?? 0)}</b>
+              </div>
+              {buy.on_order[item.id]?.orders?.length ? (
+                <p className="help full">
+                  {buy.on_order[item.id].orders!.map((o) => `${o.left} pelo PC ${String(o.number).padStart(4, '0')} (${o.supplier})${o.due ? `, previsão ${o.due.split('-').reverse().join('/')}` : ''}${o.late ? ' — atrasado' : ''}`).join(' · ')}
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           <div className="drawer-actions edit-only">
