@@ -325,5 +325,108 @@ ok(r.status === 200, 'nota estornada');
 r = await neilton.get('/api/almoxarifado/stock/a-receber');
 ok(r.body.on_order[calca.id]?.qty === 15 && r.body.on_order[bota42.id]?.qty === 20, 'o pedido volta a ter tudo a receber');
 
+/* ------------------------------------------------------------ uma nota, vários pedidos */
+console.log('\n— Uma nota fiscal atendendo vários pedidos de compra (mesmo fornecedor)');
+items = await stock();
+const camM = find(items, 'Camisa social manga curta', 'M');
+const radio = find(items, 'Rádio comunicador', null);
+const mk = async (item, name, qty, price) => {
+  const x = await carlos.post('/api/compras/pedidos', { supplier_id: marvin.id, reason: 'Item do contrato Marvin', items: [{ item_id: item.id, name, qty, unit_price: price }] });
+  const y = await carlos.patch(`/api/compras/pedidos/${x.body.order.id}`, { action: 'submit' });
+  return y.body.order;
+};
+const pA = await mk(camM, 'Camisa social manga curta', 5, 40);
+const pB = await mk(radio, 'Rádio comunicador', 3, 12);
+const pC = await mk(camM, 'Camisa social manga curta', 3, 40);
+ok([pA, pB, pC].every((o) => o.status === 'aprovado'), `três pedidos da Marvin aprovados: PC ${pA.number} (5 camisas), PC ${pB.number} (3 rádios), PC ${pC.number} (3 camisas)`);
+const lbl = (o) => String(o.number).padStart(4, '0');
+const mkey = makeKey('45723174000110', 1, 9100);
+// a Marvin faturou tudo numa nota só: 8 camisas numa linha (5 do PC A + 3 do PC C) e os rádios
+// com o pedido escrito no item (xPed/nItemPed); nas informações complementares, os pedidos
+const multiXml = `<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe><infNFe Id="NFe${mkey}" versao="4.00">
+<ide><serie>1</serie><nNF>9100</nNF><dhEmi>2026-10-16T09:00:00-03:00</dhEmi></ide>
+<emit><CNPJ>45723174000110</CNPJ><xNome>MARVIN UNIFORMES LTDA</xNome></emit><dest><CNPJ>11222333000144</CNPJ><xNome>MAX FORTE</xNome></dest>
+<det nItem="1"><prod><cProd>CSMC-M</cProd><xProd>CAMISA SOCIAL MANGA CURTA M</xProd><uCom>UN</uCom><qCom>8.0000</qCom><vUnCom>40.00</vUnCom><vProd>320.00</vProd></prod></det>
+<det nItem="2"><prod><cProd>RD-01</cProd><xProd>RADIO COMUNICADOR HT</xProd><uCom>UN</uCom><qCom>3.0000</qCom><vUnCom>12.00</vUnCom><vProd>36.00</vProd><xPed>PC ${lbl(pB)}</xPed><nItemPed>1</nItemPed></prod></det>
+<total><ICMSTot><vProd>356.00</vProd><vDesc>0</vDesc><vFrete>0</vFrete><vSeg>0</vSeg><vOutro>0</vOutro><vIPI>0</vIPI><vNF>356.00</vNF></ICMSTot></total>
+<cobr><dup><nDup>001</nDup><dVenc>2026-11-16</dVenc><vDup>356.00</vDup></dup></cobr>
+<infAdic><infCpl>Ref. seus pedidos ${lbl(pA)}, ${lbl(pB)} e ${lbl(pC)}</infCpl></infAdic>
+</infNFe></NFe></nfeProc>`;
+r = await neilton.upload('/api/almoxarifado/notas/parse', Buffer.from(multiXml), 'marvin.xml', 'text/xml');
+ok(r.status === 200, 'XML da Marvin lido');
+const mp = r.body;
+ok(mp.order_refs?.includes(pA.number) && mp.order_refs.includes(pB.number) && mp.order_refs.includes(pC.number), 'pedidos citados nas informações complementares: ' + JSON.stringify(mp.order_refs));
+const lRad = mp.nfe.items.find((l) => l.code === 'RD-01');
+const lCam = mp.nfe.items.find((l) => l.code === 'CSMC-M');
+ok(lRad.item_id === radio.id && lRad.via === 'pedido', 'rádio: o fornecedor citou pedido e linha → item ligado pelo pedido');
+ok(lCam.item_id === null && lCam.options[0]?.id === camM.id && lCam.options[0].from === 'pedido', 'camisa (código novo): sugerida porque está nos pedidos em aberto — confirma com um toque: ' + lCam.options[0]?.label);
+const pv = (i) => mp.preview.find((x) => x.i === i).parts;
+ok(pv(mp.nfe.items.indexOf(lRad)).length === 1 && pv(mp.nfe.items.indexOf(lRad))[0].po_id === pB.id, `prévia: rádios → PC ${lbl(pB)}`);
+// confirma a sugestão da camisa e registra SEM escolher pedido nenhum: a ligação é automática
+r = await neilton.post('/api/almoxarifado/notas', { ...mp.nfe, supplier_name: mp.nfe.supplier.name, cnpj: mp.nfe.supplier.cnpj, items: mp.nfe.items.map((l) => ({ ...l, item_id: l.item_id ?? l.options[0].id })), xml: mp.xml });
+ok(r.status === 200, 'nota registrada sem escolher pedido');
+let mn = r.body.note;
+const ids = mn.purchase_order_ids ?? [];
+ok(ids.length === 3 && [pA, pB, pC].every((o) => ids.includes(o.id)), 'a nota ficou ligada aos 3 pedidos sozinha');
+const cams = mn.items.filter((l) => l.item_id === camM.id);
+ok(cams.length === 2 && cams.find((l) => l.po_id === pA.id)?.qty === 5 && cams.find((l) => l.po_id === pC.id)?.qty === 3 && cams.every((l) => l.parts === 2 && l.src === 0), 'a linha de 8 camisas foi dividida: 5 no PC A e 3 no PC C');
+ok(Math.round(cams.reduce((t, l) => t + l.total, 0) * 100) === 32000, 'os valores das partes fecham com a linha da nota');
+ok(mn.items.find((l) => l.item_id === radio.id)?.po_id === pB.id, 'rádios no PC B');
+ok(!mn.divergences.some((d) => d.status !== 'resolvida'), 'sem divergência: preço e quantidades batem com os 3 pedidos');
+ok(mn.history.some((h) => /Ligada (também|sozinha)/.test(h.what) && /dividida/.test(h.what)), 'o histórico conta a ligação automática');
+ok(mn.items.every((l) => !l.po_id || l.po_why), 'cada ligação diz o porquê: ' + mn.items.map((l) => l.po_why).join(' | '));
+// trocar à mão: rádio "fora de pedido" vira divergência; voltar ao automático desfaz
+const iRad = mn.items.findIndex((l) => l.item_id === radio.id);
+r = await neilton.patch(`/api/almoxarifado/notas/${mn.id}`, { po_links: [{ i: iRad, po_id: null }] });
+ok(r.status === 200 && r.body.note.divergences.some((d) => d.kind === 'item_fora' && d.status === 'aberta') && !r.body.note.purchase_order_ids.includes(pB.id), 'linha marcada "fora de pedido": vira divergência e o PC B sai da nota');
+r = await neilton.patch(`/api/almoxarifado/notas/${mn.id}`, { po_links: [{ i: iRad, auto: true }] });
+ok(r.status === 200 && r.body.note.items[iRad].po_id === pB.id && !r.body.note.divergences.some((d) => d.status === 'aberta' && d.kind === 'item_fora'), 'de volta ao automático: rádio no PC B, divergência some');
+r = await neilton.patch(`/api/almoxarifado/notas/${mn.id}`, { po_links: [{ i: iRad, po_id: pA.id, po_key: pA.items[0].key }] });
+ok(r.status === 409 && /outro item/.test(r.body.error), 'não deixa ligar o rádio à linha de camisas');
+mn = (await neilton.get(`/api/almoxarifado/notas/${mn.id}?orders=1`)).body;
+ok(mn.orders?.some((o) => o.id === pA.id) && mn.orders.some((o) => o.id === pB.id), 'a nota lista os pedidos possíveis para trocar uma linha');
+mn = mn.note;
+// entrada de tudo: cada pedido baixa o seu
+r = await neilton.post(`/api/almoxarifado/notas/${mn.id}/post`, { lines: mn.items.map((l, i) => ({ i, qty: l.qty * (l.factor || 1), item_id: l.item_id })) });
+ok(r.status === 200 && r.body.note.status === 'lancada' && r.body.orders?.length === 3, 'entrada confirmada na nota inteira');
+ok(r.body.orders.every((o) => o.status === 'concluido'), 'os 3 pedidos ficaram concluídos: ' + JSON.stringify(r.body.orders));
+items = await stock();
+ok(find(items, 'Camisa social manga curta', 'M').quantity === camM.quantity + 8 && find(items, 'Rádio comunicador', null).quantity === radio.quantity + 3, 'estoque: +8 camisas e +3 rádios');
+r = await neilton.get('/api/almoxarifado/stock/a-receber');
+ok(!r.body.on_order[camM.id] && !r.body.on_order[radio.id], 'nada mais a receber desses itens');
+r = await carlos.get(`/api/compras/pedidos/${pC.id}`);
+ok(r.body.notes.some((n) => n.id === mn.id) && r.body.order.items[0].received === 3, `o PC C mostra a nota e os 3 recebidos`);
+// estorno: cada pedido volta a ter o seu a receber
+r = await neilton.post(`/api/almoxarifado/notas/${mn.id}/reverse`, { reason: 'teste de estorno' });
+ok(r.status === 200, 'nota estornada');
+r = await neilton.get('/api/almoxarifado/stock/a-receber');
+ok(r.body.on_order[camM.id]?.qty === 8 && r.body.on_order[radio.id]?.qty === 3, 'estorno devolve 8 camisas (5 + 3) e 3 rádios ao "a receber" dos pedidos certos');
+
+// descrição que nem código nem nome resolvem: a IA lê e sugere (só sugere)
+const aiXml = multiXml.replace(mkey, makeKey('45723174000110', 1, 9101)).replace('<nNF>9100</nNF>', '<nNF>9101</nNF>').replace('<xProd>RADIO COMUNICADOR HT</xProd>', '<xProd>KIT HT C/ BATERIA</xProd>').replace(/<xPed>[^<]*<\/xPed><nItemPed>1<\/nItemPed>/, '').replace('<cProd>RD-01</cProd>', '<cProd>KT-9</cProd>');
+r = await neilton.upload('/api/almoxarifado/notas/parse', Buffer.from(aiXml), 'marvin2.xml', 'text/xml');
+const kit = r.body.nfe?.items.find((l) => l.code === 'KT-9');
+ok(r.status === 200 && kit && kit.item_id === null && kit.options[0]?.id === radio.id && kit.options[0].from === 'ia' && r.body.ai === 1, 'linha "KIT HT C/ BATERIA": a IA sugere o rádio do pedido (para confirmar): ' + kit?.options?.[0]?.label);
+
+// pelo DANFE (sem XML): o PDF cita o outro pedido → a tela inclui sozinha
+console.log('\n— DANFE em PDF citando outro pedido do fornecedor');
+const PDFDocument = (await import('pdfkit')).default;
+const pdfBuf = await new Promise((res) => {
+  const d = new PDFDocument();
+  const ch = [];
+  d.on('data', (c) => ch.push(c));
+  d.on('end', () => res(Buffer.concat(ch)));
+  d.text(`DANFE  CHAVE DE ACESSO ${mkey.replace(/(\d{4})/g, '$1 ')}`);
+  d.text('CAMISA SOCIAL MANGA CURTA M   UN  5  40,00  200,00');
+  d.text('RADIO COMUNICADOR HT   UN  3  12,00  36,00');
+  d.text(`INFORMACOES COMPLEMENTARES: Seu pedido nº ${pB.number}`);
+  d.end();
+});
+const upd = await neilton.upload('/api/anexos', pdfBuf, 'danfe-marvin.pdf', 'application/pdf', { scope: 'nota' });
+r = await neilton.get(`/api/almoxarifado/notas/danfe?path=${encodeURIComponent(upd.body.attachment.path)}&order=${pA.id}`);
+ok(r.status === 200 && r.body.orders?.some((o) => o.id === pB.id), 'o DANFE traz o PC B também: ' + JSON.stringify(r.body.orders));
+ok(Array.isArray(r.body.missing), 'e aponta o que não achou no DANFE: ' + JSON.stringify(r.body.missing?.length));
+
 console.log(`\n${pass} ok, ${failN} falha(s)`);
 process.exit(failN ? 1 : 0);

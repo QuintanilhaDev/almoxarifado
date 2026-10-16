@@ -6,7 +6,8 @@ import { broadcast } from '@/lib/broadcast';
 import { UUID_RE, loadItems, str } from '@/lib/almoxarifado/stockData';
 import { financeNotes, notesAccess } from '@/lib/pedidos/access';
 import { missingP3, p3Fail } from '@/lib/pedidos/server';
-import { validAccessKey } from '@/lib/notas/nfe';
+import { parseNfe, validAccessKey } from '@/lib/notas/nfe';
+import { orderRefs, xpedNumbers } from '@/lib/notas/vinculo';
 import { ensureSupplier, hasPC, noteCols, toNote, type NoteLine } from '@/lib/notas/server';
 import { cleanAttachments, toPO } from '@/lib/compras/pcServer';
 import { PO_OPEN, poLabel, type PurchaseOrder } from '@/lib/compras/pc';
@@ -94,7 +95,14 @@ export async function POST(req: Request) {
         item_id,
         received: 0,
         factor,
+        // pedido escolhido para a linha (tela "Receber pelo pedido"): fica travado
+        po_id: typeof x?.po_id === 'string' && UUID_RE.test(x.po_id) ? x.po_id : null,
         po_key: typeof x?.po_key === 'string' ? x.po_key.slice(0, 20) : null,
+        po_lock: (typeof x?.po_id === 'string' && UUID_RE.test(x.po_id) && typeof x?.po_key === 'string') || x?.po_none === true,
+        ...(x?.po_none === true ? { po_why: 'fora de pedido (escolhido à mão)' } : {}),
+        xped: str(x?.xped, 60),
+        nitem_ped: Number.isInteger(Number(x?.nitem_ped)) && Number(x?.nitem_ped) > 0 ? Number(x?.nitem_ped) : null,
+        src: n,
       });
     }
     const t = (b.totals ?? {}) as Record<string, unknown>;
@@ -114,13 +122,36 @@ export async function POST(req: Request) {
       .map((x, i) => ({ n: str(x?.n, 10) ?? String(i + 1).padStart(3, '0'), due: typeof x?.due === 'string' && DATE_RE.test(x.due) ? x.due : null, value: money(x?.value) ?? 0, obs: str(x?.obs, 120), method: str(x?.method, 40), ref: str(x?.ref, 80) }));
     const prId = typeof b.purchase_request_id === 'string' && UUID_RE.test(b.purchase_request_id) ? b.purchase_request_id : null;
     const pc = await hasPC();
-    // pedido de compra que esta nota atende (só pedido aprovado)
-    let po: PurchaseOrder | null = null;
-    if (pc && typeof b.purchase_order_id === 'string' && UUID_RE.test(b.purchase_order_id)) {
-      const { data: o } = await db().from('purchase_orders').select('*').eq('id', b.purchase_order_id).maybeSingle();
-      if (!o) return fail('Pedido de compra não encontrado.', 404);
-      po = toPO(o as Record<string, unknown>);
-      if (!PO_OPEN.includes(po.status) && !(po.status === 'aguardando_aprovacao' && po.approval)) return fail(`O ${poLabel(po.number)} está "${po.status.replace('_', ' ')}" e não recebe notas.`, 409);
+    // pedidos de compra que esta nota atende (só pedido aprovado). Pode ser mais de um: além
+    // dos escolhidos, os em aberto do mesmo fornecedor entram na ligação automática.
+    const chosenIds = [...new Set([...(Array.isArray(b.purchase_order_ids) ? b.purchase_order_ids : []), b.purchase_order_id, ...items.map((l) => l.po_id)].filter((x): x is string => typeof x === 'string' && UUID_RE.test(x)))].slice(0, 20);
+    const chosen: PurchaseOrder[] = [];
+    if (pc && chosenIds.length) {
+      const { data: os } = await db().from('purchase_orders').select('*').in('id', chosenIds);
+      for (const id of chosenIds) {
+        const o = (os ?? []).find((r) => r.id === id);
+        if (!o) return fail('Pedido de compra não encontrado.', 404);
+        const one = toPO(o as Record<string, unknown>);
+        if (!PO_OPEN.includes(one.status) && !(one.status === 'aguardando_aprovacao' && one.approval)) return fail(`O ${poLabel(one.number)} está "${one.status.replace('_', ' ')}" e não recebe notas.`, 409);
+        if (one.cnpj && cnpj && one.cnpj !== cnpj) return fail(`O ${poLabel(one.number)} é de outro fornecedor (${one.supplier_name}).`, 409);
+        chosen.push(one);
+      }
+    }
+    const po: PurchaseOrder | null = chosen[0] ?? null;
+    // pedidos citados no texto da nota: no XML, lidos do próprio arquivo (informações complementares e grupo "compra")
+    let refs: number[] = Array.isArray(b.order_refs) ? (b.order_refs as unknown[]).map(Number).filter((x) => Number.isInteger(x) && x > 0 && x < 1e7).slice(0, 30) : [];
+    if (typeof b.xml === 'string' && b.xml.includes('infNFe')) {
+      try {
+        const x = parseNfe(b.xml);
+        refs = [...new Set([...orderRefs(x.info), ...xpedNumbers(x.order_text)])];
+        // o pedido citado em cada item vem do arquivo (não do que a tela mandou)
+        items.forEach((l) => {
+          const src = x.items.find((it) => it.code === l.code && it.qty === l.qty && it.description === l.description);
+          if (src) Object.assign(l, { xped: src.xped, nitem_ped: src.nitem_ped });
+        });
+      } catch {
+        /* XML já validado na leitura */
+      }
     }
     // sem parcelas na nota: sugere pela condição do pedido (a pessoa confere e valida)
     if (!installments.length && po) installments = suggestInstallments(totals.total, po.payment);
@@ -147,11 +178,11 @@ export async function POST(req: Request) {
         installments,
         payment: str(b.payment, 60),
         purchase_request_id: prId,
-        ...(pc ? { purchase_order_id: po?.id ?? null, attachments: cleanAttachments(b.attachments), installments_status: validate ? 'validada' : 'incompleta', divergences: [] } : {}),
+        ...(pc ? { purchase_order_id: po?.id ?? null, purchase_order_ids: chosen.map((o) => o.id), order_refs: refs, attachments: cleanAttachments(b.attachments), installments_status: validate ? 'validada' : 'incompleta', divergences: [] } : {}),
         xml: typeof b.xml === 'string' && b.xml.length < 2_000_000 && b.xml.includes('infNFe') ? b.xml : null,
         note: str(b.note, 300),
         created_by: user.display_name,
-        history: [{ at: new Date().toISOString(), by: user.display_name, what: `${typeof b.xml === 'string' ? 'Nota registrada pelo XML' : key ? 'Nota registrada pelo DANFE' : 'Nota registrada (digitada)'}${po ? ` para o ${poLabel(po.number)}` : ''}. Ainda sem entrada no estoque.` }],
+        history: [{ at: new Date().toISOString(), by: user.display_name, what: `${typeof b.xml === 'string' ? 'Nota registrada pelo XML' : key ? 'Nota registrada pelo DANFE' : 'Nota registrada (digitada)'}${chosen.length ? ` para ${chosen.map((o) => `o ${poLabel(o.number)}`).join(' e ')}` : ''}. Ainda sem entrada no estoque.` }],
       })
       .select(await noteCols())
       .single();
@@ -162,11 +193,20 @@ export async function POST(req: Request) {
     }
     let note = toNote(data as unknown as Record<string, unknown>);
     if (pc) {
-      // compara com o pedido e já aponta as divergências
-      const r = await recompute(note, po);
-      const { data: d2 } = await db().from('fiscal_notes').update({ items: r.items, divergences: r.divergences, status: r.status }).eq('id', note.id).select(await noteCols()).single();
+      // liga cada linha ao pedido certo (pode dividir uma linha entre pedidos) e aponta as divergências
+      const r = await recompute(note, chosen, true);
+      const auto = r.purchase_order_ids.filter((id) => !chosen.some((o) => o.id === id));
+      const patch: Record<string, unknown> = { items: r.items, divergences: r.divergences, status: r.status, purchase_order_ids: r.purchase_order_ids, purchase_order_id: r.purchase_order_id };
+      if (auto.length) {
+        const { data: an } = await db().from('purchase_orders').select('number').in('id', auto);
+        const split = r.items.filter((l) => (l.parts ?? 1) > 1 && l.part === 1).length;
+        patch.history = [...note.history, { at: new Date().toISOString(), by: 'Max Hub', what: `${chosen.length ? 'Ligada também a' : 'Ligada sozinha a'} ${(an ?? []).map((x) => poLabel(Number(x.number))).join(', ')} (itens do mesmo fornecedor faturados na mesma nota)${split ? `; ${split === 1 ? '1 linha dividida' : `${split} linhas divididas`} entre pedidos` : ''}.` }];
+      }
+      const { data: d2 } = await db().from('fiscal_notes').update(patch).eq('id', note.id).select(await noteCols()).single();
       if (d2) note = toNote(d2 as unknown as Record<string, unknown>);
-      if (po) await syncRequests(po.request_ids, user.display_name);
+      const { data: used } = r.purchase_order_ids.length ? await db().from('purchase_orders').select('request_ids').in('id', r.purchase_order_ids) : { data: [] };
+      const reqs = [...new Set((used ?? []).flatMap((x) => (x.request_ids as string[]) ?? []))];
+      if (reqs.length) await syncRequests(reqs, user.display_name);
     }
     await broadcast('note:update', { id: note.id, by: user.display_name });
     return NextResponse.json({ note });

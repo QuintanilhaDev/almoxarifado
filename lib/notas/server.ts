@@ -6,6 +6,7 @@ import type { StockItem } from '../almoxarifado/types';
 import type { NfeItem } from './nfe';
 import type { Attachment, ComprasConfig, PurchaseOrder } from '../compras/pc';
 import { poLeft } from '../compras/pc';
+import { allocate } from './vinculo';
 import { BLOCKING, type Divergence, type DivKind, type Installment } from './conferencia';
 
 export const NOTE_COLS =
@@ -21,12 +22,24 @@ export interface NoteLine extends Partial<NfeItem> {
   item_id: string | null;
   received: number;
   /** como a ligação foi achada: pelo código do fornecedor (aprendido) ou pelo nome */
-  via?: 'fornecedor' | 'nome' | null;
+  via?: 'fornecedor' | 'nome' | 'pedido' | null;
   /* recebimento pelo pedido (supabase/compras_pedidos.sql) */
   /** unidades do estoque por unidade da nota (ex.: 1 caixa = 10) */
   factor?: number;
-  /** linha do pedido de compra que esta linha atende */
+  /** pedido de compra (uma nota pode atender vários) e a linha dele que esta linha atende */
+  po_id?: string | null;
   po_key?: string | null;
+  /** por que esta linha foi ligada a este pedido (texto para quem confere) */
+  po_why?: string | null;
+  /** escolhido à mão: a ligação automática não mexe mais */
+  po_lock?: boolean;
+  /** pedido citado pelo fornecedor no item (xPed / nItemPed do XML) */
+  xped?: string | null;
+  nitem_ped?: number | null;
+  /** linha original da nota (uma linha pode ser dividida entre pedidos: parte X de N) */
+  src?: number | null;
+  part?: number;
+  parts?: number;
   /** conferência física, em unidades do estoque */
   delivered?: number | null;
   accepted?: number | null;
@@ -56,7 +69,12 @@ export interface FiscalNote {
   installments: Installment[];
   payment: string | null;
   purchase_request_id: string | null;
+  /** pedido principal (o primeiro) */
   purchase_order_id?: string | null;
+  /** todos os pedidos que a nota atende (mesmo fornecedor) */
+  purchase_order_ids?: string[];
+  /** pedidos citados no texto da nota (informações complementares / DANFE) */
+  order_refs?: number[];
   attachments?: Attachment[];
   divergences?: Divergence[];
   installments_status?: 'incompleta' | 'validada';
@@ -69,21 +87,30 @@ export interface FiscalNote {
 }
 
 /** colunas do recebimento pelo pedido (existem depois do supabase/compras_pedidos.sql) */
-export const NOTE_COLS_PC = NOTE_COLS + ', purchase_order_id, attachments, divergences, installments_status';
+export const NOTE_COLS_PC = NOTE_COLS + ', purchase_order_id, purchase_order_ids, order_refs, attachments, divergences, installments_status';
 let pcCols: { ok: boolean; at: number } | null = null;
 /** as colunas novas já existem no banco? (consulta uma vez por minuto) */
 export async function noteCols(): Promise<string> {
   if (!pcCols || Date.now() - pcCols.at > 60_000) {
-    const { error } = await db().from('fiscal_notes').select('installments_status').limit(1);
+    const { error } = await db().from('fiscal_notes').select('installments_status, purchase_order_ids, order_refs').limit(1);
     pcCols = { ok: !error, at: Date.now() };
   }
   return pcCols.ok ? NOTE_COLS_PC : NOTE_COLS;
 }
 export const hasPC = async () => (await noteCols()) === NOTE_COLS_PC;
 
+/** os pedidos de compra que a nota atende (notas antigas: só o principal) */
+export function noteOrderIds(n: Pick<FiscalNote, 'purchase_order_id' | 'purchase_order_ids'>): string[] {
+  const ids = [...(n.purchase_order_ids ?? [])];
+  if (n.purchase_order_id && !ids.includes(n.purchase_order_id)) ids.unshift(n.purchase_order_id);
+  return ids;
+}
+
 export function toNote(r: Record<string, unknown>): FiscalNote {
   return {
     ...(r as unknown as FiscalNote),
+    purchase_order_ids: Array.isArray(r.purchase_order_ids) ? (r.purchase_order_ids as string[]) : r.purchase_order_id ? [String(r.purchase_order_id)] : [],
+    order_refs: Array.isArray(r.order_refs) ? (r.order_refs as unknown[]).map(Number).filter((x) => x > 0) : [],
     attachments: Array.isArray(r.attachments) ? (r.attachments as Attachment[]) : [],
     divergences: Array.isArray(r.divergences) ? (r.divergences as Divergence[]) : [],
     items: Array.isArray(r.items) ? (r.items as NoteLine[]) : [],
@@ -143,59 +170,66 @@ export async function learnedFor(cnpj: string | null): Promise<{ supplierId: str
   return { supplierId: s.id as string, map };
 }
 
-/** liga cada linha da nota à linha do pedido de compra (mesmo item do estoque, com saldo a receber) */
-export function matchOrder(lines: NoteLine[], po: PurchaseOrder | null): NoteLine[] {
-  if (!po) return lines;
-  const used = new Map<string, number>();
-  return lines.map((l) => {
-    if (l.po_key && po.items.some((i) => i.key === l.po_key)) return l;
-    if (!l.item_id) return { ...l, po_key: null };
-    const want = l.qty * (l.factor || 1);
-    const cand = po.items.filter((i) => i.item_id === l.item_id).sort((a, b) => poLeft(b) - poLeft(a));
-    const hit = cand.find((i) => poLeft(i) - (used.get(i.key) ?? 0) >= want) ?? cand[0];
-    if (hit) used.set(hit.key, (used.get(hit.key) ?? 0) + want);
-    return { ...l, po_key: hit?.key ?? null };
-  });
+/** liga as linhas aos pedidos (veja lib/notas/vinculo.ts: pode dividir uma linha entre pedidos) */
+export function matchOrder(lines: NoteLine[], pos: PurchaseOrder[], refs: number[] = [], tolerance = 0.01, reshape = false): NoteLine[] {
+  if (!pos.length) return lines.map((l) => (l.po_key || l.po_id ? { ...l, po_id: null, po_key: null, po_why: null } : l));
+  return allocate(lines, pos, refs, tolerance, reshape);
 }
 
 /**
- * Compara a nota com o pedido (fornecedor, itens, quantidade, preço, frete e pagamento) e
- * junta as diferenças da conferência física. O que já foi tratado continua tratado
+ * Compara a nota com o(s) pedido(s) (fornecedor, itens, quantidade, preço, frete e pagamento)
+ * e junta as diferenças da conferência física. O que já foi tratado continua tratado
  * (mesma divergência, mesmo valor encontrado). O pedido NUNCA é alterado para bater com a nota.
  */
-export function computeDivergences(note: FiscalNote, po: PurchaseOrder | null, cfg: ComprasConfig, prev: Divergence[] = []): Divergence[] {
+export function computeDivergences(note: FiscalNote, orders: PurchaseOrder[] | PurchaseOrder | null, cfg: ComprasConfig, prev: Divergence[] = []): Divergence[] {
+  const pos = !orders ? [] : Array.isArray(orders) ? orders : [orders];
   const at = new Date().toISOString();
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const label = (po: PurchaseOrder) => `PC ${String(po.number).padStart(4, '0')}`;
+  const many = pos.length > 1;
   const out: Divergence[] = [];
-  const push = (kind: DivKind, line: number | null, text: string, expected: string | null, found: string | null) => {
-    const id = `${kind}-${line ?? 'n'}`;
+  const push = (kind: DivKind, line: number | null, text: string, expected: string | null, found: string | null, tag = '') => {
+    const id = `${kind}-${line ?? 'n'}${tag}`;
     const old = prev.find((d) => d.id === id && d.found === found);
     out.push(old ?? { id, kind, line, text, expected, found, blocking: BLOCKING.includes(kind), status: 'aberta', created_at: at });
   };
-  if (po) {
-    if (po.cnpj && note.cnpj && po.cnpj !== note.cnpj) push('fornecedor', null, `A nota é de outro CNPJ (${note.supplier_name}); o pedido é de ${po.supplier_name}.`, po.cnpj, note.cnpj);
+  if (pos.length) {
+    for (const po of pos) {
+      if (po.cnpj && note.cnpj && po.cnpj !== note.cnpj) push('fornecedor', null, `A nota é de outro CNPJ (${note.supplier_name}); o ${label(po)} é de ${po.supplier_name}.`, po.cnpj, note.cnpj, many ? `-${po.number}` : '');
+    }
+    // o mesmo item do pedido pode estar em mais de uma linha da nota: soma tudo
+    const billed = new Map<string, number>();
+    note.items.forEach((l) => {
+      if (l.po_id && l.po_key) billed.set(`${l.po_id}|${l.po_key}`, (billed.get(`${l.po_id}|${l.po_key}`) ?? 0) + l.qty * (l.factor || 1));
+    });
     note.items.forEach((l, i) => {
       if (!l.item_id) return; // sem item do estoque: precisa ligar antes (não é divergência)
-      const pl = l.po_key ? po.items.find((x) => x.key === l.po_key) : null;
-      if (!pl) {
-        push('item_fora', i, `${l.description} não está no pedido de compra.`, null, l.description);
+      const po = l.po_id ? pos.find((o) => o.id === l.po_id) : null;
+      const pl = po && l.po_key ? po.items.find((x) => x.key === l.po_key) : null;
+      if (!po || !pl) {
+        push('item_fora', i, `${l.description} não está ${many ? 'em nenhum dos pedidos ligados' : 'no pedido de compra'}.`, null, l.description);
         return;
       }
       const factor = l.factor || 1;
       const unitNote = Math.round(((Number(l.unit_value) || (l.total && l.qty ? l.total / l.qty : 0)) / factor) * 10000) / 10000;
       if (unitNote > 0 && Math.abs(unitNote - pl.unit_price) > cfg.price_tolerance) {
-        push('preco', i, `${l.description}: ${brl(unitNote)} por unidade na nota, ${brl(pl.unit_price)} no pedido.`, brl(pl.unit_price), brl(unitNote));
+        push('preco', i, `${l.description}: ${brl(unitNote)} por unidade na nota, ${brl(pl.unit_price)} no ${label(po)}.`, brl(pl.unit_price), brl(unitNote));
       }
-      const invoiced = l.qty * factor;
-      const left = poLeft(pl) + (l.received ?? 0);
-      if (invoiced > left) push('quantidade_pedido', i, `${l.description}: faturado ${invoiced}, mas o pedido só tem ${left} a receber.`, String(left), String(invoiced));
+      const invoiced = billed.get(`${po.id}|${pl.key}`) ?? l.qty * factor;
+      const mine = note.items.reduce((t, x) => t + (x.po_id === po.id && x.po_key === pl.key ? x.received ?? 0 : 0), 0);
+      const left = poLeft(pl) + mine;
+      if (invoiced > left) push('quantidade_pedido', i, `${l.description}: faturado ${invoiced}, mas o ${label(po)} só tem ${left} a receber.`, String(left), String(invoiced));
     });
     const freight = Number(note.totals?.freight ?? 0);
-    if (freight - (po.freight || 0) > 0.009) push('frete', null, `Frete de ${brl(freight)} na nota; o pedido previa ${brl(po.freight || 0)}.`, brl(po.freight || 0), brl(freight));
-    if (note.installments.length && po.payment?.mode) {
+    const poFreight = pos.reduce((t, o) => t + (o.freight || 0), 0);
+    if (freight - poFreight > 0.009) push('frete', null, `Frete de ${brl(freight)} na nota; ${many ? 'os pedidos previam' : 'o pedido previa'} ${brl(poFreight)}.`, brl(poFreight), brl(freight));
+    const terms = pos.filter((o) => o.payment?.mode).map((o) => (o.payment.mode === 'parcelado' ? o.payment.installments || 1 : 1));
+    if (note.installments.length && terms.length) {
       const n = note.installments.length;
-      const want = po.payment.mode === 'parcelado' ? po.payment.installments || 1 : 1;
-      if (n !== want) push('pagamento', null, `A nota tem ${n} parcela${n > 1 ? 's' : ''}; o pedido combinou ${want === 1 ? 'pagamento à vista/1 parcela' : `${want} parcelas`}.`, String(want), String(n));
+      if (!terms.includes(n)) {
+        const want = terms[0];
+        push('pagamento', null, `A nota tem ${n} parcela${n > 1 ? 's' : ''}; ${many ? 'os pedidos combinaram' : 'o pedido combinou'} ${want === 1 ? 'pagamento à vista/1 parcela' : `${want} parcelas`}.`, String(want), String(n));
+      }
     }
   }
   note.items.forEach((l, i) => {

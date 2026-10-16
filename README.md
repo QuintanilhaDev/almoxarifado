@@ -369,6 +369,22 @@ Feito a partir das especificações da gerência ("Módulo de Compras" e "Estoqu
    - **Parcelas:** vêm da condição de pagamento do pedido; a pessoa confere e valida. A soma precisa ser igual ao total da nota, ao centavo (se não for, a tela mostra a diferença). Toda alteração fica no histórico. As parcelas do XML que já fecham com o total valem sozinhas.
    - **Sem divergência,** "Registrar e dar entrada" é um clique só. Na entrada, o "a receber" do pedido baixa sozinho e a solicitação vira **Entregue** quando tudo chega.
    - **Estorno:** desfaz a entrada e devolve ao "a receber" do pedido.
+6. **Uma nota, vários pedidos.** O fornecedor pode faturar numa nota só itens de pedidos diferentes, por exemplo 5 camisas do PC 0001 e 3 apitos do PC 0002. Cada linha da nota é ligada à linha certa de um dos pedidos em aberto do mesmo fornecedor, nesta ordem de força:
+   1. o pedido que o fornecedor escreveu no item do XML (`xPed`/`nItemPed`);
+   2. os pedidos citados nas informações complementares do XML ou no texto do DANFE ("Seu pedido nº 0002");
+   3. o item do estoque, pela equivalência, ou o código do fornecedor cadastrado no pedido;
+   4. a quantidade (igual ao que falta receber pesa mais) e o preço combinado;
+   5. em empate, o pedido mais antigo.
+
+   Como funciona:
+   - **Linha dividida:** se a quantidade só fecha somando dois pedidos (8 camisas = 5 + 3), a linha é dividida entre eles, com os valores rateados ao centavo, e cada parte baixa o seu pedido. A nota mostra "parte 1 de 2".
+   - **Motivo visível:** cada ligação mostra o porquê. Dá para trocar o pedido de uma linha, ou marcá-la "fora de pedido"; a escolha à mão não é mais mexida. O que já entrou no estoque não muda de pedido.
+   - **Receber pelo pedido:** a tela oferece os outros pedidos abertos do mesmo fornecedor ("Veio mais algum pedido deste fornecedor nesta nota?"). O DANFE em PDF que cita o pedido ou traz os itens dele o inclui sozinho e avisa o item do pedido que não aparece no DANFE.
+   - **XML:**
+     - quando o fornecedor cita pedido e linha, ou usa o código cadastrado no pedido, o item já vem ligado ("pelo pedido");
+     - quando a descrição só se parece com um item que está num pedido aberto, ele vem como sugestão, e **"Confirmar as sugestões dos pedidos"** liga todas de uma vez;
+     - o que nem assim se resolve, a IA da Max (se configurada) lê a descrição do fornecedor e sugere. É sempre só sugestão.
+   - **Entrada e estorno:** a entrada baixa o "a receber" de cada pedido e conclui cada um que fechar; o estorno devolve a cada pedido o que era dele.
 
 ### Saldos que não se confundem
 

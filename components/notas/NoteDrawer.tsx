@@ -9,7 +9,8 @@ import { formatDateTime } from '@/lib/format';
 import { num } from '@/lib/almoxarifado/stockFormat';
 import type { FiscalNote } from '@/lib/notas/server';
 import { DIV_LABEL, installmentsGap, openBlocking, type Divergence, type Installment } from '@/lib/notas/conferencia';
-import { poLabel } from '@/lib/compras/pc';
+import { poLabel, type PurchaseOrder } from '@/lib/compras/pc';
+import { LinePO } from './LinePO';
 import { ItemPicker, brl, dateBR, type PickItem } from '../pedidos/ui';
 import { Attachments, Drawer, DrawerTop } from '../compras/pcui';
 import { DivergenceSheet } from '../compras/PainelCompras';
@@ -66,6 +67,30 @@ export function NoteDrawer({
     }),
   );
   const [links, setLinks] = useState<Record<number, { item_id: string; factor: number }>>({});
+  // pedido de cada linha: a nota pode atender vários pedidos do mesmo fornecedor
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [poLinks, setPoLinks] = useState<Record<number, { po_id: string; po_key: string } | null>>({});
+  useEffect(() => {
+    if (!pc) return;
+    api<{ orders?: PurchaseOrder[] }>(`/api/almoxarifado/notas/${n.id}?orders=1`)
+      .then((j) => setOrders(j.orders ?? []))
+      .catch(() => undefined);
+  }, [n.id, n.updated_at, pc]);
+  const noteOrders = (n.purchase_order_ids?.length ? n.purchase_order_ids : n.purchase_order_id ? [n.purchase_order_id] : []).map((id) => ({ id, number: orders.find((o) => o.id === id)?.number }));
+  const savePo = async (i: number, v: { po_id: string; po_key: string } | null | undefined) => {
+    setPoLinks((x) => {
+      const y = { ...x };
+      if (v === undefined) delete y[i];
+      else y[i] = v;
+      return y;
+    });
+    try {
+      await api(`/api/almoxarifado/notas/${n.id}`, { method: 'PATCH', json: { po_links: [v === undefined ? { i, auto: true } : { i, po_id: v?.po_id ?? null, po_key: v?.po_key ?? null }] } });
+      await reload();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
   const [inst, setInst] = useState<Installment[]>(n.installments);
   const [instDirty, setInstDirty] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -193,11 +218,16 @@ export function NoteDrawer({
             <b className="p-date">{pendingUnits ? num(pendingUnits) : dateBR(n.received_date)}</b>
           </div>
         </div>
-        {n.purchase_order_id && onOrder ? (
-          <button className="btn btn-ghost btn-sm" onClick={() => onOrder(n.purchase_order_id!)}>
-            <ShoppingBag size={14} /> Ver o pedido de compra
-          </button>
+        {noteOrders.length && onOrder ? (
+          <div className="drawer-actions" style={{ flexWrap: 'wrap' }}>
+            {noteOrders.map((o) => (
+              <button key={o.id} className="btn btn-ghost btn-sm" onClick={() => onOrder(o.id)}>
+                <ShoppingBag size={14} /> {noteOrders.length > 1 ? `Ver o ${o.number ? poLabel(o.number) : 'pedido'}` : 'Ver o pedido de compra'}
+              </button>
+            ))}
+          </div>
         ) : null}
+        {noteOrders.length > 1 ? <p className="help">Esta nota atende {noteOrders.length} pedidos de compra: cada linha baixa o seu (veja em cada item).</p> : null}
 
         {waiting.length ? (
           <div className="o-plan">
@@ -293,9 +323,20 @@ export function NoteDrawer({
                     </span>
                   </div>
                   <small className="o-note">
+                    {(l.parts ?? 1) > 1 ? `Parte ${l.part} de ${l.parts} da linha (dividida entre pedidos) · ` : ''}
                     {linked ? `Estoque: ${label(linked) ?? 'item ligado'}` : 'Ainda sem item do estoque: escolha abaixo (a próxima nota deste fornecedor já vem ligada).'}
-                    {l.via === 'fornecedor' ? ' · reconhecido pelo código do fornecedor' : ''}
+                    {l.via === 'fornecedor' ? ' · reconhecido pelo código do fornecedor' : l.via === 'pedido' ? ' · reconhecido pelo código no pedido de compra' : ''}
                   </small>
+                  {pc && (orders.length || l.po_id) ? (
+                    <LinePO
+                      parts={[l]}
+                      orders={orders}
+                      itemId={linked}
+                      value={i in poLinks ? poLinks[i] : l.po_lock ? (l.po_id && l.po_key ? { po_id: l.po_id, po_key: l.po_key } : null) : undefined}
+                      onChange={edit && !l.received ? (v) => void savePo(i, v) : undefined}
+                      label={l.description}
+                    />
+                  ) : null}
                   {edit && !l.received ? (
                     <div className="o-qty-row" style={{ background: 'transparent', padding: 0 }}>
                       <ItemPicker label={`Item do estoque, linha ${i + 1}`} value={{ item_id: null, text: '' }} items={items} placeholder={linked ? 'Trocar o item do estoque…' : 'Escolha o item do estoque'} onPick={(it) => setLinks((x) => ({ ...x, [i]: { item_id: it.id, factor: x[i]?.factor ?? factorOf(i) } }))} onText={() => undefined} />

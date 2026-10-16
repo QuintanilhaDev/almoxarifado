@@ -22,8 +22,13 @@ export async function GET(_req: Request, ctx: Ctx) {
     const o = await loadPO(id);
     if (!o) return fail('Pedido de compra não encontrado.', 404);
     // notas ligadas (recebimentos)
-    const { data: notes } = await db().from('fiscal_notes').select('id, number, series, status, received_date, created_at').eq('purchase_order_id', id).order('created_at', { ascending: true });
-    return NextResponse.json({ order: o, notes: notes ?? [] });
+    // (uma nota pode atender vários pedidos: vale o principal ou a lista)
+    const [a, b] = await Promise.all([
+      db().from('fiscal_notes').select('id, number, series, status, received_date, created_at').eq('purchase_order_id', id),
+      db().from('fiscal_notes').select('id, number, series, status, received_date, created_at').contains('purchase_order_ids', [id]),
+    ]);
+    const notes = [...(a.data ?? []), ...(b.error ? [] : b.data ?? [])].filter((n, i, all) => all.findIndex((x) => x.id === n.id) === i).sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)));
+    return NextResponse.json({ order: o, notes });
   } catch (e) {
     if (missingPC(e)) return pcFail();
     return serverError(e);

@@ -111,6 +111,7 @@ try {
   /* ------------------------------------------------ Compras: painel → cotação */
   console.log('\n[1] Compras: painel, cotação e mapa');
   await carlos.goto(B + '/setor/compras#painel');
+  await carlos.reload(); // a sessão abriu antes da solicitação existir
   await carlos.waitForSelector('.pc-todo', { timeout: 20000 });
   ok(/1 solicitação nova/.test(await carlos.locator('.pc-card').first().textContent()), 'painel mostra a solicitação nova em "Precisa de você"');
   await carlos.screenshot({ path: SHOTS + '/pc-painel.png' });

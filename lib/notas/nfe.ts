@@ -19,6 +19,9 @@ export interface NfeItem {
   ipi: number;
   /** custo de cada unidade para o estoque: (valor − desconto + frete + seguro + outras + IPI) ÷ quantidade */
   unit_cost: number;
+  /** pedido de compra do cliente que o fornecedor informou no item (xPed) e a linha dele (nItemPed) */
+  xped: string | null;
+  nitem_ped: number | null;
 }
 export interface NfeData {
   access_key: string | null;
@@ -31,6 +34,10 @@ export interface NfeData {
   totals: { products: number; discount: number; freight: number; insurance: number; other: number; ipi: number; taxes: number; total: number };
   installments: { n: string; due: string | null; value: number }[];
   payment: string | null;
+  /** informações complementares (onde o fornecedor costuma escrever "Pedido 0001 / 0002") */
+  info: string | null;
+  /** pedido(s) informado(s) na nota inteira (grupo compra/xPed) */
+  order_text: string | null;
 }
 
 export class NfeError extends Error {}
@@ -92,6 +99,8 @@ export function parseNfe(xml: string): NfeData {
       other,
       ipi,
       unit_cost: round(cost, 4),
+      xped: txt(p.xPed),
+      nitem_ped: txt(p.nItemPed) && /^\d{1,6}$/.test(txt(p.nItemPed)!) ? Number(txt(p.nItemPed)) : null,
     };
   });
   if (!items.length) throw new NfeError('A nota não tem itens.');
@@ -118,6 +127,8 @@ export function parseNfe(xml: string): NfeData {
     },
     installments: dups.length ? dups : pay ? [{ n: '001', due: issue ? issue.slice(0, 10) : null, value: num(pay.vPag) }] : [],
     payment: pay ? PAY[String(pay.tPag ?? '').padStart(2, '0')] ?? null : null,
+    info: [txt(inf.infAdic?.infCpl), txt(inf.infAdic?.infAdFisco), ...list<any>(inf.infAdic?.obsCont).map((o) => txt(o?.xTexto))].filter(Boolean).join(' | ').slice(0, 4000) || null,
+    order_text: txt(inf.compra?.xPed),
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

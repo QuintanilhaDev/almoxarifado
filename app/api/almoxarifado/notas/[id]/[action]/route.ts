@@ -6,8 +6,8 @@ import { broadcast } from '@/lib/broadcast';
 import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
 import { notesAccess } from '@/lib/pedidos/access';
 import { ORDER_COLS, dbRule, missingP3, p3Fail, toOrder } from '@/lib/pedidos/server';
-import { hasPC, noteCols, toNote, type FiscalNote, type NoteLine } from '@/lib/notas/server';
-import { entryBlockers, loadNote, orderOf, preStatus, recompute } from '@/lib/notas/flow';
+import { hasPC, noteCols, noteOrderIds, toNote, type FiscalNote, type NoteLine } from '@/lib/notas/server';
+import { entryBlockers, loadNote, ordersOf, preStatus, recompute } from '@/lib/notas/flow';
 import { installmentsGap, moneyBR, type Installment } from '@/lib/notas/conferencia';
 import { canApprove, canTreat, dateOrNull, money } from '@/lib/compras/pcServer';
 import { syncRequests } from '@/lib/compras/poServer';
@@ -77,7 +77,7 @@ export async function POST(req: Request, ctx: Ctx) {
         if (l.refused! > 0 && !l.inspection_note) return fail(`${l.description}: diga o motivo da recusa (avaria, especificação, tamanho…).`);
       }
       const r = await recompute({ ...n, items });
-      const saved = await save(n, { items: r.items, divergences: r.divergences, status: r.status }, `Conferência física registrada${(r.divergences ?? []).some((d) => d.status !== 'resolvida' && !d.blocking) ? ' (com falta/recusa)' : ''}`, by);
+      const saved = await save(n, { items: r.items, divergences: r.divergences, status: r.status, purchase_order_ids: r.purchase_order_ids, purchase_order_id: r.purchase_order_id }, `Conferência física registrada${(r.divergences ?? []).some((d) => d.status !== 'resolvida' && !d.blocking) ? ' (com falta/recusa)' : ''}`, by);
       if (!saved) return fail('Outra pessoa alterou esta nota agora. Atualize e confira.', 409);
       await broadcast('note:update', { id, by });
       return NextResponse.json({ note: saved, blockers: entryBlockers(saved) });
@@ -128,9 +128,9 @@ export async function POST(req: Request, ctx: Ctx) {
       const saved = await save(n, { installments: list, installments_status: validate ? 'validada' : 'incompleta' }, what, by);
       if (!saved) return fail('Outra pessoa alterou esta nota agora. Atualize e confira.', 409);
       // mudou o pagamento: compara de novo com o pedido
-      if (saved.purchase_order_id) {
+      if (noteOrderIds(saved).length) {
         const r = await recompute(saved);
-        const { data } = await db().from('fiscal_notes').update({ divergences: r.divergences, status: r.status }).eq('id', id).select(await noteCols()).single();
+        const { data } = await db().from('fiscal_notes').update({ items: r.items, divergences: r.divergences, status: r.status, purchase_order_ids: r.purchase_order_ids, purchase_order_id: r.purchase_order_id }).eq('id', id).select(await noteCols()).single();
         await broadcast('note:update', { id, by });
         const final = data ? toNote(data as unknown as Record<string, unknown>) : saved;
         return NextResponse.json({ note: final, gap, blockers: entryBlockers(final) });
@@ -157,7 +157,7 @@ export async function POST(req: Request, ctx: Ctx) {
             return { ...l, item_id: a.item_id ?? l.item_id, delivered: got, accepted: got, refused: 0, inspected_by: by, inspected_at: at, inspection_auto: true };
           });
           const r = await recompute({ ...cur, items });
-          const s2 = await save(cur, { items: r.items, divergences: r.divergences, status: r.status }, 'Conferência registrada na confirmação da entrada', by);
+          const s2 = await save(cur, { items: r.items, divergences: r.divergences, status: r.status, purchase_order_ids: r.purchase_order_ids, purchase_order_id: r.purchase_order_id }, 'Conferência registrada na confirmação da entrada', by);
           if (!s2) return fail('Outra pessoa alterou esta nota agora. Atualize e confira.', 409);
           cur = s2;
         }
@@ -184,7 +184,7 @@ export async function POST(req: Request, ctx: Ctx) {
       }
       // solicitação de compra antiga ligada direto à nota
       let purchase: { number: number } | null = null;
-      if (note.purchase_request_id && note.status === 'lancada' && !note.purchase_order_id) {
+      if (note.purchase_request_id && note.status === 'lancada' && !noteOrderIds(note).length) {
         const { data: pr } = await db().from('purchase_requests').select('id, number, status, history').eq('id', note.purchase_request_id).maybeSingle();
         if (pr && !['entregue', 'cancelada', 'recusada'].includes(pr.status as string)) {
           const now = new Date().toISOString();
@@ -196,12 +196,12 @@ export async function POST(req: Request, ctx: Ctx) {
           await broadcast('purchase:update', { id: pr.id, number: pr.number, status: 'entregue', by, changed: true });
         }
       }
-      // pedido de compra: baixa do "a receber" (feita no banco) e solicitações em dia
-      const po = pc ? await orderOf(note) : null;
-      if (po) {
-        await syncRequests(po.request_ids, by);
-        await broadcast('purchase:update', { by, order: po.id, status: po.status });
-      }
+      // pedidos de compra: baixa do "a receber" (feita no banco, um a um) e solicitações em dia
+      const pos = pc ? await ordersOf(note) : [];
+      const reqs = [...new Set(pos.flatMap((o) => o.request_ids))];
+      if (reqs.length) await syncRequests(reqs, by);
+      for (const o of pos) await broadcast('purchase:update', { by, order: o.id, status: o.status });
+      const po = pos[0] ?? null;
       // pedidos de material que esperavam estes itens (para reservar agora)
       const received = new Set(note.items.filter((l) => l.item_id && l.received > 0).map((l) => l.item_id));
       const { data: os } = await db().from('material_orders').select(ORDER_COLS).eq('stage', 'encaminhado').limit(300);
@@ -211,7 +211,7 @@ export async function POST(req: Request, ctx: Ctx) {
         .filter((o) => o.lines.length);
       await broadcast('note:update', { id, by });
       await broadcast('stock:update', { by });
-      return NextResponse.json({ result: data, note, purchase, order: po ? { number: po.number, status: po.status } : null, waiting });
+      return NextResponse.json({ result: data, note, purchase, order: po ? { number: po.number, status: po.status } : null, orders: pos.map((o) => ({ number: o.number, status: o.status })), waiting });
     }
 
     if (action === 'reverse') {
@@ -219,11 +219,12 @@ export async function POST(req: Request, ctx: Ctx) {
       if (!reason) return fail('Diga o motivo do estorno.');
       const { data, error } = await db().rpc('reverse_fiscal_note', { p_note: id, p_reason: reason, p_by: by });
       if (error) throw error;
-      const po = pc ? await orderOf(n) : null;
-      if (po) await syncRequests(po.request_ids, by);
+      const pos = pc ? await ordersOf(n) : [];
+      const reqs = [...new Set(pos.flatMap((o) => o.request_ids))];
+      if (reqs.length) await syncRequests(reqs, by);
       await broadcast('note:update', { id, by });
       await broadcast('stock:update', { by });
-      if (po) await broadcast('purchase:update', { by, order: po.id });
+      for (const o of pos) await broadcast('purchase:update', { by, order: o.id });
       return NextResponse.json({ result: data });
     }
     return fail('Ação inválida.', 404);

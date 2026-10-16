@@ -152,6 +152,13 @@ create index if not exists purchase_orders_status_idx on public.purchase_orders 
 --    divergências e parcelas validadas
 -- ---------------------------------------------------------------------
 alter table public.fiscal_notes add column if not exists purchase_order_id   uuid references public.purchase_orders (id) on delete set null;
+-- uma nota pode atender vários pedidos do mesmo fornecedor (cada linha guarda o seu: po_id + po_key);
+-- purchase_order_id fica como o pedido principal (o primeiro)
+alter table public.fiscal_notes add column if not exists purchase_order_ids  uuid[] not null default '{}';
+update public.fiscal_notes set purchase_order_ids = array[purchase_order_id]
+ where purchase_order_id is not null and cardinality(purchase_order_ids) = 0;
+-- pedidos citados no texto da nota (informações complementares do XML / DANFE): ajudam a ligar
+alter table public.fiscal_notes add column if not exists order_refs          integer[] not null default '{}';
 alter table public.fiscal_notes add column if not exists attachments         jsonb not null default '[]'::jsonb;
 alter table public.fiscal_notes add column if not exists divergences         jsonb not null default '[]'::jsonb;
 alter table public.fiscal_notes add column if not exists installments_status text;
@@ -173,6 +180,7 @@ begin
   end if;
 end $$;
 create index if not exists fiscal_notes_po_idx on public.fiscal_notes (purchase_order_id) where purchase_order_id is not null;
+create index if not exists fiscal_notes_pos_idx on public.fiscal_notes using gin (purchase_order_ids);
 
 -- ---------------------------------------------------------------------
 -- 6) Entrada no estoque: só o que foi ACEITO na conferência.
@@ -203,7 +211,13 @@ declare
   v_po      public.purchase_orders%rowtype;
   v_poitems jsonb;
   v_k       integer;
-  v_podone  boolean;
+  v_podone  boolean := true;
+  v_pos     jsonb := '{}'::jsonb;   -- id do pedido → itens (com o recebido atualizado)
+  v_ponum   jsonb := '{}'::jsonb;   -- id do pedido → número
+  v_pou     jsonb := '{}'::jsonb;   -- id do pedido → unidades recebidas agora
+  v_lpo     text;
+  v_done1   boolean;
+  v_out     jsonb := '[]'::jsonb;
 begin
   select * into v_note from public.fiscal_notes where id = p_note for update;
   if not found then raise exception 'Nota fiscal não encontrada.'; end if;
@@ -214,10 +228,15 @@ begin
     raise exception 'Informe o que foi recebido.';
   end if;
   v_items := v_note.items;
-  if v_note.purchase_order_id is not null then
-    select * into v_po from public.purchase_orders where id = v_note.purchase_order_id for update;
-    v_poitems := coalesce(v_po.items, '[]'::jsonb);
-  end if;
+  -- todos os pedidos ligados à nota (travados em ordem, para não haver impasse)
+  for v_po in
+    select * from public.purchase_orders
+     where id = any (coalesce(v_note.purchase_order_ids, '{}') || coalesce(array[v_note.purchase_order_id], '{}'))
+     order by id for update
+  loop
+    v_pos := v_pos || jsonb_build_object(v_po.id::text, coalesce(v_po.items, '[]'::jsonb));
+    v_ponum := v_ponum || jsonb_build_object(v_po.id::text, v_po.number);
+  end loop;
   for r in
     select (e->>'i')::int as i, (e->>'item_id')::uuid as item_id, (e->>'qty')::numeric as qty
       from jsonb_array_elements(p_lines) e order by (e->>'item_id')
@@ -248,10 +267,13 @@ begin
                    else v_unit end;
     v_label := v_item.name || coalesce(' · ' || nullif(btrim(v_item.size), ''), '');
     update public.stock_items set quantity = quantity + v_qty, cost = v_cost, active = true, updated_at = now() where id = v_target;
+    -- pedido desta linha (nota antiga: o pedido principal)
+    v_lpo := coalesce(nullif(v_line->>'po_id', ''), v_note.purchase_order_id::text);
+    if v_lpo is not null and not (v_pos ? v_lpo) then v_lpo := null; end if;
     insert into public.stock_movements (item_id, item_name, kind, quantity, before_qty, after_qty, note, by_name, fiscal_note_id)
       values (v_target, v_label, 'entrada', v_qty, v_item.quantity, v_item.quantity + v_qty,
               'NF ' || v_note.number || coalesce('/' || v_note.series, '') || ' — ' || v_note.supplier_name
-                || case when v_po.id is not null then ' · PC ' || lpad(v_po.number::text, 4, '0') else '' end, p_by, p_note);
+                || case when v_lpo is not null then ' · PC ' || lpad(v_ponum->>v_lpo, 4, '0') else '' end, p_by, p_note);
     v_items := jsonb_set(v_items, array[v_i::text], v_line || jsonb_build_object(
       'item_id', v_target,
       'received', coalesce((v_line->>'received')::numeric, 0) + v_qty));
@@ -264,14 +286,17 @@ begin
               validated_by = coalesce(public.supplier_items.validated_by, excluded.validated_by),
               validated_at = coalesce(public.supplier_items.validated_at, excluded.validated_at), updated_at = now();
     end if;
-    -- baixa do "a receber" no pedido de compra
-    if v_po.id is not null and coalesce(v_line->>'po_key', '') <> '' then
+    -- baixa do "a receber" no pedido de compra desta linha
+    if v_lpo is not null and coalesce(v_line->>'po_key', '') <> '' then
+      v_poitems := v_pos->v_lpo;
       for v_k in 0 .. jsonb_array_length(v_poitems) - 1 loop
         if v_poitems->v_k->>'key' = v_line->>'po_key' then
           v_poitems := jsonb_set(v_poitems, array[v_k::text], (v_poitems->v_k) || jsonb_build_object(
             'received', coalesce((v_poitems->v_k->>'received')::numeric, 0) + v_qty));
         end if;
       end loop;
+      v_pos := jsonb_set(v_pos, array[v_lpo], v_poitems);
+      v_pou := v_pou || jsonb_build_object(v_lpo, coalesce((v_pou->>v_lpo)::int, 0) + v_qty);
     end if;
     v_units := v_units + v_qty;
   end loop;
@@ -287,19 +312,23 @@ begin
          history = history || jsonb_build_array(jsonb_build_object('at', now(), 'by', p_by, 'what',
                    case when v_done then 'Entrada confirmada' else 'Entrada parcial confirmada' end || ' (' || v_units || ' unidades)'))
    where id = p_note;
-  if v_po.id is not null then
-    v_podone := true;
+  -- cada pedido que recebeu algo: parcial ou concluído
+  for v_lpo in select jsonb_object_keys(v_pou) loop
+    v_poitems := v_pos->v_lpo;
+    v_done1 := true;
     for v_k in 0 .. jsonb_array_length(v_poitems) - 1 loop
-      if coalesce((v_poitems->v_k->>'received')::numeric, 0) < coalesce((v_poitems->v_k->>'qty')::numeric, 0) then v_podone := false; end if;
+      if coalesce((v_poitems->v_k->>'received')::numeric, 0) < coalesce((v_poitems->v_k->>'qty')::numeric, 0) then v_done1 := false; end if;
     end loop;
+    if not v_done1 then v_podone := false; end if;
     update public.purchase_orders
        set items = v_poitems, updated_at = now(),
-           status = case when v_po.status in ('aprovado','enviado','confirmado','parcial') then (case when v_podone then 'concluido' else 'parcial' end) else v_po.status end,
+           status = case when status in ('aprovado','enviado','confirmado','parcial') then (case when v_done1 then 'concluido' else 'parcial' end) else status end,
            history = history || jsonb_build_array(jsonb_build_object('at', now(), 'by', p_by, 'what',
-                     'Recebido pela NF ' || v_note.number || ' (' || v_units || ' unidades)' || case when v_podone then ': pedido concluído' else '' end))
-     where id = v_po.id;
-  end if;
-  return jsonb_build_object('status', v_status, 'units', v_units, 'po_done', v_podone);
+                     'Recebido pela NF ' || v_note.number || ' (' || (v_pou->>v_lpo) || ' unidades)' || case when v_done1 then ': pedido concluído' else '' end))
+     where id = v_lpo::uuid;
+    v_out := v_out || jsonb_build_array(jsonb_build_object('id', v_lpo, 'number', (v_ponum->>v_lpo)::int, 'done', v_done1, 'units', (v_pou->>v_lpo)::int));
+  end loop;
+  return jsonb_build_object('status', v_status, 'units', v_units, 'po_done', case when jsonb_array_length(v_out) > 0 then v_podone end, 'orders', v_out);
 end $$;
 
 -- Estorno: desfaz as entradas da nota com movimentos novos (a entrada original fica no
@@ -319,15 +348,21 @@ declare
   v_po      public.purchase_orders%rowtype;
   v_poitems jsonb;
   v_k       integer;
+  v_pos     jsonb := '{}'::jsonb;
+  v_pou     jsonb := '{}'::jsonb;
+  v_lpo     text;
 begin
   if coalesce(btrim(p_reason), '') = '' then raise exception 'Diga o motivo do estorno.'; end if;
   select * into v_note from public.fiscal_notes where id = p_note for update;
   if not found then raise exception 'Nota fiscal não encontrada.'; end if;
   if v_note.status = 'estornada' then raise exception 'Esta nota já foi estornada.'; end if;
-  if v_note.purchase_order_id is not null then
-    select * into v_po from public.purchase_orders where id = v_note.purchase_order_id for update;
-    v_poitems := coalesce(v_po.items, '[]'::jsonb);
-  end if;
+  for v_po in
+    select * from public.purchase_orders
+     where id = any (coalesce(v_note.purchase_order_ids, '{}') || coalesce(array[v_note.purchase_order_id], '{}'))
+     order by id for update
+  loop
+    v_pos := v_pos || jsonb_build_object(v_po.id::text, coalesce(v_po.items, '[]'::jsonb));
+  end loop;
   for r in
     select e as line from jsonb_array_elements(v_note.items) e
      where coalesce((e->>'received')::numeric, 0) > 0 order by (e->>'item_id')
@@ -349,13 +384,17 @@ begin
     insert into public.stock_movements (item_id, item_name, kind, quantity, before_qty, after_qty, note, by_name, fiscal_note_id)
       values (v_item.id, v_label, 'estorno', v_qty, v_item.quantity, v_item.quantity - v_qty,
               'Estorno da NF ' || v_note.number || ' — ' || btrim(p_reason), p_by, p_note);
-    if v_po.id is not null and coalesce(v_line->>'po_key', '') <> '' then
+    v_lpo := coalesce(nullif(v_line->>'po_id', ''), v_note.purchase_order_id::text);
+    if v_lpo is not null and v_pos ? v_lpo and coalesce(v_line->>'po_key', '') <> '' then
+      v_poitems := v_pos->v_lpo;
       for v_k in 0 .. jsonb_array_length(v_poitems) - 1 loop
         if v_poitems->v_k->>'key' = v_line->>'po_key' then
           v_poitems := jsonb_set(v_poitems, array[v_k::text], (v_poitems->v_k) || jsonb_build_object(
             'received', greatest(0, coalesce((v_poitems->v_k->>'received')::numeric, 0) - v_qty)));
         end if;
       end loop;
+      v_pos := jsonb_set(v_pos, array[v_lpo], v_poitems);
+      v_pou := v_pou || jsonb_build_object(v_lpo, coalesce((v_pou->>v_lpo)::int, 0) + v_qty);
     end if;
     v_units := v_units + v_qty;
   end loop;
@@ -363,7 +402,8 @@ begin
      set status = 'estornada', updated_at = now(),
          history = history || jsonb_build_array(jsonb_build_object('at', now(), 'by', p_by, 'what', 'Nota estornada: ' || btrim(p_reason)))
    where id = p_note;
-  if v_po.id is not null and v_units > 0 then
+  for v_lpo in select jsonb_object_keys(v_pou) loop
+    v_poitems := v_pos->v_lpo;
     update public.purchase_orders
        set items = v_poitems, updated_at = now(),
            status = case when status in ('parcial','concluido') then
@@ -371,9 +411,9 @@ begin
                            then 'parcial' else coalesce(nullif(case when confirmed_at is not null then 'confirmado' when sent_at is not null then 'enviado' else 'aprovado' end, ''), 'aprovado') end
                     else status end,
            history = history || jsonb_build_array(jsonb_build_object('at', now(), 'by', p_by, 'what',
-                     'NF ' || v_note.number || ' estornada: ' || v_units || ' unidade(s) voltaram para "a receber"'))
-     where id = v_po.id;
-  end if;
+                     'NF ' || v_note.number || ' estornada: ' || (v_pou->>v_lpo) || ' unidade(s) voltaram para "a receber"'))
+     where id = v_lpo::uuid;
+  end loop;
   return jsonb_build_object('units', v_units);
 end $$;
 

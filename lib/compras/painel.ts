@@ -6,7 +6,9 @@ import { PO_OPEN, poDue, poLate, poLeft, proposalExpired, type PurchaseOrder } f
 import { daysBetween, todayBahia } from './prazo';
 import type { Divergence } from '../notas/conferencia';
 
-type NoteRow = { id: string; supplier_id: string | null; purchase_order_id: string | null; received_date: string | null; posted_at: string | null; status: string; divergences: unknown; number: string; supplier_name: string; totals: { total?: number } | null; created_at: string };
+/** a nota atende este pedido? (uma nota pode atender vários) */
+const noteHas = (n: { purchase_order_id: string | null; purchase_order_ids?: string[] | null }, id: string) => n.purchase_order_id === id || (n.purchase_order_ids ?? []).includes(id);
+type NoteRow = { id: string; supplier_id: string | null; purchase_order_id: string | null; purchase_order_ids?: string[] | null; received_date: string | null; posted_at: string | null; status: string; divergences: unknown; number: string; supplier_name: string; totals: { total?: number } | null; created_at: string };
 
 async function allPOs(): Promise<PurchaseOrder[]> {
   const { data, error } = await db().from('purchase_orders').select('*').order('created_at', { ascending: false }).limit(3000);
@@ -41,7 +43,7 @@ export async function onOrderByItem(pos?: PurchaseOrder[]) {
 /** Desempenho dos fornecedores: pontualidade, atraso médio (dias úteis) e divergências nas notas. */
 export async function supplierPerformance(only?: string[], pos?: PurchaseOrder[], notes?: NoteRow[]) {
   const list = (pos ?? (await allPOs())).filter((o) => o.supplier_id && (!only || only.includes(o.supplier_id)));
-  const ns = notes ?? (((await db().from('fiscal_notes').select('id, supplier_id, purchase_order_id, received_date, posted_at, status, divergences, number, supplier_name, totals, created_at').neq('status', 'estornada').limit(20000)).data ?? []) as NoteRow[]);
+  const ns = notes ?? (((await db().from('fiscal_notes').select('id, supplier_id, purchase_order_id, purchase_order_ids, received_date, posted_at, status, divergences, number, supplier_name, totals, created_at').neq('status', 'estornada').limit(20000)).data ?? []) as NoteRow[]);
   const today = todayBahia();
   const out: Record<string, { name: string; orders: number; delivered: number; on_time: number; late_open: number; avg_delay: number | null; divergences: number; spent: number; on_time_pct: number | null }> = {};
   for (const o of list) {
@@ -51,7 +53,7 @@ export async function supplierPerformance(only?: string[], pos?: PurchaseOrder[]
     s.orders++;
     s.spent += o.total;
     const due = poDue(o);
-    const got = ns.filter((n) => n.purchase_order_id === o.id && n.received_date).map((n) => n.received_date!).sort();
+    const got = ns.filter((n) => noteHas(n, o.id) && n.received_date).map((n) => n.received_date!).sort();
     if (o.status === 'concluido' && got.length && due) {
       s.delivered++;
       const delay = daysBetween(due, got[got.length - 1], true);
@@ -80,7 +82,7 @@ export async function comprasPainel(opts: { days?: number } = {}) {
     db().from('purchase_quotes').select('*').order('created_at', { ascending: false }).limit(500),
     db().from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(1000),
     db().from('stock_items').select('id, name, size, quantity, reserved, min_quantity, categories, active').limit(20000),
-    db().from('fiscal_notes').select('id, supplier_id, purchase_order_id, received_date, posted_at, status, divergences, number, supplier_name, totals, created_at').neq('status', 'estornada').limit(20000),
+    db().from('fiscal_notes').select('id, supplier_id, purchase_order_id, purchase_order_ids, received_date, posted_at, status, divergences, number, supplier_name, totals, created_at').neq('status', 'estornada').limit(20000),
   ]);
   const quotes = (qs ?? []).map((r) => toQuote(r as Record<string, unknown>));
   const requests = (rs ?? []).map((r) => toRequest(r as Record<string, unknown>));
@@ -167,8 +169,9 @@ export async function comprasPainel(opts: { days?: number } = {}) {
     divergent: notes
       .filter((n) => Array.isArray(n.divergences) && (n.divergences as { status?: string }[]).some((d) => d.status !== 'resolvida'))
       .map((n) => {
-        const po = pos.find((o) => o.id === n.purchase_order_id);
-        return { id: n.id, number: n.number, supplier: n.supplier_name, order: po ? po.number : null, divergences: (n.divergences as Divergence[]).filter((d) => d.status !== 'resolvida') };
+        const po = pos.find((o) => o.id === n.purchase_order_id) ?? pos.find((o) => noteHas(n, o.id));
+        const all = pos.filter((o) => noteHas(n, o.id)).map((o) => o.number);
+        return { id: n.id, number: n.number, supplier: n.supplier_name, order: po ? po.number : null, orders: all, divergences: (n.divergences as Divergence[]).filter((d) => d.status !== 'resolvida') };
       })
       .slice(0, 30),
     awaiting: pos.filter((o) => o.status === 'aguardando_aprovacao').map((o) => ({ id: o.id, number: o.number, supplier: o.supplier_name, total: o.total, by: o.created_by })),

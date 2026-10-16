@@ -3,7 +3,7 @@ import { SupplierPicker } from '../compras/SupplierPicker';
 import { formatDoc } from '@/lib/compras/fornecedores';
 import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, AlertTriangle, ChevronRight, FileCode2, FilePlus2, PackageCheck, PackageOpen, Plus, Receipt, Search } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, FileCode2, FilePlus2, PackageCheck, PackageOpen, Plus, Receipt, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../core/api';
 import { useToast } from '../core/Toasts';
@@ -18,11 +18,16 @@ import { Equivalencias } from './Equivalencias';
 import { installmentsGap } from '@/lib/notas/conferencia';
 import { parseMoney } from '../compras/pcui';
 import { poLabel, type PurchaseOrder } from '@/lib/compras/pc';
+import { allocate } from '@/lib/notas/vinculo';
+import { Link2 } from 'lucide-react';
+import { LinePO } from './LinePO';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
 import '../pedidos/pedidos.css';
 
 const total = noteTotal;
+/** linhas da nota como o fornecedor emitiu (uma linha dividida entre pedidos conta uma vez) */
+const lineCount = (n: FiscalNote) => new Set(n.items.map((l, i) => l.src ?? i)).size;
 type Waiting = { id: string; label: string; who: string | null; lines: { name: string; size: string | null; missing: number }[] };
 
 /**
@@ -277,8 +282,8 @@ export function NotasPanel({
                       <span className="p-main">
                         <b>{n.supplier_name}</b>
                         <small>
-                          {brl(total(n))} · {n.items.length} {n.items.length === 1 ? 'item' : 'itens'} · emitida {dateBR(n.issue_date)}
-                          {n.purchase_order_id ? ' · pelo pedido de compra' : ''}
+                          {brl(total(n))} · {lineCount(n)} {lineCount(n) === 1 ? 'item' : 'itens'} · emitida {dateBR(n.issue_date)}
+                          {(n.purchase_order_ids?.length ?? 0) > 1 ? ` · ${n.purchase_order_ids!.length} pedidos de compra` : n.purchase_order_id ? ' · pelo pedido de compra' : ''}
                           {next && n.status !== 'estornada' ? ` · próxima parcela ${dateBR(next.due)}` : ''}
                         </small>
                       </span>
@@ -303,7 +308,7 @@ export function NotasPanel({
 
       <AnimatePresence>
         {open ? (
-          <NoteDrawer key={open.id} note={open} canEdit={mode === 'almox' && canEdit} canTreat={canTreat} canAuthorize={canAuthorize} items={items ?? []} onClose={() => setOpenId(null)} reload={load} onOrders={onOrders} onOrder={onOrder} modalOpen={Boolean(review || manual || receiving)} />
+          <NoteDrawer key={`${open.id}:${open.items.length}`} note={open} canEdit={mode === 'almox' && canEdit} canTreat={canTreat} canAuthorize={canAuthorize} items={items ?? []} onClose={() => setOpenId(null)} reload={load} onOrders={onOrders} onOrder={onOrder} modalOpen={Boolean(review || manual || receiving)} />
         ) : null}
       </AnimatePresence>
       <AnimatePresence>
@@ -352,7 +357,8 @@ export function NotasPanel({
 
 /* ------------------------------------------------------------------ */
 interface ParsedLine extends NoteLine {
-  options?: { id: string; label: string; score: number }[];
+  /** from: sugerido porque está num pedido em aberto do fornecedor, ou pela IA */
+  options?: { id: string; label: string; score: number; from?: 'pedido' | 'ia' }[];
 }
 interface ParseResult {
   nfe: {
@@ -370,6 +376,10 @@ interface ParseResult {
   duplicate: { id: string; number: string; status: string } | null;
   purchases: { id: string; number: number; status: string; supplier: string | null; match: number }[];
   orders?: { id: string; number: number; status: string; supplier: string; match: number; left: number; due: string | null }[];
+  /** pedidos em aberto do fornecedor (a tela liga as linhas na hora, igual ao servidor) */
+  open_orders?: PurchaseOrder[];
+  order_refs?: number[];
+  ai?: number;
   xml: string;
 }
 interface RLine {
@@ -383,8 +393,10 @@ interface RLine {
   raw?: ParsedLine;
   item_id: string | null;
   text: string;
-  via: 'fornecedor' | 'nome' | null;
+  via: 'fornecedor' | 'nome' | 'pedido' | null;
   receive: string;
+  /** pedido escolhido à mão para esta linha: undefined = automático; null = fora de pedido */
+  po?: { po_id: string; po_key: string } | null;
 }
 
 /** Conferência antes de gravar: a nota do XML (ou digitada) com os itens já ligados ao estoque. */
@@ -404,8 +416,16 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
   const [inst, setInst] = useState(parsed?.nfe.installments ?? []);
   const best = parsed?.purchases.find((p) => p.match >= 0.5);
   const [purchase, setPurchase] = useState<string>(best?.id ?? '');
-  const bestPO = parsed?.orders?.find((o) => o.match >= 0.5) ?? (parsed?.orders?.length === 1 ? parsed.orders[0] : undefined);
-  const [poId, setPoId] = useState<string>(bestPO?.id ?? '');
+  // ligação com os pedidos de compra, refeita a cada troca de item (a mesma regra do servidor):
+  // a nota pode atender vários pedidos e uma linha pode ser dividida entre dois
+  const open = useMemo(() => parsed?.open_orders ?? [], [parsed]);
+  const plan = useMemo(() => {
+    if (!parsed || !open.length) return [] as NoteLine[];
+    const base = lines.map((l, i) => ({ ...(l.raw as NoteLine), item_id: l.item_id, src: i, ...(l.po === undefined ? {} : l.po ? { po_id: l.po.po_id, po_key: l.po.po_key, po_lock: true } : { po_id: null, po_key: null, po_lock: true }) }));
+    return allocate(base, open, parsed.order_refs ?? []);
+  }, [parsed, open, lines]);
+  const usedPOs = useMemo(() => open.filter((o) => plan.some((l) => l.po_id === o.id)), [open, plan]);
+  const poId = usedPOs[0]?.id ?? '';
   const [instOk, setInstOk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -432,9 +452,10 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             cnpj: parsed.nfe.supplier.cnpj,
             company: parsed.nfe.company.name,
             company_cnpj: parsed.nfe.company.cnpj,
-            items: filled.map((l) => ({ ...l.raw, item_id: l.item_id })),
+            items: filled.map((l) => ({ ...l.raw, item_id: l.item_id, ...(l.po === undefined ? {} : l.po ? { po_id: l.po.po_id, po_key: l.po.po_key } : { po_none: true }) })),
             purchase_request_id: poId ? null : purchase || null,
-            purchase_order_id: poId || null,
+            purchase_order_ids: usedPOs.map((o) => o.id),
+            order_refs: parsed.order_refs ?? [],
             xml: parsed.xml,
           }
         : {
@@ -449,7 +470,17 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
           };
       const j = await api<{ note: FiscalNote }>('/api/almoxarifado/notas', { method: 'POST', json: body });
       if (post) {
-        const toPost = filled.map((l, i) => ({ i, qty: Number(l.receive) || 0, item_id: l.item_id })).filter((x) => x.qty > 0);
+        // a nota pode ter voltado com linhas divididas entre pedidos: o recebido de cada linha
+        // da tela é repartido entre as partes dela (na ordem)
+        const left = new Map(filled.map((l, i) => [i, Number(l.receive) || 0]));
+        const toPost = j.note.items
+          .map((l, i) => {
+            const s = l.src ?? i;
+            const q = Math.min(left.get(s) ?? 0, l.qty * (l.factor || 1));
+            left.set(s, (left.get(s) ?? 0) - q);
+            return { i, qty: q, item_id: l.item_id ?? filled[s]?.item_id ?? null };
+          })
+          .filter((x) => x.qty > 0);
         if (toPost.length) {
           let r: { note: FiscalNote; purchase: { number: number } | null; waiting: Waiting[] };
           try {
@@ -475,6 +506,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
   };
 
   const unlinked = lines.filter((l) => !l.item_id).length;
+  const fromOrders = lines.filter((l) => !l.item_id && l.raw?.options?.[0]?.from);
   const manualTotal = Math.round(lines.reduce((t, l) => t + (parseMoney(String(l.total)) ?? 0), 0) * 100) / 100;
   return (
     <Sheet title={parsed ? `Nota ${parsed.nfe.number}${parsed.nfe.series ? '/' + parsed.nfe.series : ''} · conferência` : 'Digitar nota fiscal'} lead={parsed ? 'Confira os itens e as quantidades recebidas.' : undefined} onClose={onClose} wide locked>
@@ -555,20 +587,34 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
         </div>
       )}
 
-      {parsed && parsed.orders?.length ? (
-        <div style={{ margin: '4px 0 12px' }}>
-          <label className="label" htmlFor="n-po">
-            Pedido de compra que esta nota atende
-          </label>
-          <select id="n-po" className="select input" value={poId} onChange={(e) => setPoId(e.target.value)}>
-            <option value="">Nenhum (nota sem pedido)</option>
-            {parsed.orders.map((o) => (
-              <option key={o.id} value={o.id}>
-                {poLabel(o.number)} · {o.supplier} · {o.left} a receber{o.due ? ` até ${dateBR(o.due)}` : ''} · {Math.round(o.match * 100)}% dos itens
-              </option>
-            ))}
-          </select>
-          <small className="help">Ligada ao pedido, a nota é comparada com ele (itens, preços, frete e pagamento) e o "a receber" baixa sozinho.</small>
+      {parsed && open.length ? (
+        <div className="pc-po-plan" data-max="nota-pedidos">
+          <div className="pc-po-plan-head">
+            <Link2 size={15} />
+            <b>
+              {usedPOs.length > 1
+                ? `Esta nota atende ${usedPOs.length} pedidos de compra`
+                : usedPOs.length === 1
+                  ? `Esta nota atende o ${poLabel(usedPOs[0].number)}`
+                  : 'Nenhum item desta nota está nos pedidos em aberto deste fornecedor'}
+            </b>
+          </div>
+          {usedPOs.length ? (
+            <div className="pc-po-chips">
+              {usedPOs.map((o) => {
+                const mine = plan.filter((l) => l.po_id === o.id);
+                return (
+                  <span key={o.id} className="pc-po-chip">
+                    <b>{poLabel(o.number)}</b> {mine.map((l) => `${l.qty} ${o.items.find((i) => i.key === l.po_key)?.name ?? ''}`).join(', ')}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+          <small className="help">
+            Cada linha foi ligada ao pedido pelo que a nota diz (pedido citado pelo fornecedor, código, item, quantidade e preço). Ao registrar, cada pedido baixa o seu "a receber". Dá para trocar o pedido de uma linha abaixo.
+            {parsed.ai ? ` A IA sugeriu ${parsed.ai === 1 ? '1 item' : `${parsed.ai} itens`}: confirme.` : ''}
+          </small>
         </div>
       ) : null}
       {parsed && parsed.purchases.length && !poId ? (
@@ -591,6 +637,11 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
 
       <h3 className="sec-title">
         Itens {unlinked ? <span className="pbadge amber">{unlinked} sem item do estoque</span> : <span className="pbadge green">todos ligados</span>}
+        {fromOrders.length ? (
+          <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} data-max="nota-confirmar-sugestoes" onClick={() => setLines((ls) => ls.map((l) => (!l.item_id && l.raw?.options?.[0]?.from ? { ...l, item_id: l.raw.options[0].id, text: label(l.raw.options[0].id), via: null, po: undefined } : l)))}>
+            <CheckCircle2 size={14} /> Confirmar {fromOrders.length === 1 ? 'a sugestão' : `as ${fromOrders.length} sugestões`} dos pedidos
+          </button>
+        ) : null}
       </h3>
       <div className="n-lines">
         {lines.map((l, n) => (
@@ -602,7 +653,9 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
                   <small>
                     {l.code ? `cód. ${l.code} · ` : ''}
                     {num(Number(l.qty))} {l.unit} · custo {brl(l.unit_cost)}/un
+                    {l.raw?.xped ? ` · pedido citado: ${l.raw.xped}` : ''}
                   </small>
+                  {open.length ? <LinePO parts={plan.filter((p) => p.src === n)} orders={open} itemId={l.item_id} value={l.po} onChange={(po) => set(l.key, { po })} label={l.description} /> : null}
                 </>
               ) : (
                 <div className="o-sizes">
@@ -619,18 +672,18 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
                 <>
                   <b style={{ fontSize: 14 }}>{label(l.item_id)}</b>
                   <small className={l.via === 'fornecedor' ? 'n-via' : ''}>
-                    {l.via === 'fornecedor' ? 'mesmo item da última nota' : l.via === 'nome' ? 'confira' : 'escolhido'}{' '}
-                    · <button type="button" className="link-btn" onClick={() => set(l.key, { item_id: null, text: '', via: null })}>trocar</button>
+                    {l.via === 'fornecedor' ? 'mesmo item da última nota' : l.via === 'pedido' ? 'pelo código no pedido de compra' : l.via === 'nome' ? 'confira' : 'escolhido'}{' '}
+                    · <button type="button" className="link-btn" onClick={() => set(l.key, { item_id: null, text: '', via: null, po: undefined })}>trocar</button>
                   </small>
                 </>
               ) : (
                 <>
-                  <ItemPicker label={`Item do estoque para a linha ${n + 1}`} value={{ item_id: null, text: l.text }} items={items} onPick={(it) => set(l.key, { item_id: it.id, text: `${it.name}${it.size ? ' ' + it.size : ''}`, via: null })} onText={(t) => set(l.key, { text: t })} />
+                  <ItemPicker label={`Item do estoque para a linha ${n + 1}`} value={{ item_id: null, text: l.text }} items={items} onPick={(it) => set(l.key, { item_id: it.id, text: `${it.name}${it.size ? ' ' + it.size : ''}`, via: null, po: undefined })} onText={(t) => set(l.key, { text: t })} />
                   {l.raw?.options?.length ? (
                     <small>
                       Parecidos:{' '}
                       {l.raw.options.slice(0, 3).map((o, k) => (
-                        <button key={o.id} type="button" className="link-btn" onClick={() => set(l.key, { item_id: o.id, via: null })}>
+                        <button key={o.id} type="button" className="link-btn" onClick={() => set(l.key, { item_id: o.id, via: null, po: undefined })}>
                           {k ? ', ' : ''}
                           {o.label}
                         </button>

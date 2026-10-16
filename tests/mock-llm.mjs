@@ -12,6 +12,17 @@ const say = (content) => ({ role: 'assistant', content });
 function reply(body) {
   const msgs = body.messages || [];
   const last = msgs[msgs.length - 1] || {};
+  // vínculo nota ↔ pedido: "KIT HT" é o rádio comunicador do pedido
+  if (String(msgs[0]?.content || '').startsWith('VINCULO_NF')) {
+    const txt = String(last.content || '');
+    const links = [];
+    for (const m of txt.matchAll(/^L(\d+) \| ([^|]+)/gm)) {
+      if (!/\bHT\b/i.test(m[2])) continue;
+      const r = txt.match(/^R(\d+) \| [^|]+\| R[áa]dio comunicador/im);
+      if (r) links.push({ l: Number(m[1]), r: Number(r[1]), confianca: 0.88 });
+    }
+    return say(JSON.stringify({ links }));
+  }
   if ((body.tools || []).some((t) => t.type === 'browser_search')) return say('A capital da Austrália é **Canberra**【1†L1-L3】. Veja em https://exemplo.com');
   if (last.role === 'tool') return say('RESPOSTA: ' + String(last.content).slice(0, 160));
   // o pedido atual = última fala da pessoa (ou a anterior, se a última for o "antes de desistir…")

@@ -105,3 +105,41 @@ export async function askLlm(text: string, ctx: LlmContext): Promise<LlmAnswer |
     clearTimeout(timer);
   }
 }
+
+/**
+ * Pergunta à IA (a mesma da Max) e devolve o JSON da resposta, ou null (sem IA configurada,
+ * demora, resposta fora do formato). Para tarefas internas pequenas: nunca é obrigatório.
+ */
+export async function llmJson<T = unknown>(system: string, user: string, timeoutMs = 8000): Promise<T | null> {
+  if (!llmConfigured()) return null;
+  const base = process.env.MAX_LLM_BASE_URL!.replace(/\/+$/, '');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      signal: ctrl.signal,
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MAX_LLM_API_KEY}` },
+      body: JSON.stringify({
+        model: process.env.MAX_LLM_MODEL,
+        temperature: 0,
+        max_tokens: 1500,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      }),
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+    const content = String(j.choices?.[0]?.message?.content ?? '').replace(/```(?:json)?/gi, '');
+    const start = content.indexOf('{');
+    const end = content.lastIndexOf('}');
+    return start >= 0 && end > start ? (JSON.parse(content.slice(start, end + 1)) as T) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

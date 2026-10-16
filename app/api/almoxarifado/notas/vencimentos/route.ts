@@ -2,7 +2,7 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, serverError } from '@/lib/http';
 import { financeNotes } from '@/lib/pedidos/access';
-import { noteCols, toNote } from '@/lib/notas/server';
+import { noteCols, toNote, noteOrderIds } from '@/lib/notas/server';
 import { loadConfig } from '@/lib/compras/pcServer';
 import { duesPdf } from '@/lib/compras/pdf';
 import { FMT, buildReport, xDate, xlsxResponseHeaders } from '@/lib/reportXlsx';
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     const { data, error } = await db().from('fiscal_notes').select(await noteCols()).neq('status', 'estornada').limit(5000);
     if (error) throw error;
     const notes = (data ?? []).map((r) => toNote(r as unknown as Record<string, unknown>));
-    const poIds = [...new Set(notes.map((n) => n.purchase_order_id).filter(Boolean))] as string[];
+    const poIds = [...new Set(notes.flatMap((n) => noteOrderIds(n)))];
     const poNum = new Map<string, number>();
     if (poIds.length) {
       const { data: pos } = await db().from('purchase_orders').select('id, number').in('id', poIds);
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
           note: `NF ${n.number}${n.series ? '/' + n.series : ''}`,
           n: p.n,
           value: Number(p.value) || 0,
-          order: n.purchase_order_id && poNum.has(n.purchase_order_id) ? poLabel(poNum.get(n.purchase_order_id)!) : null,
+          order: noteOrderIds(n).filter((id) => poNum.has(id)).map((id) => poLabel(poNum.get(id)!)).join(', ') || null,
           status: n.installments_status === 'validada' ? 'Validada' : 'A conferir',
           obs: [p.method, p.ref, p.obs].filter(Boolean).join(' · '),
         })),

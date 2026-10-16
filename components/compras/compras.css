@@ -868,3 +868,92 @@
 .pc-almox-tabs .o-segs {
   margin: 0;
 }
+
+/* nota fiscal com vários pedidos de compra */
+.pc-po-plan {
+  margin: 6px 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(198, 168, 255, 0.28);
+  background: rgba(198, 168, 255, 0.07);
+  display: grid;
+  gap: 8px;
+}
+.pc-po-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--white);
+}
+.pc-po-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pc-po-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.pc-po-chip b {
+  color: var(--white);
+  font-weight: 600;
+}
+.pc-po-chip.is-on {
+  border-color: rgba(120, 220, 180, 0.45);
+}
+.pc-po-chip.is-add {
+  cursor: pointer;
+  border-style: dashed;
+}
+.pc-po-chip.is-add:hover {
+  border-color: rgba(198, 168, 255, 0.6);
+}
+.pc-po-chip .icon-btn {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+}
+.n-po-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.n-po-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(198, 168, 255, 0.12);
+  color: var(--white);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.n-po-tag.is-none {
+  background: transparent;
+  color: var(--muted);
+  padding-left: 0;
+}
+.n-po-why {
+  color: var(--muted);
+  font-size: 11.5px;
+  flex-basis: 100%;
+}
+.n-po-select {
+  width: auto;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+}

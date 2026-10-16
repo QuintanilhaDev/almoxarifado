@@ -266,6 +266,7 @@ try {
   const lucas = await newPage(browser);
   await login(lucas, 'lucas', '/setor/compras');
   if (!NOCOMPRAS) {
+    await lucas.click('.nav-item:has-text("Solicitações")'); // Compras abre no Painel
     await lucas.waitForSelector('.p-row', { timeout: 8000 });
     await lucas.click('.p-row:has-text("#0001")');
     await lucas.waitForSelector('.drawer');

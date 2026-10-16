@@ -9,9 +9,12 @@ import { missingP3, p3Fail } from '@/lib/pedidos/server';
 import { NfeError, parseNfe, validAccessKey } from '@/lib/notas/nfe';
 import { learnedFor, suggestItem } from '@/lib/notas/server';
 import { bestMatches } from '@/lib/max/text';
-import { hasPC } from '@/lib/notas/server';
-import { toPO } from '@/lib/compras/pcServer';
-import { PO_OPEN, poLeft } from '@/lib/compras/pc';
+import { hasPC, type NoteLine } from '@/lib/notas/server';
+import { loadConfig } from '@/lib/compras/pcServer';
+import { poLabel, poLeft, type PurchaseOrder } from '@/lib/compras/pc';
+import { openOrdersOf } from '@/lib/notas/flow';
+import { allocate, orderRefs, suggestFromOrders, xpedNumbers } from '@/lib/notas/vinculo';
+import { aiMatch } from '@/lib/notas/vinculoIA';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
     const { supplierId, map } = await learnedFor(nfe.supplier.cnpj);
     const lines = nfe.items.map((it) => {
       const s = suggestItem(it, items, map);
-      return { ...it, item_id: s.item_id, via: s.via, options: s.options, received: 0, factor: s.factor ?? 1 };
+      return { ...it, item_id: s.item_id, via: s.via as 'fornecedor' | 'nome' | 'pedido' | null, options: s.options as { id: string; label: string; score: number; from?: 'pedido' | 'ia' }[], received: 0, factor: s.factor ?? 1 };
     });
     // solicitação de compra que esta nota atende (mesmos itens, ainda não entregue)
     const { data: prs } = await db().from('purchase_requests').select('id, number, status, items, supplier').in('status', ['em_cotacao', 'comprada', 'nova']).order('created_at', { ascending: false }).limit(100);
@@ -67,22 +70,56 @@ export async function POST(req: Request) {
       .filter((p) => p.match > 0)
       .sort((a, b) => b.match - a.match || (b.status === 'comprada' ? 1 : 0) - (a.status === 'comprada' ? 1 : 0))
       .slice(0, 5);
-    // pedidos de compra em aberto deste fornecedor (o mais parecido primeiro)
+    // pedidos de compra em aberto deste fornecedor: a nota pode atender VÁRIOS (cada linha o seu)
     let orders: { id: string; number: number; status: string; supplier: string; match: number; left: number; due: string | null }[] = [];
+    let open: PurchaseOrder[] = [];
+    let refs: number[] = [];
+    let preview: { i: number; parts: { po_id: string; po: string; po_key: string; qty: number; why: string | null }[] }[] = [];
+    let ai = 0;
     if (await hasPC()) {
-      const { data: os } = await db().from('purchase_orders').select('*').in('status', PO_OPEN).order('created_at', { ascending: false }).limit(200);
-      orders = (os ?? [])
-        .map((r) => toPO(r as Record<string, unknown>))
-        .filter((o) => (o.cnpj && nfe.supplier.cnpj ? o.cnpj === nfe.supplier.cnpj : o.supplier_id === supplierId))
+      open = await openOrdersOf(supplierId, nfe.supplier.cnpj);
+      refs = [...new Set([...orderRefs(nfe.info), ...xpedNumbers(nfe.order_text)])];
+      const cfg = await loadConfig();
+      if (open.length) {
+        // sem item do estoque: o pedido aberto diz qual deve ser (sugestão no topo, para confirmar)
+        for (const l of lines) {
+          const sug = suggestFromOrders(l as unknown as NoteLine, open, cfg.price_tolerance);
+          if (!sug) continue;
+          l.options = [{ id: sug.item_id, label: `${sug.label} — ${sug.why}`, score: sug.score, from: 'pedido' as const }, ...l.options.filter((o) => o.id !== sug.item_id)].slice(0, 6);
+        }
+        // o que nem assim se resolveu: a IA lê a descrição do fornecedor (também só sugere)
+        const hard = lines.map((l, i) => ({ l, i })).filter(({ l }) => !l.item_id && !(l.options[0] && l.options[0].score >= 0.55));
+        if (hard.length) {
+          const hits = await aiMatch(hard.map(({ l, i }) => ({ i, description: l.description, code: l.code, qty: l.qty, unit: l.unit, unit_value: l.unit_value })), open);
+          for (const [i, h] of hits) {
+            const l = lines[i];
+            const po = open.find((o) => o.id === h.po_id)!;
+            l.options = [{ id: h.item_id, label: `${h.label} — está no ${poLabel(po.number)} (sugerido pela IA)`, score: h.confidence, from: 'ia' as const }, ...l.options.filter((o) => o.id !== h.item_id)].slice(0, 6);
+            ai++;
+          }
+        }
+        // prévia: como as linhas ficam ligadas aos pedidos (a tela refaz ao trocar um item)
+        const alloc = allocate(lines.map((l, i) => ({ ...(l as unknown as NoteLine), src: i })), open, refs, cfg.price_tolerance);
+        // o pedido disse qual é o item (código do fornecedor no pedido, ou pedido e linha citados
+        // pelo fornecedor com o nome conferindo): já vem ligado, marcado "pelo pedido"
+        for (const x of alloc) {
+          const l = lines[x.src ?? -1];
+          if (l && !l.item_id && x.via === 'pedido' && x.item_id) Object.assign(l, { item_id: x.item_id, via: 'pedido' });
+        }
+        preview = lines.map((_, i) => ({
+          i,
+          parts: alloc.filter((x) => x.src === i && x.po_id).map((x) => ({ po_id: x.po_id!, po: poLabel(open.find((o) => o.id === x.po_id)!.number), po_key: x.po_key!, qty: x.qty, why: x.po_why ?? null })),
+        }));
+      }
+      orders = open
         .map((o) => {
-          const open = o.items.filter((i) => poLeft(i) > 0);
-          const hit = open.filter((i) => i.item_id && linked.has(i.item_id)).length;
-          return { id: o.id, number: o.number, status: o.status, supplier: o.supplier_name, match: open.length ? hit / open.length : 0, left: open.reduce((t, i) => t + poLeft(i), 0), due: o.promised_date ?? o.expected_date };
+          const its = o.items.filter((i) => poLeft(i) > 0);
+          const hit = its.filter((i) => (i.item_id && linked.has(i.item_id)) || preview.some((p) => p.parts.some((x) => x.po_id === o.id && x.po_key === i.key))).length;
+          return { id: o.id, number: o.number, status: o.status, supplier: o.supplier_name, match: its.length ? hit / its.length : 0, left: its.reduce((t, i) => t + poLeft(i), 0), due: o.promised_date ?? o.expected_date };
         })
-        .sort((a, b) => b.match - a.match || String(a.due).localeCompare(String(b.due)))
-        .slice(0, 6);
+        .sort((a, b) => b.match - a.match || String(a.due).localeCompare(String(b.due)));
     }
-    return NextResponse.json({ nfe: { ...nfe, items: lines }, supplier_id: supplierId, duplicate: dup, purchases, orders, xml: up.buf.toString('utf8').slice(0, 2_000_000) });
+    return NextResponse.json({ nfe: { ...nfe, items: lines }, supplier_id: supplierId, duplicate: dup, purchases, orders, open_orders: open, order_refs: refs, preview, ai, xml: up.buf.toString('utf8').slice(0, 2_000_000) });
   } catch (e) {
     if (missingP3(e)) return p3Fail();
     return serverError(e);

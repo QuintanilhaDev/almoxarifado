@@ -1,5 +1,5 @@
 'use client';
-import { AlertCircle, AlertTriangle, Camera, CheckCircle2, PackageCheck, ScanLine } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Camera, CheckCircle2, Link2, PackageCheck, Plus, ScanLine } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../core/api';
 import { useToast } from '../core/Toasts';
@@ -13,7 +13,11 @@ import { attachmentUrl, moneyIn, parseMoney, uploadAttachment } from '../compras
 import { dateBR, todayLocal } from '../pedidos/ui';
 
 interface Line {
+  /** pedido + linha do pedido */
   key: string;
+  poId: string;
+  poKey: string;
+  po: number;
   item_id: string | null;
   name: string;
   unit: string;
@@ -28,7 +32,9 @@ interface Line {
 
 /**
  * Receber pelo pedido de compra:
- *  1. escolhe o pedido (as linhas já vêm com o que falta receber e o preço combinado);
+ *  1. escolhe o pedido (as linhas já vêm com o que falta receber e o preço combinado). Se a
+ *     nota trouxer itens de OUTROS pedidos do mesmo fornecedor, é só incluí-los (a tela
+ *     oferece; o DANFE em PDF, quando cita o pedido ou os itens, já inclui sozinho);
  *  2. anexa o DANFE (foto ou PDF): a chave preenche número, série e CNPJ, o PDF traz o total;
  *  3. confere o que chegou (por padrão, tudo certo); recusa precisa de motivo;
  *  4. as parcelas vêm da condição do pedido: é só conferir.
@@ -37,7 +43,13 @@ interface Line {
 export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseOrder | null; onClose: () => void; onDone: (note: FiscalNote) => void }) {
   const toast = useToast();
   const [orders, setOrders] = useState<PurchaseOrder[] | null>(initial ? [initial] : null);
-  const [po, setPo] = useState<PurchaseOrder | null>(initial ?? null);
+  /** pedidos desta nota (o primeiro é o principal) */
+  const [pos, setPos] = useState<PurchaseOrder[]>(initial ? [initial] : []);
+  const po = pos[0] ?? null;
+  const setPo = (o: PurchaseOrder | null) => setPos(o ? [o] : []);
+  const [autoNote, setAutoNote] = useState('');
+  /** linhas (chave pedido|linha) que não aparecem no texto do DANFE */
+  const [missing, setMissing] = useState<string[]>([]);
   useEffect(() => {
     api<{ orders: PurchaseOrder[] }>('/api/compras/pedidos')
       .then((j) => setOrders(j.orders.filter((o) => PO_OPEN.includes(o.status) && o.items.some((i) => poLeft(i) > 0))))
@@ -55,19 +67,26 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // pedido escolhido: linhas com o que falta receber
+  // pedidos escolhidos: linhas com o que falta receber (mantém o que já foi digitado)
   useEffect(() => {
-    if (!po) return;
-    setLines(
-      po.items
-        .filter((i) => poLeft(i) > 0)
-        .map((i) => ({ key: i.key, item_id: i.item_id, name: `${i.name}${i.size ? ' · ' + i.size : ''}`, unit: i.unit, left: poLeft(i), qty: String(poLeft(i)), price: moneyIn(i.unit_price), delivered: String(poLeft(i)), refused: '0', why: '', on: true })),
+    setLines((cur) =>
+      pos.flatMap((o) =>
+        o.items
+          .filter((i) => poLeft(i) > 0)
+          .map((i) => cur.find((l) => l.key === `${o.id}|${i.key}`) ?? { key: `${o.id}|${i.key}`, poId: o.id, poKey: i.key, po: o.number, item_id: i.item_id, name: `${i.name}${i.size ? ' · ' + i.size : ''}`, unit: i.unit, left: poLeft(i), qty: String(poLeft(i)), price: moneyIn(i.unit_price), delivered: String(poLeft(i)), refused: '0', why: '', on: true }),
+      ),
     );
-  }, [po]);
+  }, [pos]);
+  // outros pedidos em aberto do MESMO fornecedor: podem ter vindo na mesma nota
+  const others = useMemo(() => (orders ?? []).filter((o) => po && !pos.some((x) => x.id === o.id) && (po.cnpj && o.cnpj ? o.cnpj === po.cnpj : o.supplier_id === po.supplier_id) && o.items.some((i) => poLeft(i) > 0)), [orders, pos, po]);
+  const addPO = (o: PurchaseOrder) => setPos((l) => (l.some((x) => x.id === o.id) ? l : [...l, o]));
+  const dropPO = (o: PurchaseOrder) => setPos((l) => l.filter((x) => x.id !== o.id));
 
   const goods = useMemo(() => lines.filter((l) => l.on).reduce((t, l) => t + (Number(l.qty) || 0) * (parseMoney(l.price) ?? 0), 0), [lines]);
-  const freight = po?.freight ?? 0;
-  const computed = Math.round((goods + freight - (po?.discount ?? 0) + (po?.other_costs ?? 0)) * 100) / 100;
+  const freight = pos.reduce((t, o) => t + (o.freight || 0), 0);
+  const discount = pos.reduce((t, o) => t + (o.discount || 0), 0);
+  const otherCosts = pos.reduce((t, o) => t + (o.other_costs || 0), 0);
+  const computed = Math.round((goods + freight - discount + otherCosts) * 100) / 100;
   const total = parseMoney(head.total) ?? computed;
   // parcelas pela condição do pedido (refeitas quando o total muda, até a pessoa mexer)
   const [instTouched, setInstTouched] = useState(false);
@@ -94,8 +113,16 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
       const a = await uploadAttachment(file, 'nota');
       setAtts((l) => [...l, a]);
       if (/pdf/i.test(file.type)) {
-        const r = await api<{ found: boolean; key: string | null; total: number | null; issue_date: string | null; reason?: string }>(`/api/almoxarifado/notas/danfe?path=${encodeURIComponent(a.path)}`);
+        const r = await api<{ found: boolean; key: string | null; total: number | null; issue_date: string | null; reason?: string; orders?: { id: string; number: number; why: string }[]; missing?: string[] }>(`/api/almoxarifado/notas/danfe?path=${encodeURIComponent(a.path)}${po ? `&order=${po.id}` : ''}`);
         if (r.key) setKey(r.key);
+        // o DANFE cita outro pedido do fornecedor (ou traz itens dele): inclui sozinho
+        const extra = (r.orders ?? []).filter((x) => !pos.some((p) => p.id === x.id));
+        const add = extra.map((x) => (orders ?? []).find((o) => o.id === x.id)).filter(Boolean) as PurchaseOrder[];
+        if (add.length) {
+          setPos((l) => [...l, ...add.filter((o) => !l.some((p) => p.id === o.id))]);
+          setAutoNote(`Incluí ${extra.map((x) => `o ${poLabel(x.number)} (${x.why})`).join(' e ')}: esta nota traz itens dele também. Confira.`);
+        }
+        if (r.missing?.length) setMissing(r.missing);
         setHead((h) => ({ ...h, total: r.total ? moneyIn(r.total) : h.total, issue: r.issue_date ?? h.issue }));
         setReadNote(r.found ? `Lido do DANFE: ${[r.key ? 'chave' : '', r.total ? 'valor total' : '', r.issue_date ? 'data de emissão' : ''].filter(Boolean).join(', ')}. Confira antes de gravar.` : r.reason ?? 'Não achei a chave no PDF. Digite a chave.');
       } else if (/^image\//.test(file.type)) {
@@ -145,9 +172,10 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
           supplier_name: po.supplier_name,
           cnpj: po.cnpj,
           purchase_order_id: po.id,
+          purchase_order_ids: pos.map((o) => o.id),
           attachments: atts,
-          items: active.map((l) => ({ code: '', description: l.name, unit: l.unit, qty: Number(l.qty), unit_value: parseMoney(l.price) ?? 0, total: Math.round(Number(l.qty) * (parseMoney(l.price) ?? 0) * 100) / 100, item_id: l.item_id, po_key: l.key })),
-          totals: { freight, discount: po.discount ?? 0, other: po.other_costs ?? 0, total },
+          items: active.map((l) => ({ code: '', description: l.name, unit: l.unit, qty: Number(l.qty), unit_value: parseMoney(l.price) ?? 0, total: Math.round(Number(l.qty) * (parseMoney(l.price) ?? 0) * 100) / 100, item_id: l.item_id, po_id: l.poId, po_key: l.poKey })),
+          totals: { freight, discount, other: otherCosts, total },
           installments: inst,
           validate_installments: instOk && gap === 0,
         },
@@ -155,7 +183,7 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
       let note = j.note;
       // conferência física (por padrão: tudo chegou e foi aceito)
       const conf = note.items.map((l, i) => {
-        const src = active.find((a) => a.key === l.po_key) ?? active[i];
+        const src = active.find((a) => a.poId === l.po_id && a.poKey === l.po_key) ?? active[l.src ?? i];
         const d = allOk ? l.qty : Number(src?.delivered ?? l.qty);
         const r = allOk ? 0 : Number(src?.refused ?? 0) || 0;
         return { i, delivered: d, accepted: d - r, refused: r, note: r ? src?.why : null };
@@ -165,9 +193,9 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
       if (enter && !c.blockers.length) {
         const lines2 = note.items.map((l, i) => ({ i, qty: (l.accepted ?? 0) - (l.received ?? 0), item_id: l.item_id })).filter((x) => x.qty > 0);
         if (lines2.length) {
-          const p = await api<{ note: FiscalNote; order: { number: number; status: string } | null }>(`/api/almoxarifado/notas/${note.id}/post`, { method: 'POST', json: { lines: lines2 } });
+          const p = await api<{ note: FiscalNote; orders?: { number: number; status: string }[] }>(`/api/almoxarifado/notas/${note.id}/post`, { method: 'POST', json: { lines: lines2 } });
           note = p.note;
-          toast({ kind: 'success', title: `NF ${note.number}: entrada confirmada`, text: p.order ? `${poLabel(p.order.number)} ${p.order.status === 'concluido' ? 'concluído' : 'com entrega parcial'}` : undefined }, 9000);
+          toast({ kind: 'success', title: `NF ${note.number}: entrada confirmada`, text: (p.orders ?? []).map((o) => `${poLabel(o.number)} ${o.status === 'concluido' ? 'concluído' : 'com entrega parcial'}`).join(' · ') || undefined }, 9000);
         }
       } else if (c.blockers.length) {
         toast({ kind: 'info', title: `NF ${note.number} registrada, aguardando Compras`, text: 'Há divergência com o pedido. Compras/gestão trata e depois você confirma a entrada.' }, 12000);
@@ -207,8 +235,8 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
         <>
           <div className="n-review-head">
             <div>
-              <small>Pedido</small>
-              <b>{poLabel(po.number)}</b>
+              <small>{pos.length > 1 ? 'Pedidos' : 'Pedido'}</small>
+              <b>{pos.map((o) => poLabel(o.number)).join(' + ')}</b>
             </div>
             <div>
               <small>Fornecedor</small>
@@ -227,6 +255,35 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
             <button type="button" className="link-btn" onClick={() => setPo(null)}>
               trocar pedido
             </button>
+          ) : null}
+          {pos.length > 1 || others.length ? (
+            <div className="pc-po-plan" data-max="receber-outros-pedidos">
+              <div className="pc-po-plan-head">
+                <Link2 size={15} />
+                <b>{pos.length > 1 ? `Esta nota atende ${pos.length} pedidos` : 'Veio mais algum pedido deste fornecedor nesta nota?'}</b>
+              </div>
+              <div className="pc-po-chips">
+                {pos.slice(1).map((o) => (
+                  <span key={o.id} className="pc-po-chip is-on">
+                    <b>{poLabel(o.number)}</b> {o.items.filter((i) => poLeft(i) > 0).map((i) => `${poLeft(i)} ${i.name}`).slice(0, 3).join(', ')}
+                    <button type="button" className="icon-btn" aria-label={`Tirar o ${poLabel(o.number)} desta nota`} onClick={() => dropPO(o)}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {others.map((o) => (
+                  <button key={o.id} type="button" className="pc-po-chip is-add" onClick={() => addPO(o)} aria-label={`Incluir o ${poLabel(o.number)} nesta nota`}>
+                    <Plus size={13} /> <b>{poLabel(o.number)}</b> {o.items.filter((i) => poLeft(i) > 0).map((i) => `${poLeft(i)} ${i.name}`).slice(0, 3).join(', ')}
+                  </button>
+                ))}
+              </div>
+              <small className="help">Fornecedores costumam faturar vários pedidos numa nota só. Inclua os que vieram: cada linha baixa o seu pedido. Linha que não veio, é só desmarcar.</small>
+            </div>
+          ) : null}
+          {autoNote ? (
+            <p className="help">
+              <ScanLine size={14} style={{ verticalAlign: '-2px' }} /> {autoNote}
+            </p>
           ) : null}
 
           <h3 className="sec-title">DANFE</h3>
@@ -312,7 +369,8 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
                     <td>
                       <b>{l.name}</b>
                       <small style={{ display: 'block' }}>
-                        {num(l.left)} {l.unit} a receber no pedido
+                        {pos.length > 1 ? <span className="n-po-tag">{poLabel(l.po)}</span> : null} {num(l.left)} {l.unit} a receber no pedido
+                        {missing.includes(l.key) ? <span className="t-short"> · não achei no DANFE: confira se veio</span> : null}
                       </small>
                       {!allOk && Number(l.refused) > 0 ? <input className="input" placeholder="Motivo da recusa" aria-label={`Motivo da recusa de ${l.name}`} value={l.why} onChange={(e) => set(l.key, { why: e.target.value })} /> : null}
                     </td>
