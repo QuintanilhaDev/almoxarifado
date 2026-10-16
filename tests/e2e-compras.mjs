@@ -283,6 +283,8 @@ try {
     console.log('\n[11] Celular');
     const m = await newPage(browser, true);
     await login(m, 'carlos', '/setor/compras');
+    await m.goto(B + '/setor/compras#solicitacoes'); // Compras abre no Painel
+    await m.reload();
     await m.waitForSelector('.p-row');
     let over = await m.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     ok(over <= 1, `lista sem rolagem lateral (${over}px)`);
