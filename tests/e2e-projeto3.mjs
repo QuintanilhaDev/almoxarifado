@@ -160,6 +160,7 @@ try {
   console.log('\n— Compras: fornecedor e previsão');
   const carlos = await newPage(browser);
   await login(carlos, 'carlos', '/setor/compras');
+  await carlos.click('.nav-item:has-text("Solicitações")'); // Compras abre no Painel
   await carlos.click('.p-row:has-text("#0001")');
   ok(await carlos.locator('.drawer:has-text("pedido de material #0001")').count() === 1, 'Compras vê de qual pedido de material veio');
   await carlos.click('.p-step:has-text("Comprada")');
