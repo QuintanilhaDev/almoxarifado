@@ -48,8 +48,7 @@ try {
   await page.fill('#pass', '123456');
   await page.click('button[type=submit]');
   await page.waitForURL(B + '/setor/almoxarifado**', { timeout: 20000 });
-  await page.goto(B + '/setor/almoxarifado#estoque');
-  await page.reload(); // só trocar o # não remonta a tela
+  await page.click('.nav-item:has-text("Estoque")');
   await page.waitForSelector('[data-max="estoque-importar"]', { timeout: 20000 });
   await page.waitForTimeout(800);
 
