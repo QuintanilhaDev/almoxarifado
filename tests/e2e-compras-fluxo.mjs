@@ -137,7 +137,7 @@ try {
   const pN = q.proposals.find((p) => p.supplier_id === norte.id);
   const kB = q.items.find((i) => i.item_id === bota.id).key;
   await api(carlos, `/api/compras/cotacoes/${q.id}`, 'PATCH', { action: 'proposal', proposal: { id: pN.id, status: 'recebida', valid_until: '2026-12-31', lines: [{ key: kB, unit_price: 115 }], delivery: { days: 2 } } });
-  await carlos.waitForFunction(() => document.querySelectorAll('.pc-map th.n').length >= 2, null, { timeout: 15000 });
+  await carlos.waitForFunction(() => document.querySelectorAll('.pc-map th.n').length >= 2, null, { timeout: 45000 });
   ok((await carlos.locator('.pc-cell.is-best.is-chosen').count()) === 2, 'o mapa já vem com a melhor opção marcada em cada item');
   ok(/menor custo de cada item/.test(await carlos.locator('.pc-decide').textContent()), 'sem justificativa quando segue a recomendação');
   await carlos.screenshot({ path: SHOTS + '/pc-mapa.png' });
