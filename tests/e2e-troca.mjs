@@ -168,8 +168,8 @@ try {
   ok((await page.locator('.hub-card').count()) === 6 && (await page.locator('.hub-card:has-text("Compras")').count()) === 1, 'o painel master mostra o setor Compras (6 setores)');
   await page.locator('.hub-card:has-text("Compras") a:has-text("Abrir ferramenta")').click();
   await page.waitForURL(B + '/setor/compras', { timeout: 10000 });
-  await page.waitForSelector('.section-head h1:has-text("Solicitações de compra")', { timeout: 8000 });
-  ok(true, 'a ferramenta do setor Compras abre nas solicitações de compra');
+  await page.waitForSelector('.section-head h1:has-text("Painel de Compras")', { timeout: 8000 });
+  ok(true, 'a ferramenta do setor Compras abre no Painel de Compras');
   await page.context().close();
 
   console.log('\n[7] Celular');
