@@ -1,5 +1,5 @@
 'use client';
-import { CalendarClock, ClipboardList, Hammer, LayoutDashboard, Lock, Receipt, Sparkles, UserRound, Users, UsersRound } from 'lucide-react';
+import { CalendarClock, ClipboardList, Fingerprint, Hammer, LayoutDashboard, Lock, Receipt, Sparkles, UserRound, Users, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -15,12 +15,15 @@ import { PanelSkeleton, usePreload } from '../core/lazy';
 const loadNotas = () => import('../notas/NotasPanel');
 const loadColab = () => import('../rh/Colaboradores');
 const loadTroca = () => import('../rh/TrocaAnual');
+const loadPontos = () => import('../pontos/PontosPanel');
+const PontosPanel = dynamic(() => loadPontos().then((m) => m.PontosPanel), { loading: PanelSkeleton });
 const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
 const Colaboradores = dynamic(() => loadColab().then((m) => m.Colaboradores), { loading: PanelSkeleton });
 const TrocaAnual = dynamic(() => loadTroca().then((m) => m.TrocaAnual), { loading: PanelSkeleton });
 import { chime } from '@/lib/chime';
 import { maxEmit, useMaxBus } from '@/lib/max/bus';
 import { canManageSector, hasLevel } from '@/lib/permissions';
+import { canPontos } from '@/lib/pontos/types';
 import { useRealtime } from '@/lib/realtime';
 import { getSector, sectorPath } from '@/lib/sectors';
 import { useHashTab, useSession } from '@/lib/useSession';
@@ -29,8 +32,8 @@ import type { OrderScope } from '@/lib/pedidos/access';
 import type { MaxHost } from '@/lib/max/types';
 
 type ToolTab = 'pedidos' | 'colaboradores' | 'trocas' | 'notas';
-type Tab = ToolTab | 'inicio' | 'equipe' | 'conta';
-const VALID: Tab[] = ['pedidos', 'colaboradores', 'trocas', 'notas', 'inicio', 'equipe', 'conta'];
+type Tab = ToolTab | 'pontos' | 'inicio' | 'equipe' | 'conta';
+const VALID: Tab[] = ['pedidos', 'colaboradores', 'trocas', 'notas', 'pontos', 'inicio', 'equipe', 'conta'];
 
 /** Abas de ferramenta de cada setor (Projeto 3). Cada aba aparece só para quem tem o módulo. */
 const TOOLS: Record<string, { id: ToolTab; label: string; short: string; icon: typeof ClipboardList; module: string; aliases: string[]; also?: string }[]> = {
@@ -62,7 +65,9 @@ function Shell({ slug }: { slug: string }) {
   const toast = useToast();
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(slug));
   const tools = useMemo(() => (TOOLS[slug] ?? []).filter((t) => hasLevel(user, slug, t.module, 'view') || (t.also ? hasLevel(user, slug, t.also, 'view') : false)), [slug, user]);
-  const first: Tab = tools[0]?.id ?? 'inicio';
+  // aba Pontos: só para quem foi liberado pelo nome de usuário (a Evelyn)
+  const pontos = canPontos(user);
+  const first: Tab = tools[0]?.id ?? (pontos ? 'pontos' : 'inicio');
   const [tab, setTab] = useHashTab<Tab>(VALID, first);
   const warp = useWarp();
   const [teamVersion, setTeamVersion] = useState(0);
@@ -151,13 +156,14 @@ function Shell({ slug }: { slug: string }) {
 
   const tabs = useMemo<FrameTab[]>(
     () => [
-      ...(tools.length ? tools.map((t) => ({ id: t.id, label: t.label, short: t.short, icon: t.icon, badge: t.id === 'pedidos' ? waiting : 0, badgeTitle: 'Esperando a Operação' })) : [{ id: 'inicio', label: 'Início', short: 'Início', icon: user && (TOOLS[slug] ?? []).length ? Lock : LayoutDashboard }]),
+      ...(tools.length ? tools.map((t) => ({ id: t.id, label: t.label, short: t.short, icon: t.icon, badge: t.id === 'pedidos' ? waiting : 0, badgeTitle: 'Esperando a Operação' })) : pontos ? [] : [{ id: 'inicio', label: 'Início', short: 'Início', icon: user && (TOOLS[slug] ?? []).length ? Lock : LayoutDashboard }]),
+      ...(pontos ? [{ id: 'pontos', label: 'Pontos', short: 'Pontos', icon: Fingerprint }] : []),
       ...(manager ? [{ id: 'equipe', label: 'Equipe', short: 'Equipe', icon: UsersRound }] : []),
       { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
     ],
-    [tools, manager, waiting, user, slug],
+    [tools, manager, waiting, user, slug, pontos],
   );
-  const allowed = (t: Tab) => (t === 'conta' ? true : t === 'equipe' ? manager : t === 'inicio' ? tools.length === 0 : tools.some((x) => x.id === t));
+  const allowed = (t: Tab) => (t === 'conta' ? true : t === 'equipe' ? manager : t === 'pontos' ? pontos : t === 'inicio' ? tools.length === 0 && !pontos : tools.some((x) => x.id === t));
   const current: Tab = !user ? tab : allowed(tab) ? tab : first;
 
   const ordersRef = useRef(pedidos.data?.orders ?? null);
@@ -169,7 +175,8 @@ function Shell({ slug }: { slug: string }) {
       user,
       tabs: [
         ...tools.map((t) => ({ id: t.id, label: t.label, aliases: t.aliases })),
-        ...(tools.length ? [] : [{ id: 'inicio', label: 'Início', aliases: ['inicio', 'pagina inicial', 'tela inicial', 'home'] }]),
+        ...(tools.length || pontos ? [] : [{ id: 'inicio', label: 'Início', aliases: ['inicio', 'pagina inicial', 'tela inicial', 'home'] }]),
+        ...(pontos ? [{ id: 'pontos', label: 'Pontos', aliases: ['pontos', 'ponto', 'espelho', 'espelho de ponto', 'registro de ponto', 'batidas', 'apuracao', 'apuracao de ponto', 'relatorio de ponto'] }] : []),
         ...(manager ? [{ id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes', 'time', 'pessoas'] }] : []),
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
@@ -180,7 +187,7 @@ function Shell({ slug }: { slug: string }) {
       logout,
       ...(scope ? { pedidos: { scope, orders: () => (canOrdersRef.current ? ordersRef.current : null) } } : {}),
     }),
-    [sector, user, tools, manager, current, setTab, logout, warp, slug, scope],
+    [sector, user, tools, manager, current, setTab, logout, warp, slug, scope, pontos],
   );
 
   const edit = useCallback((m: string) => hasLevel(user, slug, m, 'edit'), [user, slug]);
@@ -239,6 +246,7 @@ function Shell({ slug }: { slug: string }) {
             {current === 'colaboradores' && <Colaboradores canEdit={edit('colaboradores')} version={collabVersion} />}
             {current === 'trocas' && <TrocaAnual canEdit={edit('pedidos')} isMaster={manager} version={collabVersion} onOpened={() => void reloadOrders()} />}
             {current === 'notas' && <NotasPanel mode="financeiro" canEdit={false} />}
+            {current === 'pontos' && pontos && <PontosPanel />}
             {current === 'equipe' && manager && <TeamManager slug={slug} me={user} version={teamVersion} />}
             {current === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
           </div>

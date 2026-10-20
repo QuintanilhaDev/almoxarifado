@@ -35,6 +35,7 @@ export function buildSeed({ LEGACY = false, NOCAT = false } = {}) {
       admin('uesley', 'Uesley', { sector: 'operacional', sector_role: 'master' }),
       admin('rita', 'Rita RH', { sector: 'rh', permissions: { pedidos: 'edit', colaboradores: 'view' } }),
       admin('fabia', 'Fábia Financeiro', { sector: 'financeiro', permissions: { notas: 'view' } }),
+      admin('evelyn', 'Evelyn Ponto', { sector: 'operacional', permissions: {} }),
     ],
     hub_meta: [],
     ...(process.env.NOCOMPRAS === '1' ? {} : { purchase_requests: [] }),

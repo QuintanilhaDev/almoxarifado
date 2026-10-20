@@ -637,3 +637,26 @@ middleware.ts              barra quem não está logado
 | A Max não ouve | Use Chrome, Edge ou Safari e permita o microfone (cadeado da barra de endereço). No Firefox ela funciona digitando. |
 | A Max ouve mas não fala na tela de login | O navegador só libera voz depois de um clique na página. Clique em qualquer lugar. |
 | A Max responde "ainda não sei" a perguntas gerais | Sem a IA opcional ela usa só Wikipédia, clima e câmbio. Veja *IA opcional da Max*. |
+
+## Pontos (aba da Evelyn)
+
+A aba **Pontos** aparece só para o usuário `evelyn` (nem o master geral vê; a regra fica em `lib/pontos/types.ts`, `PONTOS_USERS`). Ela anexa o espelho de ponto exportado do GesOper e a ferramenta faz a conferência sozinha. **Nada fica gravado:** o arquivo e o resultado existem só na tela e nos relatórios baixados.
+
+- **Leitura:** aceita **PDF**, Excel (.xlsx), CSV e o ".xls" em HTML que sistemas web exportam. Não depende de layout fixo.
+  - Acha o funcionário, a matrícula, a função, a filial (empresa e CNPJ) e o período no cabeçalho.
+  - Acha as batidas pelas colunas (no PDF, pela posição de cada texto).
+  - No GesOper: "21/08-Sex", "Folga", 00:00 nos campos vazios, o cliente/posto escrito na linha e as horas do próprio sistema (Hr. Dia e Horas Dif.).
+- **Escala de cada funcionário:** vale a do espelho. Dia marcado como folga nunca vira "sem registro". A jornada prevista de cada dia é a calculada pelo sistema de ponto (Hr. Dia − Dif.). Sem essas informações, a escala é deduzida das batidas: 12x36 em dia sim, dia não, ou os dias da semana habituais.
+- **O que a ferramenta aponta:**
+  - **sem registro:** dia de trabalho sem nenhuma batida;
+  - **parcialmente sem registro:** faltou a entrada, a saída ou o intervalo;
+  - falta e ausência justificada (atestado, falta justificada);
+  - atraso e saída antecipada, comparando com o horário habitual da própria pessoa, que acompanha quem muda de horário no período;
+  - hora extra e jornada acima do limite;
+  - intervalo menor que 1h;
+  - descanso menor que 11h entre jornadas;
+  - trabalho em dia de folga;
+  - batida repetida.
+- **Batidas que não chegaram:** quando quase todos aparecem sem batida a partir de um dia, a tela avisa que as batidas talvez não tenham sido importadas no GesOper e oferece considerar só até o dia anterior.
+- **Filtros:** período, cliente/posto, filial e função. Valem para a tela e para os relatórios.
+- **Relatórios:** um **.zip** baixa sozinho depois da análise, com `RELATÓRIO COMPLETO.pdf` (detalhe dia a dia) e `RELATÓRIO PARA DIRETORIA.pdf` (limpo: números, destaques, quem está sem registro ou com registro parcial e os dias, e o resumo por posto). Também dá para baixar a **planilha de controle** (.xlsx).

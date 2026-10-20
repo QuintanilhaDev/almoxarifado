@@ -111,6 +111,8 @@ const RULES: { re: RegExp; m?: string; say: (b: B, mt: RegExpMatchArray, method:
   { re: /^\/api\/setor\/[\w-]+\/equipe/, say: () => 'Mudou permissões da equipe' },
   { re: /^\/api\/account/, say: (b) => ('new_password' in b || 'password' in b ? 'Trocou a própria senha' : 'Alterou a própria conta') },
   { re: /^\/api\/max\/memoria/, say: () => 'Ensinou algo à Max' },
+  { re: /^\/api\/pontos\/analisar$/, say: () => 'Analisou um espelho de ponto' },
+  { re: /^\/api\/pontos\/relatorio$/, say: () => 'Baixou o relatório de ponto' },
 ];
 
 /** campos que ajudam a entender a ação (nunca senhas, arquivos ou textos enormes) */

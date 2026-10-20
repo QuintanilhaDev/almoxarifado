@@ -141,7 +141,7 @@ const lastTool = (b: Body) => String(b.messages[b.messages.length - 1].content);
     await run('carla', 'como estão as coisas por aqui', [say('Tudo certo.')], 'sector', 'rh');
     ok('RH não recebe nada do almoxarifado no retrato', !/Estoque do almoxarifado|Solicitações:|Postos cadastrados/.test(sys(sent[0])), sys(sent[0]).slice(-400));
     await run('mateus', 'quantas pessoas temos', [say('Seis.')], 'hub', null);
-    ok('master geral recebe a contagem de usuários por setor', /Usuários ativos: 10 \(Almoxarifado 2/.test(sys(sent[0])), sys(sent[0]).slice(-400));
+    ok('master geral recebe a contagem de usuários por setor', /Usuários ativos: 11 \(Almoxarifado 2/.test(sys(sent[0])), sys(sent[0]).slice(-400));
     r = await run('neilton', 'qual item tem mais dinheiro parado', [say('Essa função ainda não existe no Max Hub.'), call('estoque_listar', { ordenar_por: 'valor_total', limite: 3 }), say('O rádio comunicador, com dois mil oitocentos e oitenta reais.')]);
     ok('se a IA desiste sem tentar, recebe uma segunda chance e resolve', r.say?.startsWith('O rádio comunicador') === true && !r.gaveUp && sent.length === 3 && /Antes de desistir/.test(String(sent[1].messages[sent[1].messages.length - 1].content)) && /"item":"Rádio comunicador","saldo":6/.test(lastTool(sent[2])) && /"valor_total":2880/.test(lastTool(sent[2])), [r, lastTool(sent[2]).slice(0, 300)]);
     r = await run('neilton', 'faça um café para mim agora', [say('Não consigo fazer isso.'), say('Não consigo fazer café, mas posso mostrar o estoque.')]);
