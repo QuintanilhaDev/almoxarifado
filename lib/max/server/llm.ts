@@ -155,7 +155,23 @@ export function visionModel(): string | null {
  * Pedido maior à IA (leitura de documentos): texto e, se houver, imagens (data URLs).
  * Devolve o JSON da resposta e o motivo quando falha (para a tela explicar).
  */
-export async function llmDocJson<T = unknown>(o: { system: string; user: string; images?: string[]; model?: string | null; maxTokens?: number; timeoutMs?: number }): Promise<{ data: T | null; erro: string | null }> {
+/** segundos até a cota liberar: cabeçalho retry-after ou "try again in 7.5s" / "in 1m2.5s" da mensagem */
+function esperaDe(r: Response, t: string): number {
+  const h = Number(r.headers.get('retry-after'));
+  if (Number.isFinite(h) && h > 0) return Math.ceil(h);
+  const m = t.match(/try again in\s*(?:(\d+)m)?\s*([\d.]+)\s*(ms|s)/i);
+  if (m) return Math.ceil(Number(m[1] ?? 0) * 60 + (m[3] === 'ms' ? Number(m[2]) / 1000 : Number(m[2])));
+  return 20;
+}
+
+/** só "raciocínio" mínimo na leitura de documentos: gasta menos da cota e responde mais rápido */
+function semRaciocinio(model: string): Record<string, string> {
+  if (/qwen3\.8|qwen\/qwen3/i.test(model)) return { reasoning_effort: 'none' };
+  if (/gpt-oss/i.test(model)) return { reasoning_effort: 'low' };
+  return {};
+}
+
+export async function llmDocJson<T = unknown>(o: { system: string; user: string; images?: string[]; model?: string | null; maxTokens?: number; timeoutMs?: number }): Promise<{ data: T | null; erro: string | null; espera?: number }> {
   if (!llmConfigured()) return { data: null, erro: 'IA não configurada' };
   const base = process.env.MAX_LLM_BASE_URL!.replace(/\/+$/, '');
   const content = o.images?.length ? [{ type: 'text', text: o.user }, ...o.images.map((url) => ({ type: 'image_url', image_url: { url } }))] : o.user;
@@ -164,7 +180,10 @@ export async function llmDocJson<T = unknown>(o: { system: string; user: string;
   let ultimo = 'falha ao falar com a IA';
   // até 3 tentativas: erro passageiro do serviço (5xx) tenta de novo; se o modelo não aceitar
   // o "modo JSON", tenta sem ele (a resposta é recortada do texto do mesmo jeito)
-  for (let tentativa = 0, jsonMode = true; tentativa < 3; tentativa++) {
+  const model = o.model || process.env.MAX_LLM_MODEL!;
+  let extra = semRaciocinio(model);
+  let maxTok = o.maxTokens ?? 3000;
+  for (let tentativa = 0, jsonMode = true; tentativa < 4; tentativa++) {
     const resta = limite - (Date.now() - inicio);
     if (resta < 5000) break;
     const ctrl = new AbortController();
@@ -176,9 +195,10 @@ export async function llmDocJson<T = unknown>(o: { system: string; user: string;
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MAX_LLM_API_KEY}` },
         body: JSON.stringify({
-          model: o.model || process.env.MAX_LLM_MODEL,
+          model,
           temperature: 0,
-          max_tokens: o.maxTokens ?? 6000,
+          max_tokens: maxTok,
+          ...extra,
           ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
           messages: [
             { role: 'system', content: o.system },
@@ -190,8 +210,26 @@ export async function llmDocJson<T = unknown>(o: { system: string; user: string;
         const t = await r.text().catch(() => '');
         console.error('[llm/doc]', r.status, o.model || process.env.MAX_LLM_MODEL, t.slice(0, 300));
         if (r.status === 401 || r.status === 403) return { data: null, erro: `o serviço de IA recusou a chave de acesso (${r.status}); a MAX_LLM_API_KEY do servidor precisa ser renovada` };
+        // pedido maior que a cota por minuto inteira (o limite de resposta conta): pede uma resposta menor
+        if (r.status === 413 && /tokens per minute|TPM/i.test(t) && maxTok > 1200) {
+          maxTok = Math.max(1200, Math.floor(maxTok * 0.6));
+          continue;
+        }
         if (r.status === 413) return { data: null, erro: 'arquivo grande demais para a IA' };
-        if (r.status === 429) return { data: null, erro: 'limite de uso da IA atingido (tente de novo em alguns minutos)' };
+        if (r.status === 429) {
+          // cota por minuto do plano gratuito: espera aqui mesmo se for pouco; senão a tela espera e tenta de novo
+          const espera = esperaDe(r, t);
+          if (/per day|TPD|RPD|daily/i.test(t)) return { data: null, erro: 'a cota diária gratuita da IA acabou (renova em 24 horas)' };
+          if (espera * 1000 + 8000 < limite - (Date.now() - inicio)) {
+            await new Promise((ok) => setTimeout(ok, espera * 1000 + 300));
+            continue;
+          }
+          return { data: null, erro: `a cota por minuto da IA está cheia (libera em ${espera}s)`, espera };
+        }
+        if (r.status === 400 && /reasoning/i.test(t) && Object.keys(extra).length) {
+          extra = {};
+          continue;
+        }
         if (r.status === 404 || (r.status === 400 && /model/i.test(t) && !/json|response_format/i.test(t))) return { data: null, erro: `o modelo de IA configurado não está disponível (${r.status})` };
         if (r.status === 400 && /json|response_format/i.test(t) && jsonMode) {
           jsonMode = false;

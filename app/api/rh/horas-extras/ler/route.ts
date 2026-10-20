@@ -31,6 +31,8 @@ export async function POST(req: Request) {
           ? await lerTextoComIa(b.texto.slice(0, 14000))
           : null;
     if (!r) return fail('Mande a página (imagem) ou o texto.');
+    // cota por minuto da IA cheia: a tela espera e manda esta página de novo
+    if (r.espera) return NextResponse.json({ error: `A IA gratuita atingiu o limite por minuto. Continuo em ${r.espera}s.`, espera: r.espera }, { status: 429 });
     if (r.erro || !r.lido) return fail(r.erro === 'IA não configurada' ? 'A leitura de fotos, escaneados e textos fora do padrão usa a IA da Max, que não está configurada neste servidor.' : `Não consegui ler esta parte: ${r.erro}.`, r.erro === 'IA não configurada' ? 503 : 502);
     // a tela junta as páginas e manda tudo para /analisar (as dúvidas da leitura vão junto)
     const lidos = r.lido.funcionarios.reduce((t, f) => t + f.days.length, 0);

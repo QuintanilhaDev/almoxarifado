@@ -169,6 +169,21 @@ try {
   ok(/Funcionários\s*2/.test(st) && /Horas extras\s*5h00/.test(st), 'leu os 2 funcionários sem a IA: 1h + 4h de domingo = 5h00: ' + st);
   const av8 = (await p.locator('.pt-aviso').allTextContents()).join(' ');
   ok(/chave de acesso/.test(av8) && /leitor simples/.test(av8), 'avisa que a chave foi recusada e que é para conferir: ' + av8.slice(0, 200));
+
+  console.log('\n[9] Folha de papel sem o mês (só dias 1 a 31) + cota da IA cheia');
+  const papel = `${SHOTS}/folha-papel.txt`;
+  fs.writeFileSync(papel, ['COTA_CHEIA SO_DIA FOLHA DE PONTO INDIVIDUAL DE TRABALHO', 'EMPREGADO(A) Felipe Gabriel Reis dos Santos   FUNÇÃO AAOP   ANO 2026', 'DIAS ENTRADA SAIDA RETORNO SAIDA', '1 07:00 12:00 13:00 17:00'].join('\n'));
+  await p.click('[data-max="horas-novo"]');
+  await p.setInputFiles('input[aria-label="Arquivo de ponto para horas extras"]', papel);
+  await p.waitForSelector('.hx-row:has-text("FELIPE GABRIEL")', { timeout: 60000 });
+  ok(/01\/09\/2026/.test(await p.locator('.pt-bar').textContent()), 'mês deduzido: setembro/2026 (período começa em 01/09/2026)');
+  ok((await p.locator('#hx-mesfolha').inputValue()) === '2026-09', 'mostra "Mês das folhas" com setembro marcado');
+  st = await statsTxt(p);
+  ok(/Horas extras\s*12h00/.test(st), '3 sábados de 4h depois das 44h (4 × 8h + 3 × 4h… ) — cálculo: ' + st);
+  await p.selectOption('#hx-mesfolha', '2026-08');
+  await p.waitForFunction(() => /01\/08\/2026/.test(document.querySelector('.pt-bar')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => undefined);
+  ok(/01\/08\/2026/.test(await p.locator('.pt-bar').textContent()), 'trocar o mês recalcula sem ler de novo');
+  await p.screenshot({ path: SHOTS + '/hx-papel.png', fullPage: true });
 } catch (e) {
   problems.push('exceção: ' + e.message);
   console.log(e);

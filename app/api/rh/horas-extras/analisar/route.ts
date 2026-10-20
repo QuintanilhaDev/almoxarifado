@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/access';
 import { AccessError, fail, serverError } from '@/lib/http';
 import { canHoras } from '@/lib/horas/access';
 import { DEFAULT_HORAS, apurar, type HorasConfig } from '@/lib/horas/calculo';
-import { iaParaLido } from '@/lib/horas/leitura';
+import { iaParaLido, type MesFolha } from '@/lib/horas/ia';
 import { juntar, limparLido } from '@/lib/horas/juntar';
 import { lerTextoLivre } from '@/lib/horas/texto';
 import { loadEspelho, PontoFileError } from '@/lib/pontos/load';
@@ -42,20 +42,30 @@ export async function POST(req: Request) {
     const ia = { texto: llmConfigured(), imagem: Boolean(visionModel()) };
     if ((req.headers.get('content-type') ?? '').includes('application/json')) {
       type ParteIn = { nome?: unknown; lido?: unknown; docs?: unknown };
-      const b = (await req.json().catch(() => null)) as { docs?: unknown; partes?: ParteIn[]; nome?: unknown; config?: Partial<HorasConfig>; leitura?: unknown } | null;
+      const b = (await req.json().catch(() => null)) as { docs?: unknown; partes?: ParteIn[]; nome?: unknown; config?: Partial<HorasConfig>; leitura?: unknown; mesFolha?: unknown } | null;
+      const mesFolha = typeof b?.mesFolha === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(b.mesFolha) ? b.mesFolha : null;
+      const mesesFolha: (MesFolha & { arquivo: string })[] = [];
       const entrada: ParteIn[] = Array.isArray(b?.partes) ? b.partes : Array.isArray(b?.docs) ? [{ nome: b.nome, docs: b.docs }] : [];
       if (!b || !entrada.length || entrada.length > 200) return fail('Dados inválidos.');
       const partes: { nome: string; lido: NonNullable<ReturnType<typeof limparLido>> }[] = [];
       for (const p of entrada) {
         const nome = String(p?.nome ?? 'documento').slice(0, 120);
-        const lido = Array.isArray(p?.docs) ? (p.docs.length <= 40 ? iaParaLido(p.docs as Parameters<typeof iaParaLido>[0]) : null) : limparLido(p?.lido);
+        let lido;
+        if (Array.isArray(p?.docs)) {
+          if (p.docs.length > 40) return fail('Dados inválidos.');
+          const ia = iaParaLido(p.docs as Parameters<typeof iaParaLido>[0], new Date(), mesFolha);
+          mesesFolha.push(...ia.meses.map((m) => ({ ...m, arquivo: nome })));
+          lido = ia;
+        } else lido = limparLido(p?.lido);
         if (!lido) return fail('Dados inválidos.');
         partes.push({ nome, lido });
       }
       const lido = juntar(partes);
       if (!lido.funcionarios.some((f) => f.days.some((d) => d.punches.length))) return fail(partes.length > 1 ? 'Nenhum dos arquivos tem funcionários com dias e horários. Confira se são folhas ou espelhos de ponto legíveis.' : 'A leitura não encontrou funcionários com dias e horários neste documento. Confira se é uma folha ou espelho de ponto legível.', 422);
       const apuracao = apurar(lido, config(b.config ?? {}), { arquivo: String(b.nome ?? partes[0].nome).slice(0, 160), leitura: String(b.leitura ?? 'Lido com IA').slice(0, 80), por: user.display_name });
-      return NextResponse.json({ apuracao, ia }, { headers: { 'Cache-Control': 'no-store' } });
+      // folhas sem o mês escrito: a tela mostra o mês deduzido e deixa trocar
+      const semMesEscrito = mesesFolha.filter((m) => m.certeza !== 'escrito');
+      return NextResponse.json({ apuracao, ia, mesesFolha: semMesEscrito }, { headers: { 'Cache-Control': 'no-store' } });
     }
     let form: FormData;
     try {

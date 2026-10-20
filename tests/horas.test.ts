@@ -4,6 +4,7 @@
 import { apurar, mesDe } from '../lib/horas/calculo';
 import { juntar, limparLido } from '../lib/horas/juntar';
 import { lerTextoLivre } from '../lib/horas/texto';
+import { deduzirMes, iaParaLido } from '../lib/horas/ia';
 import type { Lido } from '../lib/pontos/types';
 
 let fails = 0;
@@ -78,6 +79,27 @@ console.log('— leitor simples de texto (sem IA)');
   ok(b.funcionarios.map((f) => f.name).join() === 'MARIA DOS SANTOS,PEDRO ALVES', 'nome sozinho na linha antes dos dias');
   const c = lerTextoLivre('Nome  Data  Ent Sai\nCARLOS SOUZA  21/09/2026  07:00 12:00 13:00 17:00\nJOANA DARC  21/09/2026  08:00 12:00');
   ok(c.funcionarios.length === 2 && c.funcionarios[1].days[0].punches.join() === '08:00,12:00', 'tabela com o nome em cada linha');
+}
+
+console.log('— folha à mão só com o número do dia (mês deduzido)');
+{
+  const F = ['07:00', '12:01', '13:01', '18:01'];
+  const H = ['08:02', '12:02'];
+  // folha real (setembro/2026): domingos 6, 13, 20, 27 em branco; sábados 12, 19, 26 meio expediente
+  const linhas: unknown[][] = [];
+  for (let d = 1; d <= 31; d++) linhas.push([String(d).padStart(2, '0'), ...([6, 13, 20, 27, 31].includes(d) ? ['-'] : [12, 19, 26].includes(d) ? H : F)]);
+  const hoje = new Date('2026-10-20T12:00:00Z');
+  const g = deduzirMes(linhas.map((l) => ({ dia: Number(l[0]), punches: l.slice(1).filter((x) => x !== '-') as string[] })), 2026, hoje);
+  ok(g?.mes === '2026-09' && g.certeza >= 4, 'domingos em branco e sábados curtos → setembro/2026: ' + JSON.stringify(g));
+  const doc = { mes: null, ano: 2026, funcionarios: [{ nome: 'André Vitor da Paz Souza', matricula: null, cargo: 'AAOP', dias: linhas, duvidas: ['15'] }] };
+  const l = iaParaLido([doc], hoje);
+  const f = l.funcionarios[0];
+  ok(f.days.length === 31 - 5 + 5 - 1 && f.days[0].date === '2026-09-01' && !f.days.some((d) => d.date.startsWith('2026-10')), 'dias montados em setembro (o 31 é ignorado): ' + f.days.length);
+  ok(l.avisos.some((a) => /setembro\/2026/.test(a)) && l.avisos.some((a) => /dúvida em 1 dia/.test(a)), 'avisa o mês deduzido e a dúvida: ' + l.avisos.join(' | '));
+  const forcado = iaParaLido([doc], hoje, '2026-08');
+  ok(forcado.funcionarios[0].days[0].date === '2026-08-01' && forcado.meses[0].certeza === 'escolhido', 'mês escolhido na tela vale');
+  const a = apurar(l, {}, { arquivo: '', leitura: '', por: '' });
+  ok(a.funcionarios[0].total.extras > 0, 'calcula as extras da folha: ' + a.funcionarios[0].total.extras + ' min');
 }
 
 console.log(fails ? `\n${fails} FALHA(S)` : '\nTUDO CERTO');

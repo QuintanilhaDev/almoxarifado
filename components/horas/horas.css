@@ -162,3 +162,22 @@
 .hx-files small {
   color: var(--muted);
 }
+.hx-mesfolha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--lilac);
+  border-radius: var(--r-md);
+  background: var(--lilac-soft);
+  font-size: 14px;
+}
+.hx-mesfolha label {
+  font-weight: 600;
+}
+.hx-mesfolha .input {
+  width: auto;
+  min-width: 200px;
+}

@@ -30,6 +30,22 @@ interface Parte {
   docs?: unknown[];
   leitura: string;
 }
+/** a leitura sem IA (OCR/leitor simples) só vale se achou dias de verdade; manuscrito costuma virar lixo */
+const leituraBoa = (lido: unknown) => {
+  const fs = ((lido as { funcionarios?: { name?: string; days?: { punches?: string[] }[] }[] })?.funcionarios ?? []).filter((f) => /[A-Za-zÀ-ÿ]{3,}\s+[A-Za-zÀ-ÿ]{2,}/.test(f.name ?? ''));
+  const dias = fs.reduce((t, f) => t + (f.days ?? []).filter((d) => (d.punches?.length ?? 0) >= 2).length, 0);
+  return fs.length > 0 && dias >= 3;
+};
+const motivoDe = (e: Error) => e.message.replace(/^Não consegui ler esta parte: |\.$/g, '');
+const MES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const mesTxt = (ym: string) => `${MES[Number(ym.slice(5, 7)) - 1]} de ${ym.slice(0, 4)}`;
+const ultimosMeses = () => {
+  const h = new Date();
+  return Array.from({ length: 24 }, (_, k) => {
+    const d = new Date(h.getFullYear(), h.getMonth() - k, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+};
 const comAviso = (lido: unknown, aviso: string) => {
   const l = lido as { avisos?: unknown[] };
   return { ...l, avisos: [aviso, ...(Array.isArray(l.avisos) ? l.avisos : [])] };
@@ -61,6 +77,7 @@ class Falha extends Error {
   constructor(
     msg: string,
     public status = 0,
+    public espera = 0,
   ) {
     super(msg);
   }
@@ -68,7 +85,7 @@ class Falha extends Error {
 async function post<T>(url: string, body: BodyInit, json = false): Promise<T> {
   const r = await fetch(url, { method: 'POST', body, headers: json ? { 'Content-Type': 'application/json' } : undefined });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Falha(j.error ?? 'Não consegui ler o arquivo.', r.status);
+  if (!r.ok) throw new Falha(j.error ?? 'Não consegui ler o arquivo.', r.status, Number(j.espera) || 0);
   return j as T;
 }
 
@@ -179,6 +196,9 @@ export function HorasExtras() {
   const [res, setRes] = useState<ApuracaoHoras | null>(null);
   /** o que foi lido de cada arquivo: mudar a regra recalcula sem ler de novo */
   const [partes, setPartes] = useState<Parte[] | null>(null);
+  /** folhas sem o mês escrito (papel com dias 1 a 31): mês deduzido e, se a pessoa quiser, escolhido */
+  const [mesesFolha, setMesesFolha] = useState<{ mes: string; certeza: string }[]>([]);
+  const [mesFolha, setMesFolha] = useState('');
   const [falhas, setFalhas] = useState<{ nome: string; erro: string }[]>([]);
   const [etapa, setEtapa] = useState('');
   const [prog, setProg] = useState<{ i: number; n: number; nome: string } | null>(null);
@@ -199,29 +219,45 @@ export function HorasExtras() {
     pastaRef.current?.setAttribute('directory', '');
   }, [res]);
 
+  /** chama a IA; se a cota gratuita por minuto encher, espera o tempo que ela pedir e tenta de novo */
+  const comIa = async (body: object, rotulo: string) => {
+    for (let t = 0; ; t++) {
+      try {
+        setEtapa(rotulo);
+        return await post<{ docs: unknown[] }>('/api/rh/horas-extras/ler', JSON.stringify(body), true);
+      } catch (e) {
+        if (!(e instanceof Falha) || e.status !== 429 || t >= 12) throw e;
+        for (let s = Math.min(90, Math.max(3, e.espera || 20)); s > 0; s--) {
+          setEtapa(`A IA gratuita pede uma pausa (limite por minuto). Continuo em ${s}s…`);
+          await new Promise((ok) => setTimeout(ok, 1000));
+        }
+      }
+    }
+  };
+
   /** páginas como imagem → IA de visão (uma por vez); sem IA, OCR no navegador */
   const porImagem = async (f: File, paginas: string[]): Promise<Parte> => {
     const lista: unknown[] = [];
     try {
       if (semIa.current) throw semIa.current;
       for (const [i, p] of paginas.entries()) {
-        setEtapa(`Lendo ${paginas.length > 1 ? `a página ${i + 1} de ${paginas.length}` : 'a imagem'} com a IA…`);
-        const j = await post<{ docs: unknown[] }>('/api/rh/horas-extras/ler', JSON.stringify({ imagem: p }), true);
+        const j = await comIa({ imagem: p }, `Lendo ${paginas.length > 1 ? `a página ${i + 1} de ${paginas.length}` : 'a imagem'} com a IA…`);
         lista.push(...j.docs);
       }
       return { nome: f.name, docs: lista, leitura: 'Imagem lida com IA' };
     } catch (e) {
       if (!(e instanceof Falha) || e.status < 500) throw e;
-      // IA desligada ou fora do ar: não insiste nos próximos arquivos e reconhece o texto aqui mesmo
-      semIa.current = e;
+      // IA desligada ou fora do ar: não insiste nos próximos arquivos e tenta reconhecer o texto aqui mesmo
+      if (e.status === 503 || /chave|cota diária/.test(e.message)) semIa.current = e;
+      const motivo = motivoDe(e);
       const texto = await ocr(paginas, (i) => setEtapa(`Reconhecendo o texto da página ${i + 1} de ${paginas.length}…`));
       const fd = new FormData();
       fd.append('file', new File([texto], f.name.replace(/\.[^.]+$/, '') + '.txt', { type: 'text/plain' }));
       fd.append('config', JSON.stringify(cfg));
       const j = await post<{ lido?: unknown; heuristico?: unknown }>('/api/rh/horas-extras/analisar', fd);
       const lido = j.lido ?? j.heuristico;
-      if (!lido) throw new Error(`a IA não respondeu (${e.message.replace(/^Não consegui ler esta parte: |\.$/g, '')}) e sem ela não deu para entender esta imagem`);
-      return { nome: f.name, lido: comAviso(lido, `A IA não respondeu (${e.message.replace(/^Não consegui ler esta parte: |\.$/g, '')}); a imagem foi lida por OCR. Confira os horários com o original.`), leitura: 'Imagem lida por OCR' };
+      if (!lido || !leituraBoa(lido)) throw new Error(`a IA não respondeu (${motivo}). Sem ela, folhas escritas à mão ou fotos não podem ser lidas com segurança; tente de novo quando a IA voltar`);
+      return { nome: f.name, lido: comAviso(lido, `A IA não respondeu (${motivo}); a imagem foi lida por OCR. Confira os horários com o original.`), leitura: 'Imagem lida por OCR' };
     }
   };
 
@@ -238,16 +274,15 @@ export function HorasExtras() {
       try {
         if (semIa.current) throw semIa.current;
         for (const [i, t] of (j.partes ?? []).entries()) {
-          setEtapa(`Entendendo o documento com a IA (${i + 1} de ${j.partes!.length})…`);
-          lista.push(...(await post<{ docs: unknown[] }>('/api/rh/horas-extras/ler', JSON.stringify({ texto: t }), true)).docs);
+          lista.push(...(await comIa({ texto: t }, `Entendendo o documento com a IA (${i + 1} de ${j.partes!.length})…`)).docs);
         }
         return { nome: f.name, docs: lista, leitura: 'Texto lido com IA' };
       } catch (e) {
         if (!(e instanceof Falha) || e.status < 500) throw e;
-        semIa.current = e;
-        const motivo = e.message.replace(/^Não consegui ler esta parte: |\.$/g, '');
+        if (e.status === 503 || /chave|cota diária/.test(e.message)) semIa.current = e;
+        const motivo = motivoDe(e);
         // reserva: leitor simples de texto do servidor
-        if (!j.heuristico) throw new Error(`a IA não respondeu (${motivo}) e o formato deste arquivo não é reconhecido sem ela`);
+        if (!j.heuristico || !leituraBoa(j.heuristico)) throw new Error(`a IA não respondeu (${motivo}) e o formato deste arquivo não é reconhecido sem ela`);
         return { nome: f.name, lido: comAviso(j.heuristico, `A IA não respondeu (${motivo}); este arquivo foi lido pelo leitor simples. Confira os horários com o original.`), leitura: 'Texto lido sem IA (conferir)' };
       }
     }
@@ -256,12 +291,13 @@ export function HorasExtras() {
     return porImagem(f, paginas);
   };
 
-  const calcular = async (ps: Parte[], c = cfg) => {
-    const j = await post<{ apuracao: ApuracaoHoras }>(
+  const calcular = async (ps: Parte[], c = cfg, mf = mesFolha) => {
+    const j = await post<{ apuracao: ApuracaoHoras; mesesFolha?: { mes: string; certeza: string }[] }>(
       '/api/rh/horas-extras/analisar',
-      JSON.stringify({ partes: ps.map(({ nome, lido, docs }) => ({ nome, lido, docs })), nome: arquivosTxt(ps), leitura: leituraTxt(ps), config: c }),
+      JSON.stringify({ partes: ps.map(({ nome, lido, docs }) => ({ nome, lido, docs })), nome: arquivosTxt(ps), leitura: leituraTxt(ps), config: c, mesFolha: mf || undefined }),
       true,
     );
+    setMesesFolha(j.mesesFolha ?? []);
     return j.apuracao;
   };
 
@@ -277,6 +313,7 @@ export function HorasExtras() {
     setBusy('ler');
     setError('');
     semIa.current = null;
+    setMesFolha('');
     const ok: Parte[] = [];
     const erros: { nome: string; erro: string }[] = [];
     try {
@@ -297,7 +334,7 @@ export function HorasExtras() {
       if (!ok.length) throw new Error(`Não consegui ler nenhum dos ${files.length} arquivos. ${erros[0] ? `Ex.: ${erros[0].nome}: ${erros[0].erro}` : ''}`);
       setProg(null);
       setEtapa(files.length > 1 ? `Juntando os ${ok.length} arquivos e calculando…` : 'Calculando…');
-      const a = await calcular(ok);
+      const a = await calcular(ok, cfg, '');
       if (validos.length > MAX_ARQ) erros.push({ nome: `${validos.length - MAX_ARQ} arquivo(s)`, erro: `acima do máximo de ${MAX_ARQ} por vez` });
       for (const f of outros.slice(0, 8)) erros.push({ nome: f.name, erro: 'formato que não é de ponto' });
       if (outros.length > 8) erros.push({ nome: `mais ${outros.length - 8} arquivo(s)`, erro: 'formato que não é de ponto' });
@@ -324,11 +361,11 @@ export function HorasExtras() {
     void ler(files);
   };
   /** mudou a regra: recalcula (sem ler de novo com a IA) */
-  const recalcular = async () => {
+  const recalcular = async (mf = mesFolha) => {
     if (!partes) return;
     setBusy('ler');
     try {
-      setRes(await calcular(partes));
+      setRes(await calcular(partes, cfg, mf));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -476,10 +513,33 @@ export function HorasExtras() {
                 <Settings2 size={14} /> Regras
               </button>
             </div>
+            {mesesFolha.length ? (
+              <div className="hx-mesfolha">
+                <label htmlFor="hx-mesfolha">Mês das folhas (não está escrito nelas)</label>
+                <select
+                  id="hx-mesfolha"
+                  className="select input"
+                  disabled={Boolean(busy)}
+                  value={mesFolha || (new Set(mesesFolha.map((m) => m.mes)).size === 1 ? mesesFolha[0].mes : '')}
+                  onChange={(e) => {
+                    setMesFolha(e.target.value);
+                    void recalcular(e.target.value);
+                  }}
+                >
+                  {new Set(mesesFolha.map((m) => m.mes)).size > 1 ? <option value="">Deduzido em cada folha</option> : null}
+                  {ultimosMeses().map((m) => (
+                    <option key={m} value={m}>
+                      {mesTxt(m)}
+                      {!mesFolha && mesesFolha.some((x) => x.mes === m) ? ' (deduzido)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {showCfg ? (
               <>
                 <Regras cfg={cfg} save={saveCfg} />
-                <button className="btn btn-ghost btn-sm" style={{ marginBottom: 14 }} disabled={Boolean(busy)} onClick={recalcular}>
+                <button className="btn btn-ghost btn-sm" style={{ marginBottom: 14 }} disabled={Boolean(busy)} onClick={() => recalcular()}>
                   {busy === 'ler' ? <span className="spinner" /> : <RotateCcw size={14} />} Recalcular com estas regras
                 </button>
               </>
