@@ -3,6 +3,7 @@
  */
 import { apurar, mesDe } from '../lib/horas/calculo';
 import { juntar, limparLido } from '../lib/horas/juntar';
+import { lerTextoLivre } from '../lib/horas/texto';
 import type { Lido } from '../lib/pontos/types';
 
 let fails = 0;
@@ -67,6 +68,16 @@ console.log('— vários arquivos (pasta)');
   ok(j.periodo?.from === '2026-09-28' && j.periodo?.to === '2026-10-26', 'período cobre todos os arquivos');
   const sujo = limparLido({ funcionarios: [{ name: 'X', days: [{ date: '2026-10-19', punches: ['08:00', 'abc', '25:00', '17:00'], marks: [] }, { date: 'ontem', punches: [] }] }], avisos: [] });
   ok(sujo?.funcionarios[0].days.length === 1 && sujo.funcionarios[0].days[0].punches.join() === '08:00,17:00', 'dados vindos da tela são filtrados');
+}
+
+console.log('— leitor simples de texto (sem IA)');
+{
+  const a = lerTextoLivre('RELATÓRIO   Período: 01/09/2026 a 30/09/2026\nFuncionário: JOSÉ CARLOS PEREIRA      Matrícula: 00123   Cargo: VIGILANTE\n14/09 seg 07:00 12:00 13:00 18:00\n16/09 FOLGA\nFuncionário: ANA LIMA   Matr.: 77\n14/09 08:00 12:00 13:00 19:30');
+  ok(a.funcionarios.length === 2 && a.funcionarios[0].matricula === '00123' && a.funcionarios[0].days[0].punches.length === 4 && a.funcionarios[1].days[0].date === '2026-09-14', 'com rótulos "Funcionário:" e período');
+  const b = lerTextoLivre('MARIA DOS SANTOS\n21/09/2026 07:58 12:01 13:00 18:02\nPEDRO ALVES\n21/09/2026 19:00 07:00');
+  ok(b.funcionarios.map((f) => f.name).join() === 'MARIA DOS SANTOS,PEDRO ALVES', 'nome sozinho na linha antes dos dias');
+  const c = lerTextoLivre('Nome  Data  Ent Sai\nCARLOS SOUZA  21/09/2026  07:00 12:00 13:00 17:00\nJOANA DARC  21/09/2026  08:00 12:00');
+  ok(c.funcionarios.length === 2 && c.funcionarios[1].days[0].punches.join() === '08:00,12:00', 'tabela com o nome em cada linha');
 }
 
 console.log(fails ? `\n${fails} FALHA(S)` : '\nTUDO CERTO');

@@ -5,6 +5,7 @@ import { canHoras } from '@/lib/horas/access';
 import { DEFAULT_HORAS, apurar, type HorasConfig } from '@/lib/horas/calculo';
 import { iaParaLido } from '@/lib/horas/leitura';
 import { juntar, limparLido } from '@/lib/horas/juntar';
+import { lerTextoLivre } from '@/lib/horas/texto';
 import { loadEspelho, PontoFileError } from '@/lib/pontos/load';
 import { parseEspelho } from '@/lib/pontos/parse';
 import { llmConfigured, visionModel } from '@/lib/max/server/llm';
@@ -106,7 +107,11 @@ export async function POST(req: Request) {
       cur += l + '\n';
     }
     if (cur.trim()) partes.push(cur);
-    return NextResponse.json({ precisaIa: 'texto', partes: partes.slice(0, 20), ia });
+    // reserva sem IA: o leitor simples de texto (se a IA falhar ou não estiver ligada, a tela usa este)
+    const livre = lerTextoLivre(texto);
+    const heuristico = livre.funcionarios.length ? livre : null;
+    if (!ia.texto && heuristico) return NextResponse.json({ lido: heuristico, leitura: 'Texto lido sem IA (conferir)', ia });
+    return NextResponse.json({ precisaIa: 'texto', partes: partes.slice(0, 20), heuristico, ia });
   } catch (e) {
     return serverError(e);
   }

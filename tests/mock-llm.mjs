@@ -65,6 +65,11 @@ http
       return res.end(JSON.stringify({ calls }));
     }
     calls++;
+    // chave recusada pelo serviço (como uma chave revogada na Groq)
+    if (raw.includes('CHAVE_INVALIDA')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: { message: 'Invalid API Key', code: 'invalid_api_key' } }));
+    }
     const body = raw ? JSON.parse(raw) : {};
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: reply(body) }] }));

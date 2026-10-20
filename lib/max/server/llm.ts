@@ -158,40 +158,76 @@ export function visionModel(): string | null {
 export async function llmDocJson<T = unknown>(o: { system: string; user: string; images?: string[]; model?: string | null; maxTokens?: number; timeoutMs?: number }): Promise<{ data: T | null; erro: string | null }> {
   if (!llmConfigured()) return { data: null, erro: 'IA não configurada' };
   const base = process.env.MAX_LLM_BASE_URL!.replace(/\/+$/, '');
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), o.timeoutMs ?? 50000);
   const content = o.images?.length ? [{ type: 'text', text: o.user }, ...o.images.map((url) => ({ type: 'image_url', image_url: { url } }))] : o.user;
-  try {
-    const r = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      signal: ctrl.signal,
-      cache: 'no-store',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MAX_LLM_API_KEY}` },
-      body: JSON.stringify({
-        model: o.model || process.env.MAX_LLM_MODEL,
-        temperature: 0,
-        max_tokens: o.maxTokens ?? 6000,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: o.system },
-          { role: 'user', content },
-        ],
-      }),
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(() => '');
-      console.error('[llm/doc]', r.status, t.slice(0, 300));
-      return { data: null, erro: r.status === 413 ? 'arquivo grande demais para a IA' : r.status === 429 ? 'limite de uso da IA atingido (tente de novo em alguns minutos)' : `a IA recusou (${r.status})` };
+  const inicio = Date.now();
+  const limite = o.timeoutMs ?? 50000;
+  let ultimo = 'falha ao falar com a IA';
+  // até 3 tentativas: erro passageiro do serviço (5xx) tenta de novo; se o modelo não aceitar
+  // o "modo JSON", tenta sem ele (a resposta é recortada do texto do mesmo jeito)
+  for (let tentativa = 0, jsonMode = true; tentativa < 3; tentativa++) {
+    const resta = limite - (Date.now() - inicio);
+    if (resta < 5000) break;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), resta);
+    try {
+      const r = await fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        signal: ctrl.signal,
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MAX_LLM_API_KEY}` },
+        body: JSON.stringify({
+          model: o.model || process.env.MAX_LLM_MODEL,
+          temperature: 0,
+          max_tokens: o.maxTokens ?? 6000,
+          ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+          messages: [
+            { role: 'system', content: o.system },
+            { role: 'user', content },
+          ],
+        }),
+      });
+      if (!r.ok) {
+        const t = await r.text().catch(() => '');
+        console.error('[llm/doc]', r.status, o.model || process.env.MAX_LLM_MODEL, t.slice(0, 300));
+        if (r.status === 401 || r.status === 403) return { data: null, erro: `o serviço de IA recusou a chave de acesso (${r.status}); a MAX_LLM_API_KEY do servidor precisa ser renovada` };
+        if (r.status === 413) return { data: null, erro: 'arquivo grande demais para a IA' };
+        if (r.status === 429) return { data: null, erro: 'limite de uso da IA atingido (tente de novo em alguns minutos)' };
+        if (r.status === 404 || (r.status === 400 && /model/i.test(t) && !/json|response_format/i.test(t))) return { data: null, erro: `o modelo de IA configurado não está disponível (${r.status})` };
+        if (r.status === 400 && /json|response_format/i.test(t) && jsonMode) {
+          jsonMode = false;
+          continue;
+        }
+        ultimo = r.status >= 500 ? `o serviço de IA está instável agora (${r.status}); tente de novo em instantes` : `a IA recusou (${r.status})`;
+        if (r.status >= 500) {
+          // segunda falha seguida: tenta sem o modo JSON (alguns modelos de imagem falham com ele)
+          if (tentativa >= 1) jsonMode = false;
+          await new Promise((ok) => setTimeout(ok, 1200 * (tentativa + 1)));
+          continue;
+        }
+        return { data: null, erro: ultimo };
+      }
+      const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+      const raw = String(j.choices?.[0]?.message?.content ?? '')
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/```(?:json)?/gi, '');
+      const a = raw.indexOf('{');
+      const b = raw.lastIndexOf('}');
+      if (a < 0 || b <= a) {
+        ultimo = 'a IA não devolveu os dados';
+        continue;
+      }
+      try {
+        return { data: JSON.parse(raw.slice(a, b + 1)) as T, erro: null };
+      } catch {
+        ultimo = 'a IA devolveu os dados incompletos';
+        continue;
+      }
+    } catch (e) {
+      ultimo = (e as Error).name === 'AbortError' ? 'a IA demorou demais' : 'falha ao falar com a IA';
+      if ((e as Error).name === 'AbortError') break;
+    } finally {
+      clearTimeout(timer);
     }
-    const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = String(j.choices?.[0]?.message?.content ?? '').replace(/```(?:json)?/gi, '');
-    const a = raw.indexOf('{');
-    const b = raw.lastIndexOf('}');
-    if (a < 0 || b <= a) return { data: null, erro: 'a IA não devolveu os dados' };
-    return { data: JSON.parse(raw.slice(a, b + 1)) as T, erro: null };
-  } catch (e) {
-    return { data: null, erro: (e as Error).name === 'AbortError' ? 'a IA demorou demais' : 'falha ao falar com a IA' };
-  } finally {
-    clearTimeout(timer);
   }
+  return { data: null, erro: ultimo };
 }

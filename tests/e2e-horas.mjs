@@ -158,6 +158,17 @@ try {
   const dl2 = p.waitForEvent('download', { timeout: 60000 });
   await p.click('[data-max="horas-zip"]');
   ok(/\.zip$/.test((await dl2).suggestedFilename()), 'relatório da pasta baixa em .zip');
+
+  console.log('\n[8] IA recusa a chave (401): usa o leitor simples e avisa');
+  const txt = `${SHOTS}/relatorio-sistema.txt`;
+  fs.writeFileSync(txt, ['CHAVE_INVALIDA Registro manual de horários - setembro/2026', 'JOSÉ CARLOS PEREIRA', 'dia 14/09/2026 entrou 07:00 almoço 12:00 volta 13:00 saiu 18:00', 'dia 20/09/2026 entrou 08:00 saiu 12:00', 'ANA LIMA', 'dia 15/09/2026 entrou 08:00 almoço 12:00 volta 13:00 saiu 17:00'].join('\n'));
+  await p.click('[data-max="horas-novo"]');
+  await p.setInputFiles('input[aria-label="Arquivo de ponto para horas extras"]', txt);
+  await p.waitForSelector('.hx-row:has-text("JOSÉ CARLOS PEREIRA")', { timeout: 30000 });
+  st = await statsTxt(p);
+  ok(/Funcionários\s*2/.test(st) && /Horas extras\s*5h00/.test(st), 'leu os 2 funcionários sem a IA: 1h + 4h de domingo = 5h00: ' + st);
+  const av8 = (await p.locator('.pt-aviso').allTextContents()).join(' ');
+  ok(/chave de acesso/.test(av8) && /leitor simples/.test(av8), 'avisa que a chave foi recusada e que é para conferir: ' + av8.slice(0, 200));
 } catch (e) {
   problems.push('exceção: ' + e.message);
   console.log(e);

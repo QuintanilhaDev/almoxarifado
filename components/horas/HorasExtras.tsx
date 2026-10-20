@@ -30,6 +30,10 @@ interface Parte {
   docs?: unknown[];
   leitura: string;
 }
+const comAviso = (lido: unknown, aviso: string) => {
+  const l = lido as { avisos?: unknown[] };
+  return { ...l, avisos: [aviso, ...(Array.isArray(l.avisos) ? l.avisos : [])] };
+};
 const temPonto = (docs: unknown[]) =>
   docs.some((d) => ((d as { funcionarios?: { dias?: { batidas?: unknown[] }[] }[] }).funcionarios ?? []).some((f) => (f.dias ?? []).some((x) => Array.isArray(x.batidas) && x.batidas.length)));
 const arquivosTxt = (ps: Parte[]) => (ps.length === 1 ? ps[0].nome : `${ps.length} arquivos`);
@@ -186,6 +190,8 @@ export function HorasExtras() {
   const [open, setOpen] = useState<string | null>(null);
   const [mes, setMes] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+  /** a IA falhou neste envio: os próximos arquivos vão direto para a leitura de reserva */
+  const semIa = useRef<Falha | null>(null);
   const pastaRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     // escolher uma pasta inteira (o atributo não existe no tipo do React)
@@ -197,6 +203,7 @@ export function HorasExtras() {
   const porImagem = async (f: File, paginas: string[]): Promise<Parte> => {
     const lista: unknown[] = [];
     try {
+      if (semIa.current) throw semIa.current;
       for (const [i, p] of paginas.entries()) {
         setEtapa(`Lendo ${paginas.length > 1 ? `a página ${i + 1} de ${paginas.length}` : 'a imagem'} com a IA…`);
         const j = await post<{ docs: unknown[] }>('/api/rh/horas-extras/ler', JSON.stringify({ imagem: p }), true);
@@ -204,15 +211,17 @@ export function HorasExtras() {
       }
       return { nome: f.name, docs: lista, leitura: 'Imagem lida com IA' };
     } catch (e) {
-      if (!(e instanceof Falha) || e.status !== 503) throw e;
-      // sem IA: reconhece o texto impresso aqui mesmo
+      if (!(e instanceof Falha) || e.status < 500) throw e;
+      // IA desligada ou fora do ar: não insiste nos próximos arquivos e reconhece o texto aqui mesmo
+      semIa.current = e;
       const texto = await ocr(paginas, (i) => setEtapa(`Reconhecendo o texto da página ${i + 1} de ${paginas.length}…`));
       const fd = new FormData();
       fd.append('file', new File([texto], f.name.replace(/\.[^.]+$/, '') + '.txt', { type: 'text/plain' }));
       fd.append('config', JSON.stringify(cfg));
-      const j = await post<{ lido?: unknown }>('/api/rh/horas-extras/analisar', fd);
-      if (!j.lido) throw new Error('não deu para entender sem a IA (fotos e folhas à mão precisam da IA da Max ligada no servidor)');
-      return { nome: f.name, lido: j.lido, leitura: 'Imagem lida por OCR' };
+      const j = await post<{ lido?: unknown; heuristico?: unknown }>('/api/rh/horas-extras/analisar', fd);
+      const lido = j.lido ?? j.heuristico;
+      if (!lido) throw new Error(`a IA não respondeu (${e.message.replace(/^Não consegui ler esta parte: |\.$/g, '')}) e sem ela não deu para entender esta imagem`);
+      return { nome: f.name, lido: comAviso(lido, `A IA não respondeu (${e.message.replace(/^Não consegui ler esta parte: |\.$/g, '')}); a imagem foi lida por OCR. Confira os horários com o original.`), leitura: 'Imagem lida por OCR' };
     }
   };
 
@@ -222,15 +231,25 @@ export function HorasExtras() {
     const fd = new FormData();
     fd.append('file', f);
     fd.append('config', JSON.stringify(cfg));
-    const j = await post<{ lido?: unknown; leitura?: string; precisaIa?: 'imagem' | 'texto'; partes?: string[] }>('/api/rh/horas-extras/analisar', fd);
+    const j = await post<{ lido?: unknown; leitura?: string; precisaIa?: 'imagem' | 'texto'; partes?: string[]; heuristico?: unknown }>('/api/rh/horas-extras/analisar', fd);
     if (j.lido) return { nome: f.name, lido: j.lido, leitura: j.leitura ?? 'direto' };
     if (j.precisaIa === 'texto') {
       const lista: unknown[] = [];
-      for (const [i, t] of (j.partes ?? []).entries()) {
-        setEtapa(`Entendendo o documento com a IA (${i + 1} de ${j.partes!.length})…`);
-        lista.push(...(await post<{ docs: unknown[] }>('/api/rh/horas-extras/ler', JSON.stringify({ texto: t }), true)).docs);
+      try {
+        if (semIa.current) throw semIa.current;
+        for (const [i, t] of (j.partes ?? []).entries()) {
+          setEtapa(`Entendendo o documento com a IA (${i + 1} de ${j.partes!.length})…`);
+          lista.push(...(await post<{ docs: unknown[] }>('/api/rh/horas-extras/ler', JSON.stringify({ texto: t }), true)).docs);
+        }
+        return { nome: f.name, docs: lista, leitura: 'Texto lido com IA' };
+      } catch (e) {
+        if (!(e instanceof Falha) || e.status < 500) throw e;
+        semIa.current = e;
+        const motivo = e.message.replace(/^Não consegui ler esta parte: |\.$/g, '');
+        // reserva: leitor simples de texto do servidor
+        if (!j.heuristico) throw new Error(`a IA não respondeu (${motivo}) e o formato deste arquivo não é reconhecido sem ela`);
+        return { nome: f.name, lido: comAviso(j.heuristico, `A IA não respondeu (${motivo}); este arquivo foi lido pelo leitor simples. Confira os horários com o original.`), leitura: 'Texto lido sem IA (conferir)' };
       }
-      return { nome: f.name, docs: lista, leitura: 'Texto lido com IA' };
     }
     setEtapa('Preparando as páginas…');
     const paginas = /\.pdf$/i.test(f.name) || f.type === 'application/pdf' ? await paginasDoPdf(f) : [await imagemDoArquivo(f)];
@@ -257,6 +276,7 @@ export function HorasExtras() {
     }
     setBusy('ler');
     setError('');
+    semIa.current = null;
     const ok: Parte[] = [];
     const erros: { nome: string; erro: string }[] = [];
     try {
