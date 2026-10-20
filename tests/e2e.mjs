@@ -172,7 +172,7 @@ try {
   r = await ask(page, 'Max, desejo baixar as métricas do financeiro');
   ok(r === 'O setor Financeiro ainda não possui métricas. Caso queira que esse setor obtenha uma contagem de métricas, contate Mateus na sede.', 'setor sem métricas: avisa e orienta');
   r = await ask(page, 'Max, novo usuário chamado Rita Lopes no financeiro');
-  await page.waitForSelector('.modal.sheet', { timeout: 5000 });
+  await page.waitForSelector('.modal.sheet', { timeout: 15000 }); // a Max voa até Usuários e depois até o botão
   ok((await page.inputValue('#hu-name')) === 'Rita Lopes' && (await page.inputValue('#hu-user')) === 'rita.lopes' && (await page.inputValue('#hu-sector')) === 'financeiro', 'Max abriu o cadastro já preenchido (nome, login e setor)');
   await page.fill('#hu-pass', 'segredo1');
   await page.screenshot({ path: SHOTS + '/06-novo-usuario.png' });

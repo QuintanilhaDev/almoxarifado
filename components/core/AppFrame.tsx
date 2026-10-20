@@ -3,7 +3,7 @@ import { useWarp } from './Warp';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, LogOut, type LucideIcon } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { initials } from '@/lib/format';
 import type { HubUser } from '@/lib/permissions';
 import { Brand } from './Brand';
@@ -56,6 +56,21 @@ export function AppFrame({
   useEffect(() => {
     document.querySelector('.tabbar .tab.is-active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }, [tab, tabs.length]);
+
+  // troca de aba: se a animação de saída travar (troca rápida no meio da animação, ex.: a Max
+  // abrindo outra aba), a página nova não montava e a tela ficava vazia. Passou do tempo, remonta.
+  const [nonce, setNonce] = useState(0);
+  const exited = useRef(true);
+  const lastTab = useRef(tab);
+  useEffect(() => {
+    if (lastTab.current === tab) return;
+    lastTab.current = tab;
+    exited.current = false;
+    const t = setTimeout(() => {
+      if (!exited.current) setNonce((n) => n + 1);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [tab]);
 
   const role = user?.is_master ? 'Master geral' : user?.sector_role === 'master' ? 'Master do setor' : null;
   // master geral visitando a ferramenta de um setor: atalho de volta
@@ -120,7 +135,7 @@ export function AppFrame({
       </header>
 
       <main className="main">
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence key={nonce} mode="wait" initial={false} onExitComplete={() => (exited.current = true)}>
           <motion.div
             key={tab}
             className="frame-page"

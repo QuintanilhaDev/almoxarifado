@@ -102,7 +102,7 @@ function importacao(fs: FuncAnalisado[]): { inicio: string; texto: string } | nu
   const afetados = fs.filter((f) => f.dias.some((d) => d.date >= start! && d.ocorrencias.some((o) => o.tipo === 'sem_registro'))).length;
   const dias = dates.filter((d) => d >= start!).length;
   if (dias < 2) return null;
-  return { inicio: start, texto: `A partir de ${start.split('-').reverse().join('/')}, ${afetados} de ${fs.length} funcionários aparecem escalados sem nenhuma batida. Se as batidas desses dias ainda não foram importadas no GesOper, exporte o espelho de novo depois da importação: esses dias estão contando como "sem registro".` };
+  return { inicio: start, texto: `A partir de ${start.split('-').reverse().join('/')}, ${afetados} de ${fs.length} funcionários aparecem nos dias de escala sem nenhuma batida (no GesOper, 00:00 em tudo e o dia descontado). Tanta gente junta costuma ser batida que ainda não foi importada: se for o caso, exporte o espelho de novo depois da importação. Se o espelho já está tratado, são dias sem registro de verdade.` };
 }
 
 export function resumir(funcionarios: FuncAnalisado[]): Analise['resumo'] {
