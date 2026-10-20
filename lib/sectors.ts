@@ -60,7 +60,6 @@ export const SECTORS: SectorDef[] = [
     modules: [
       { id: 'pedidos', label: 'Pedidos (admissões e trocas)', hint: 'Pedir kits de admissão e trocas de fardamento ao Almoxarifado' },
       { id: 'colaboradores', label: 'Colaboradores', hint: 'Cadastrar colaboradores, tamanhos e kits por função' },
-      { id: 'horas_extras', label: 'Horas extras', hint: 'Ler folhas e espelhos de ponto e apurar as horas extras' },
     ],
   },
   {

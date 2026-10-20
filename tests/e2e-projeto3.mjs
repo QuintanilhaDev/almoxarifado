@@ -290,10 +290,11 @@ try {
   const rita = await newPage(browser);
   await login(rita, 'rita', '/setor/rh');
   await nav(rita, 'Colaboradores');
-  await rita.waitForTimeout(900);
+  await rita.waitForSelector('.module.is-readonly', { timeout: 10000 }).catch(() => undefined);
   ok(await rita.locator('.module.is-readonly').count() === 1, 'Rita só visualiza Colaboradores');
   await nav(rita, 'Troca anual');
-  await rita.waitForTimeout(900);
+  // espera a troca de tela terminar (a de Colaboradores sai com animação)
+  await rita.waitForFunction(() => document.querySelectorAll('.module').length === 1 && !document.querySelector('.module.is-readonly'), null, { timeout: 10000 }).catch(() => undefined);
   ok(await rita.locator('.module.is-readonly').count() === 0, 'Rita edita a troca (tem pedidos)');
   const mob = await newPage(browser, true);
   await login(mob, 'neilton', '/setor/almoxarifado');

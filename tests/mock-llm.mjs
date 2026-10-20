@@ -5,8 +5,7 @@
 import http from 'node:http';
 
 const PORT = Number(process.argv[2] || 54322);
-let calls = 0;
-let cotaUsada = false; // GET em qualquer caminho devolve quantas vezes a IA foi chamada
+let calls = 0; // GET em qualquer caminho devolve quantas vezes a IA foi chamada
 const call = (name, args) => ({ role: 'assistant', content: null, tool_calls: [{ id: 'c' + Date.now(), type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
 const say = (content) => ({ role: 'assistant', content });
 
@@ -23,26 +22,6 @@ function reply(body) {
       if (r) links.push({ l: Number(m[1]), r: Number(r[1]), confianca: 0.88 });
     }
     return say(JSON.stringify({ links }));
-  }
-  // horas extras: transcrição de folha de ponto (foto / escaneado / manuscrito ou texto solto)
-  if (String(msgs[0]?.content || '').startsWith('Você transcreve folhas')) {
-    const img = Array.isArray(last.content) && last.content.some((c) => c.type === 'image_url');
-    // folha de papel: só o número do dia e o ano (setembro/2026: domingos 6, 13, 20, 27 em branco)
-    if (String(last.content).includes('SO_DIA')) {
-      const dias = [];
-      for (let d = 1; d <= 31; d++) dias.push([String(d).padStart(2, '0'), ...([6, 13, 20, 27, 31].includes(d) ? ['-'] : [12, 19, 26].includes(d) ? ['08:00', '12:00'] : ['07:00', '12:00', '13:00', '17:00'])]);
-      return say(JSON.stringify({ mes: null, ano: 2026, funcionarios: [{ nome: 'Felipe Gabriel Reis dos Santos', matricula: null, cargo: 'AAOP', dias, duvidas: [] }] }));
-    }
-    const dias = img
-      ? [
-          { data: '14/09/2026', batidas: ['7h00', '12:00', '13:00', '18:00'], obs: null, duvida: false }, // 10h → 1h extra
-          { data: '15/09/2026', batidas: ['08:00', '12:00', '13:00', '17:00'], obs: null, duvida: true },
-          { data: '20/09/2026', batidas: ['08:00', '12:00'], obs: null, duvida: false }, // domingo → 4h a 100%
-          { data: '16/09/2026', batidas: [], obs: 'FOLGA', duvida: false },
-        ]
-      : [{ data: '14/09/2026', batidas: ['08:00', '12:00', '13:00', '19:00'], obs: null, duvida: false }];
-    if (!img && !/\d{2}:\d{2}/.test(JSON.stringify(last.content))) return say(JSON.stringify({ periodo: null, funcionarios: [] })); // texto sem nada de ponto
-    return say(JSON.stringify({ periodo: null, funcionarios: [{ nome: img ? 'Maria Manuscrita' : 'Texto Solto', matricula: img ? '777' : null, cargo: 'PORTEIRA', posto: null, dias }] }));
   }
   if ((body.tools || []).some((t) => t.type === 'browser_search')) return say('A capital da Austrália é **Canberra**【1†L1-L3】. Veja em https://exemplo.com');
   if (last.role === 'tool') return say('RESPOSTA: ' + String(last.content).slice(0, 160));
@@ -73,16 +52,6 @@ http
     }
     calls++;
     // chave recusada pelo serviço (como uma chave revogada na Groq)
-    // cota por minuto cheia na primeira vez (a leitura espera e tenta de novo)
-    if (raw.includes('COTA_CHEIA') && !cotaUsada) {
-      cotaUsada = true;
-      res.writeHead(429, { 'Content-Type': 'application/json', 'retry-after': '3' });
-      return res.end(JSON.stringify({ error: { message: 'Rate limit reached for model on tokens per minute (TPM). Please try again in 2.5s.' } }));
-    }
-    if (raw.includes('CHAVE_INVALIDA')) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: { message: 'Invalid API Key', code: 'invalid_api_key' } }));
-    }
     const body = raw ? JSON.parse(raw) : {};
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: reply(body) }] }));
