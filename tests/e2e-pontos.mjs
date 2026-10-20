@@ -177,11 +177,23 @@ try {
   const z = await JSZip.loadAsync(fs.readFileSync(zipPath));
   const names = Object.keys(z.files).sort();
   ok(d.suggestedFilename() === 'Relatório de Ponto 21-09-2026 a 20-10-2026.zip', 'o .zip baixou sozinho: ' + d.suggestedFilename());
-  ok(JSON.stringify(names) === JSON.stringify(['RELATÓRIO COMPLETO.pdf', 'RELATÓRIO PARA DIRETORIA.pdf']), 'com os dois PDFs: ' + names.join(', '));
-  for (const n of names) {
+  ok(JSON.stringify(names) === JSON.stringify(['RELATÓRIO COMPLETO.pdf', 'RELATÓRIO PARA DIRETORIA.pdf', 'RELATÓRIO PARA SUPERVISOR.xlsx']), 'com os dois PDFs e a planilha do supervisor: ' + names.join(', '));
+  for (const n of names.filter((x) => x.endsWith('.pdf'))) {
     const b = await z.file(n).async('nodebuffer');
     fs.writeFileSync(`${SHOTS}/${n}`, b);
     ok(b.subarray(0, 4).toString() === '%PDF' && b.length > 3000, `${n}: ${Math.round(b.length / 1024)} KB`);
+  }
+  {
+    const sw = new ExcelJS.Workbook();
+    await sw.xlsx.load(await z.file('RELATÓRIO PARA SUPERVISOR.xlsx').async('nodebuffer'));
+    const res = sw.getWorksheet('Resumo');
+    const rowsTxt = [];
+    res.eachRow((r) => rowsTxt.push(r.values.slice(1).map((v) => (v && typeof v === 'object' ? v.result ?? '' : v ?? '')).join(' | ')));
+    const ana = rowsTxt.find((t) => /ANA PAULA SOUZA/.test(t)) ?? '';
+    ok(sw.worksheets.map((w) => w.name).join(',') === 'Resumo,Dia a dia' && /Relatório para Supervisor/.test(rowsTxt.join(' ')) && /\b1 \| 29\/09 \| 1 \| 23\/09/.test(ana), 'planilha do supervisor: Ana com 1 dia sem registro (29/09) e 1 parcial (23/09): ' + ana);
+    const dd = [];
+    sw.getWorksheet('Dia a dia').eachRow((r) => dd.push(r.values.slice(1).join(' | ')));
+    ok(dd.some((t) => /ANA PAULA SOUZA/.test(t) && /29\/09\/2026/.test(t) && /Sem registro/.test(t)), 'aba dia a dia com o que falta registrar');
   }
   await ev.waitForSelector('.pt-func', { timeout: 15000 });
   const stats = await ev.locator('.stat-grid').textContent();

@@ -79,7 +79,7 @@ export function PontosPanel() {
   const [file, setFile] = useState<File | null>(null);
   const [res, setRes] = useState<Analise | null>(null);
   const [fl, setFl] = useState<Filtros>({});
-  const [busy, setBusy] = useState<'' | 'analise' | 'zip' | 'pdf' | 'diretoria' | 'xlsx'>('');
+  const [busy, setBusy] = useState<'' | 'analise' | 'zip' | 'pdf' | 'diretoria' | 'supervisor' | 'xlsx'>('');
   const [error, setError] = useState('');
   const [over, setOver] = useState(false);
   const [showCfg, setShowCfg] = useState(false);
@@ -114,7 +114,7 @@ export function PontosPanel() {
       if (baixar) {
         setBusy('zip');
         const name = await download('/api/pontos/relatorio?format=zip', { analise: a }, 'Relatorio de Ponto.zip');
-        toast({ kind: 'success', title: 'Relatórios baixados', text: `${name}: o completo e o da diretoria. ${a.resumo.funcionarios} funcionário(s) analisado(s).` }, 9000);
+        toast({ kind: 'success', title: 'Relatórios baixados', text: `${name}: o completo, o da diretoria e a planilha do supervisor. ${a.resumo.funcionarios} funcionário(s) analisado(s).` }, 9000);
       } else toast({ kind: 'success', title: 'Espelho analisado', text: `${a.resumo.funcionarios} funcionário(s), ${a.resumo.ocorrencias} ocorrência(s).` });
     } catch (e) {
       setError((e as Error).message);
@@ -123,7 +123,7 @@ export function PontosPanel() {
       if (inputRef.current) inputRef.current.value = '';
     }
   };
-  const baixar = async (format: 'zip' | 'pdf' | 'diretoria' | 'xlsx') => {
+  const baixar = async (format: 'zip' | 'pdf' | 'diretoria' | 'supervisor' | 'xlsx') => {
     if (!view) return;
     setBusy(format);
     try {
@@ -214,10 +214,13 @@ export function PontosPanel() {
           {view ? (
             <div className="head-actions pt-actions">
               <button className="btn btn-ghost" onClick={() => baixar('xlsx')} disabled={Boolean(busy)} data-max="pontos-planilha" title="Planilha de controle">
-                {busy === 'xlsx' ? <span className="spinner" /> : <FileSpreadsheet size={17} />} Planilha
+                {busy === 'xlsx' ? <span className="spinner" /> : <FileSpreadsheet size={17} />} Controle
               </button>
-              <button className="btn btn-ghost" onClick={() => baixar('diretoria')} disabled={Boolean(busy)} data-max="pontos-diretoria">
-                {busy === 'diretoria' ? <span className="spinner" /> : <FileDown size={17} />} Só o da diretoria
+              <button className="btn btn-ghost" onClick={() => baixar('supervisor')} disabled={Boolean(busy)} data-max="pontos-supervisor" title="RELATÓRIO PARA SUPERVISOR (.xlsx)">
+                {busy === 'supervisor' ? <span className="spinner" /> : <FileSpreadsheet size={17} />} Supervisor
+              </button>
+              <button className="btn btn-ghost" onClick={() => baixar('diretoria')} disabled={Boolean(busy)} data-max="pontos-diretoria" title="RELATÓRIO PARA DIRETORIA (.pdf)">
+                {busy === 'diretoria' ? <span className="spinner" /> : <FileDown size={17} />} Diretoria
               </button>
               <button className="btn btn-primary" onClick={() => baixar('zip')} disabled={Boolean(busy)} data-max="pontos-zip">
                 {busy === 'zip' ? <span className="spinner" /> : <FileArchive size={17} />} Baixar relatórios (.zip)
@@ -262,7 +265,7 @@ export function PontosPanel() {
               {[
                 [FileUp, 'Anexe o espelho', 'O arquivo do período (21 a 20) exportado do GesOper, de um posto ou de vários.'],
                 [ShieldAlert, 'A ferramenta confere', 'Pela escala de cada um (folga não conta): sem registro, registro parcial, falta, atraso, hora extra, intervalo e descanso.'],
-                [FileArchive, 'Relatórios prontos', 'Um .zip baixa sozinho com o RELATÓRIO COMPLETO e o RELATÓRIO PARA DIRETORIA.'],
+                [FileArchive, 'Relatórios prontos', 'Um .zip baixa sozinho com o RELATÓRIO COMPLETO, o RELATÓRIO PARA DIRETORIA e o RELATÓRIO PARA SUPERVISOR (planilha).'],
               ].map(([I, t, d], i) => {
                 const Icon = I as typeof FileUp;
                 return (

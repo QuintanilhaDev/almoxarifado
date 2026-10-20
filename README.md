@@ -659,4 +659,9 @@ A aba **Pontos** aparece só para os usuários `evelyn`, `jefferson` e `adilene`
   - batida repetida.
 - **Batidas que não chegaram:** quando quase todos aparecem sem batida a partir de um dia, a tela avisa que as batidas talvez não tenham sido importadas no GesOper e oferece considerar só até o dia anterior.
 - **Filtros:** período, cliente/posto, filial e função. Valem para a tela e para os relatórios.
-- **Relatórios:** um **.zip** baixa sozinho depois da análise, com `RELATÓRIO COMPLETO.pdf` (detalhe dia a dia) e `RELATÓRIO PARA DIRETORIA.pdf` (limpo: números, destaques, quem está sem registro ou com registro parcial e os dias, e o resumo por posto). Também dá para baixar a **planilha de controle** (.xlsx).
+- **Relatórios:** um **.zip** baixa sozinho depois da análise, com três arquivos:
+  - `RELATÓRIO COMPLETO.pdf`: o detalhe dia a dia;
+  - `RELATÓRIO PARA DIRETORIA.pdf`: limpo, com os números, os destaques, quem está sem registro ou com registro parcial (e os dias) e o resumo por posto;
+  - `RELATÓRIO PARA SUPERVISOR.xlsx`: planilha formatada com a lista de quem está sem registro ou com registro parcial (com os dias) e uma aba "Dia a dia" com as batidas e o que falta registrar.
+
+  Cada um também pode ser baixado sozinho, assim como a **planilha de controle** (.xlsx).
