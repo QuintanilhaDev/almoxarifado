@@ -3,8 +3,8 @@
  * Tipos compartilhados entre o servidor (leitura, cálculo, PDF) e a tela.
  */
 
-/** quem vê a aba Pontos (pedido do Mateus: só a Evelyn) */
-export const PONTOS_USERS = ['evelyn'];
+/** quem vê a aba Pontos (pedido do Mateus: Evelyn, Jefferson e Adilene) */
+export const PONTOS_USERS = ['evelyn', 'jefferson', 'adilene'];
 export const canPontos = (user: { username?: string | null } | null | undefined) => Boolean(user?.username && PONTOS_USERS.includes(user.username.toLowerCase()));
 
 export type Escala = 'auto' | '12x36' | 'diaria';

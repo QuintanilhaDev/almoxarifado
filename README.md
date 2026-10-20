@@ -640,7 +640,7 @@ middleware.ts              barra quem não está logado
 
 ## Pontos (aba da Evelyn)
 
-A aba **Pontos** aparece só para o usuário `evelyn` (nem o master geral vê; a regra fica em `lib/pontos/types.ts`, `PONTOS_USERS`). Ela anexa o espelho de ponto exportado do GesOper e a ferramenta faz a conferência sozinha. **Nada fica gravado:** o arquivo e o resultado existem só na tela e nos relatórios baixados.
+A aba **Pontos** aparece só para os usuários `evelyn`, `jefferson` e `adilene` (nem o master geral vê; a regra fica em `lib/pontos/types.ts`, `PONTOS_USERS`). Ela anexa o espelho de ponto exportado do GesOper e a ferramenta faz a conferência sozinha. **Nada fica gravado:** o arquivo e o resultado existem só na tela e nos relatórios baixados.
 
 - **Leitura:** aceita **PDF**, Excel (.xlsx), CSV e o ".xls" em HTML que sistemas web exportam. Não depende de layout fixo.
   - Acha o funcionário, a matrícula, a função, a filial (empresa e CNPJ) e o período no cabeçalho.
