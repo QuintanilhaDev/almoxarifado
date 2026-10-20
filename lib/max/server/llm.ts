@@ -143,3 +143,55 @@ export async function llmJson<T = unknown>(system: string, user: string, timeout
     clearTimeout(timer);
   }
 }
+
+/** modelo que lê imagens (foto, escaneado, manuscrito). Na Groq, um modelo de visão. */
+export function visionModel(): string | null {
+  if (!llmConfigured()) return null;
+  if (process.env.MAX_LLM_VISION_MODEL) return process.env.MAX_LLM_VISION_MODEL;
+  return /groq\.com/i.test(process.env.MAX_LLM_BASE_URL || '') ? 'qwen/qwen3.8-27b' : process.env.MAX_LLM_MODEL || null;
+}
+
+/**
+ * Pedido maior à IA (leitura de documentos): texto e, se houver, imagens (data URLs).
+ * Devolve o JSON da resposta e o motivo quando falha (para a tela explicar).
+ */
+export async function llmDocJson<T = unknown>(o: { system: string; user: string; images?: string[]; model?: string | null; maxTokens?: number; timeoutMs?: number }): Promise<{ data: T | null; erro: string | null }> {
+  if (!llmConfigured()) return { data: null, erro: 'IA não configurada' };
+  const base = process.env.MAX_LLM_BASE_URL!.replace(/\/+$/, '');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), o.timeoutMs ?? 50000);
+  const content = o.images?.length ? [{ type: 'text', text: o.user }, ...o.images.map((url) => ({ type: 'image_url', image_url: { url } }))] : o.user;
+  try {
+    const r = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      signal: ctrl.signal,
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.MAX_LLM_API_KEY}` },
+      body: JSON.stringify({
+        model: o.model || process.env.MAX_LLM_MODEL,
+        temperature: 0,
+        max_tokens: o.maxTokens ?? 6000,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: o.system },
+          { role: 'user', content },
+        ],
+      }),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      console.error('[llm/doc]', r.status, t.slice(0, 300));
+      return { data: null, erro: r.status === 413 ? 'arquivo grande demais para a IA' : r.status === 429 ? 'limite de uso da IA atingido (tente de novo em alguns minutos)' : `a IA recusou (${r.status})` };
+    }
+    const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+    const raw = String(j.choices?.[0]?.message?.content ?? '').replace(/```(?:json)?/gi, '');
+    const a = raw.indexOf('{');
+    const b = raw.lastIndexOf('}');
+    if (a < 0 || b <= a) return { data: null, erro: 'a IA não devolveu os dados' };
+    return { data: JSON.parse(raw.slice(a, b + 1)) as T, erro: null };
+  } catch (e) {
+    return { data: null, erro: (e as Error).name === 'AbortError' ? 'a IA demorou demais' : 'falha ao falar com a IA' };
+  } finally {
+    clearTimeout(timer);
+  }
+}

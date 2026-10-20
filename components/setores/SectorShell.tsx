@@ -1,5 +1,5 @@
 'use client';
-import { CalendarClock, ClipboardList, Fingerprint, Hammer, LayoutDashboard, Lock, Receipt, Sparkles, UserRound, Users, UsersRound } from 'lucide-react';
+import { CalendarClock, ClipboardList, Fingerprint, Hammer, Timer, LayoutDashboard, Lock, Receipt, Sparkles, UserRound, Users, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -16,6 +16,8 @@ const loadNotas = () => import('../notas/NotasPanel');
 const loadColab = () => import('../rh/Colaboradores');
 const loadTroca = () => import('../rh/TrocaAnual');
 const loadPontos = () => import('../pontos/PontosPanel');
+const loadHoras = () => import('../horas/HorasExtras');
+const HorasExtras = dynamic(() => loadHoras().then((m) => m.HorasExtras), { loading: PanelSkeleton });
 const PontosPanel = dynamic(() => loadPontos().then((m) => m.PontosPanel), { loading: PanelSkeleton });
 const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
 const Colaboradores = dynamic(() => loadColab().then((m) => m.Colaboradores), { loading: PanelSkeleton });
@@ -31,9 +33,9 @@ import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/type
 import type { OrderScope } from '@/lib/pedidos/access';
 import type { MaxHost } from '@/lib/max/types';
 
-type ToolTab = 'pedidos' | 'colaboradores' | 'trocas' | 'notas';
+type ToolTab = 'pedidos' | 'colaboradores' | 'trocas' | 'notas' | 'horas';
 type Tab = ToolTab | 'pontos' | 'inicio' | 'equipe' | 'conta';
-const VALID: Tab[] = ['pedidos', 'colaboradores', 'trocas', 'notas', 'pontos', 'inicio', 'equipe', 'conta'];
+const VALID: Tab[] = ['pedidos', 'colaboradores', 'trocas', 'notas', 'horas', 'pontos', 'inicio', 'equipe', 'conta'];
 
 /** Abas de ferramenta de cada setor (Projeto 3). Cada aba aparece só para quem tem o módulo. */
 const TOOLS: Record<string, { id: ToolTab; label: string; short: string; icon: typeof ClipboardList; module: string; aliases: string[]; also?: string }[]> = {
@@ -41,6 +43,7 @@ const TOOLS: Record<string, { id: ToolTab; label: string; short: string; icon: t
     { id: 'pedidos', label: 'Pedidos', short: 'Pedidos', icon: ClipboardList, module: 'pedidos', aliases: ['pedidos', 'admissoes', 'admissao', 'pedidos de material', 'kits'] },
     { id: 'colaboradores', label: 'Colaboradores', short: 'Pessoas', icon: Users, module: 'colaboradores', aliases: ['colaboradores', 'funcionarios', 'pessoas', 'cadastro', 'kits por funcao'] },
     { id: 'trocas', label: 'Troca anual', short: 'Trocas', icon: CalendarClock, module: 'pedidos', also: 'colaboradores', aliases: ['troca anual', 'trocas', 'troca de fardamento', 'troca'] },
+    { id: 'horas', label: 'Horas extras', short: 'Extras', icon: Timer, module: 'horas_extras', aliases: ['horas extras', 'hora extra', 'apurador', 'apuracao de horas', 'banco de horas', 'extras'] },
   ],
   operacional: [{ id: 'pedidos', label: 'Pedidos de material', short: 'Pedidos', icon: ClipboardList, module: 'pedidos', aliases: ['pedidos', 'pedidos de material', 'solicitacoes', 'trocas para validar'] }],
   financeiro: [{ id: 'notas', label: 'Notas e vencimentos', short: 'Notas', icon: Receipt, module: 'notas', aliases: ['notas', 'notas fiscais', 'vencimentos', 'parcelas', 'boletos'] }],
@@ -246,6 +249,7 @@ function Shell({ slug }: { slug: string }) {
             {current === 'colaboradores' && <Colaboradores canEdit={edit('colaboradores')} version={collabVersion} />}
             {current === 'trocas' && <TrocaAnual canEdit={edit('pedidos')} isMaster={manager} version={collabVersion} onOpened={() => void reloadOrders()} />}
             {current === 'notas' && <NotasPanel mode="financeiro" canEdit={false} />}
+            {current === 'horas' && <HorasExtras />}
             {current === 'pontos' && pontos && <PontosPanel />}
             {current === 'equipe' && manager && <TeamManager slug={slug} me={user} version={teamVersion} />}
             {current === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}

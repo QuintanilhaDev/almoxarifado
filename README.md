@@ -665,3 +665,20 @@ A aba **Pontos** aparece só para os usuários `evelyn`, `jefferson` e `adilene`
   - `RELATÓRIO PARA SUPERVISOR.xlsx`: planilha formatada com a lista de quem está sem registro ou com registro parcial (com os dias) e uma aba "Dia a dia" com as batidas e o que falta registrar.
 
   Cada um também pode ser baixado sozinho, assim como a **planilha de controle** (.xlsx).
+
+## Horas extras (RH)
+
+Aba **Recursos Humanos → Horas extras** (`/setor/rh#horas`). Aparece para o master do RH e o master geral; para outra pessoa do RH, o master libera o módulo **Horas extras** em Equipe.
+
+- **Envio:** um arquivo, vários de uma vez ou uma **pasta inteira** (botão "Anexar uma pasta" ou arrastando a pasta, com subpastas). Tudo vira um relatório só: a mesma pessoa em arquivos diferentes (pela matrícula ou pelo nome) é juntada, e o mesmo dia repetido em dois arquivos conta uma vez. Arquivo que não abre ou que não é de ponto aparece em "Ficaram de fora do cálculo", e o resto segue.
+- **Leitura:** PDF com texto, Excel, CSV e HTML são lidos direto. Texto sem formato conhecido, foto, PDF escaneado e folha escrita à mão vão para a IA da Max (uma página por vez), que só **transcreve** as batidas. Todo cálculo é feito pelo sistema, em minutos. O que a IA marca como ilegível vira aviso para conferir.
+  - IA de imagem: `MAX_LLM_VISION_MODEL` (na Groq, o padrão é `qwen/qwen3.8-27b`, do plano gratuito).
+  - Sem IA configurada, fotos e escaneados passam por OCR no próprio navegador. O OCR só lê texto impresso; manuscrito precisa da IA.
+- **Regra (padrão 44h semanais / 9h por dia, ajustável em "Regras"):**
+  - semana de segunda a domingo;
+  - o que passa de 9h no dia é extra (tolerância de 10 min por dia);
+  - as horas normais de segunda a sábado somam até 44h, e o que passar disso é extra a 50%. Assim, o sábado só é extra quando as 44h já foram cumpridas nos dias úteis; senão, ele completa as 44h primeiro;
+  - domingo e feriado (inclusive 2 de Julho) são 100% extra. Feriado em dia útil reduz a meta da semana em 9h;
+  - dia com batida faltando soma só os pares completos e fica marcado.
+- **Resultado:** total de cada funcionário por mês. O mês pode ser o do calendário ou de 21 a 20, por exemplo. Ao clicar num funcionário, aparecem os dias com hora extra e o motivo de cada um.
+- **Relatório:** "Baixar relatório (.zip)" traz o `RELATÓRIO DE HORAS EXTRAS.pdf` e a `PLANILHA DE HORAS EXTRAS.xlsx` (abas Resumo, Por mês e Dias). Também há botões para baixar só o PDF ou só a planilha. Nada fica gravado no banco.

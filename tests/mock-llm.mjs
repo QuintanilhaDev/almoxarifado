@@ -23,6 +23,20 @@ function reply(body) {
     }
     return say(JSON.stringify({ links }));
   }
+  // horas extras: transcrição de folha de ponto (foto / escaneado / manuscrito ou texto solto)
+  if (String(msgs[0]?.content || '').startsWith('Você transcreve folhas')) {
+    const img = Array.isArray(last.content) && last.content.some((c) => c.type === 'image_url');
+    const dias = img
+      ? [
+          { data: '14/09/2026', batidas: ['7h00', '12:00', '13:00', '18:00'], obs: null, duvida: false }, // 10h → 1h extra
+          { data: '15/09/2026', batidas: ['08:00', '12:00', '13:00', '17:00'], obs: null, duvida: true },
+          { data: '20/09/2026', batidas: ['08:00', '12:00'], obs: null, duvida: false }, // domingo → 4h a 100%
+          { data: '16/09/2026', batidas: [], obs: 'FOLGA', duvida: false },
+        ]
+      : [{ data: '14/09/2026', batidas: ['08:00', '12:00', '13:00', '19:00'], obs: null, duvida: false }];
+    if (!img && !/\d{2}:\d{2}/.test(JSON.stringify(last.content))) return say(JSON.stringify({ periodo: null, funcionarios: [] })); // texto sem nada de ponto
+    return say(JSON.stringify({ periodo: null, funcionarios: [{ nome: img ? 'Maria Manuscrita' : 'Texto Solto', matricula: img ? '777' : null, cargo: 'PORTEIRA', posto: null, dias }] }));
+  }
   if ((body.tools || []).some((t) => t.type === 'browser_search')) return say('A capital da Austrália é **Canberra**【1†L1-L3】. Veja em https://exemplo.com');
   if (last.role === 'tool') return say('RESPOSTA: ' + String(last.content).slice(0, 160));
   // o pedido atual = última fala da pessoa (ou a anterior, se a última for o "antes de desistir…")

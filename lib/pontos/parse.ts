@@ -143,7 +143,7 @@ const hhmmNum = (s: string) => {
   return (m[1] ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
 };
 
-function marksIn(s: string): string[] {
+export function marksIn(s: string): string[] {
   const f = fold(s);
   if (!f) return [];
   const out: string[] = [];

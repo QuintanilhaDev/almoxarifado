@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/max-nlu.test.ts && tsx tests/vinculo.test.ts && tsx tests/pontos.test.ts && tsx --conditions=react-server tests/max-remote.test.ts && tsx --conditions=react-server tests/max-agent.test.ts"
+    "test": "tsx tests/max-nlu.test.ts && tsx tests/vinculo.test.ts && tsx tests/pontos.test.ts && tsx tests/horas.test.ts && tsx --conditions=react-server tests/max-remote.test.ts && tsx --conditions=react-server tests/max-agent.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
@@ -23,7 +23,8 @@
     "pdfkit": "^0.15.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
