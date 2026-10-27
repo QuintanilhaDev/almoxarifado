@@ -94,7 +94,7 @@ export function Fardamento() {
 
   if (!dados) {
     return (
-      <div className="fd">
+      <div className="fd" data-no-tilt>
         {input}
         {vazio || erro ? (
           <div className="fd-drop" role="button" tabIndex={0} onClick={() => !enviando && inputRef.current?.click()} onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()} data-max="farda-importar">
@@ -165,7 +165,7 @@ function Painel({ dados, enviando, trocar, children }: { dados: ControleFarda; e
   const [abrir, setAbrir] = useState(false);
 
   return (
-    <div className="fd">
+    <div className="fd" data-no-tilt>
       {children}
       <div className="fd-meta">
         <span>

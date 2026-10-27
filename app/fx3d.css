@@ -100,6 +100,11 @@ html:not([data-fx='off']) :is(.btn, .icon-btn, .nav-item, .tab, .chip, .cat-chip
   transition: transform 0.08s;
 }
 
+/* áreas sem efeito 3D com o mouse (ex.: Gestão → Fardamento) */
+html [data-no-tilt] :is(.btn, .icon-btn, .nav-item, .tab, .chip, .cat-chip, .p-step, .filter-seg button):active:not(:disabled) {
+  transform: none !important;
+}
+
 /* ---------- gavetas e janelas giram a partir da borda ---------- */
 .drawer {
   transform-origin: 100% 50%;

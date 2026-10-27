@@ -278,7 +278,9 @@ export function TiltField() {
     const onMove = (e: PointerEvent) => {
       px = e.clientX;
       py = e.clientY;
-      const t = e.target instanceof Element ? (e.target.closest(TILT) as HTMLElement | null) : null;
+      // áreas marcadas com data-no-tilt (ex.: Gestão → Fardamento) ficam paradas
+      const alvo = e.target instanceof Element && !e.target.closest('[data-no-tilt]') ? e.target : null;
+      const t = alvo ? (alvo.closest(TILT) as HTMLElement | null) : null;
       if (t !== el) {
         if (el) reset(el);
         el = t;
