@@ -666,3 +666,23 @@ A aba **Pontos** aparece só para os usuários `evelyn`, `jefferson` e `adilene`
 
   Cada um também pode ser baixado sozinho, assim como a **planilha de controle** (.xlsx).
 
+
+## Gestão: controle de fardamento
+
+Painel master → **Gestão → Fardamento**. Organiza a planilha de controle de fardamento do RH/DP, aquela em que cada linha é uma entrega feita a um funcionário.
+
+- **Importar:** clique em "Atualizar planilha" e escolha o `.xlsx`. A ferramenta acha sozinha a aba das entregas, a que tem as colunas Funcionário, Posto e Data de Entrega (no arquivo atual, `Controle_2026`). As abas de resumo e as tabelas dinâmicas são ignoradas, porque tudo é recalculado a partir das entregas. Para atualizar os números, basta importar a planilha de novo; a versão anterior é substituída.
+- **Colunas reconhecidas:** Empresa, Data de Solicitação, Solicitante, Funcionário, Função, Posto, mês/ano e Data de Entrega, além dos pares "peça + QTD" (CAMISA MC/QTD MC, CALÇA/QTD CALÇA, CALÇADOS/QTD CALÇADOS, ITENS A/QTD A…).
+  - Nos calçados e nos itens, o tamanho que vem no texto é separado da peça ("BOTINA 40" vira Botina, tamanho 40).
+  - Grafias diferentes do mesmo item são juntadas ("APITO C/FIEL", "Apito c/Fiél"). Erros de digitação também ("Capa de Cuva" conta como Capa de chuva).
+  - Peça marcada sem quantidade conta como 1, e a tela avisa.
+- **Na tela:**
+  - período (últimos 12 ou 6 meses, cada ano, tudo ou de/até) e filtros por empresa, função, posto, solicitante e peça. Clicar numa barra das listas também filtra;
+  - entregas, funcionários atendidos, peças, postos e a variação contra o período anterior;
+  - gráfico mês a mês de peças, entregas ou funcionários, com a média. O mês em andamento fica marcado e não entra na comparação;
+  - o que mais saiu, por grupo (camisas, calças, calçados e acessórios);
+  - a **grade de tamanhos** de cada peça, com quantidade, porcentagem e média por mês, que serve de base para a compra;
+  - as listas por empresa, posto, função e solicitante;
+  - os funcionários com 3 ou mais entregas no período, para conferir;
+  - a lista de entregas, com busca.
+- **Dados:** a planilha lida fica guardada no banco (tabela `hub_meta`, chave `fardamento_controle`), sem tabela nova e sem SQL para rodar. Só masters gerais veem e importam. O arquivo com os nomes dos funcionários não vai para o GitHub.

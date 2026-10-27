@@ -1,5 +1,6 @@
 'use client';
 import { AnimatePresence, motion } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Download, FileText, RefreshCcw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../core/api';
@@ -11,10 +12,33 @@ import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
 import '../pedidos/pedidos.css';
 
+const Fardamento = dynamic(() => import('./Fardamento').then((m) => m.Fardamento), {
+  loading: () => <div className="skeleton" style={{ height: 240, borderRadius: 16 }} />,
+});
+const VISTA_KEY = 'maxhub-gestao-vista';
+type Vista = 'sistema' | 'fardamento';
+
 const P_STATUS: Record<string, string> = { nova: 'Novas', em_cotacao: 'Em cotação', comprada: 'Compradas', entregue: 'Entregues', recusada: 'Recusadas', cancelada: 'Canceladas' };
 
 /** Painel da Gestão (Projeto 3, seções 10 e 14): números do estoque, dos pedidos, das compras e das notas, sem planilha manual. */
 export function Gestao({ version }: { version: number }) {
+  // duas visões: os números do próprio sistema e o controle de fardamento (planilha do RH/DP)
+  const [vista, setVistaState] = useState<Vista>('sistema');
+  useEffect(() => {
+    try {
+      if (window.location.hash.includes('fardamento') || localStorage.getItem(VISTA_KEY) === 'fardamento') setVistaState('fardamento');
+    } catch {
+      /* padrão */
+    }
+  }, []);
+  const setVista = (v: Vista) => {
+    setVistaState(v);
+    try {
+      localStorage.setItem(VISTA_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
   const [days, setDays] = useState('30');
   const [data, setData] = useState<Indicators | null>(null);
   const [failed, setFailed] = useState('');
@@ -42,30 +66,47 @@ export function Gestao({ version }: { version: number }) {
         <div className="section-head">
           <div>
             <h1>Gestão</h1>
-            <p>Resumo do estoque, dos pedidos, das compras e das notas.</p>
+            <p>{vista === 'fardamento' ? 'Controle de fardamento: o que foi entregue, para quem, onde e em que tamanhos.' : 'Resumo do estoque, dos pedidos, das compras e das notas.'}</p>
           </div>
-          <div className="head-actions">
-            <div className="select-wrap">
-              <select className="select" value={days} onChange={(e) => setDays(e.target.value)} aria-label="Período">
-                <option value="7">Últimos 7 dias</option>
-                <option value="30">Últimos 30 dias</option>
-                <option value="90">Últimos 90 dias</option>
-                <option value="365">Últimos 12 meses</option>
-              </select>
-              <ChevronDown size={16} />
+          {vista === 'sistema' ? (
+            <div className="head-actions">
+              <div className="select-wrap">
+                <select className="select" value={days} onChange={(e) => setDays(e.target.value)} aria-label="Período">
+                  <option value="7">Últimos 7 dias</option>
+                  <option value="30">Últimos 30 dias</option>
+                  <option value="90">Últimos 90 dias</option>
+                  <option value="365">Últimos 12 meses</option>
+                </select>
+                <ChevronDown size={16} />
+              </div>
+              <button className="btn btn-ghost" onClick={load} disabled={busy} aria-label="Atualizar">
+                {busy ? <span className="spinner" /> : <RefreshCcw size={17} />}
+              </button>
+              <a className="btn btn-ghost" href={`/api/gestao/export?days=${days}`} data-max="gestao-xlsx">
+                <Download size={18} /> Excel
+              </a>
+              <a className="btn btn-ghost" href={`/api/gestao/pdf?days=${days}`} data-max="gestao-pdf">
+                <FileText size={18} /> PDF
+              </a>
             </div>
-            <button className="btn btn-ghost" onClick={load} disabled={busy} aria-label="Atualizar">
-              {busy ? <span className="spinner" /> : <RefreshCcw size={17} />}
-            </button>
-            <a className="btn btn-ghost" href={`/api/gestao/export?days=${days}`} data-max="gestao-xlsx">
-              <Download size={18} /> Excel
-            </a>
-            <a className="btn btn-ghost" href={`/api/gestao/pdf?days=${days}`} data-max="gestao-pdf">
-              <FileText size={18} /> PDF
-            </a>
-          </div>
+          ) : null}
         </div>
-        {failed && !data ? (
+        <div className="seg g-vista" role="tablist" aria-label="Visão da Gestão">
+          {(
+            [
+              ['sistema', 'Estoque e pedidos'],
+              ['fardamento', 'Fardamento'],
+            ] as [Vista, string][]
+          ).map(([v, t]) => (
+            <button key={v} role="tab" aria-selected={vista === v} className={`seg-btn${vista === v ? ' is-active' : ''}`} onClick={() => setVista(v)} data-max={`gestao-${v}`}>
+              {vista === v ? <motion.span layoutId="gestao-vista-bg" className="seg-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} /> : null}
+              <span>{t}</span>
+            </button>
+          ))}
+        </div>
+        {vista === 'fardamento' ? (
+          <Fardamento />
+        ) : failed && !data ? (
           <div className="empty">
             <span className="empty-icon">
               <AlertCircle size={24} />
@@ -95,11 +136,23 @@ export function Gestao({ version }: { version: number }) {
             <div className="stat-grid">
               <div className="stat">
                 <small>Itens no mínimo ou abaixo</small>
-                <b style={{ color: data.stock.below ? 'var(--amber)' : undefined }}>{num(data.stock.below)}</b>
+                <b
+                  style={{
+                    color: data.stock.below ? 'var(--amber)' : undefined,
+                  }}
+                >
+                  {num(data.stock.below)}
+                </b>
               </div>
               <div className="stat">
                 <small>Pedidos atrasados</small>
-                <b style={{ color: data.orders.late ? 'var(--danger)' : undefined }}>{num(data.orders.late)}</b>
+                <b
+                  style={{
+                    color: data.orders.late ? 'var(--danger)' : undefined,
+                  }}
+                >
+                  {num(data.orders.late)}
+                </b>
               </div>
               <div className="stat">
                 <small>Compras em aberto (atrasadas)</small>
@@ -110,7 +163,13 @@ export function Gestao({ version }: { version: number }) {
               </div>
               <div className="stat">
                 <small>Parcelas vencidas</small>
-                <b style={{ color: data.notes.overdue ? 'var(--danger)' : undefined }}>{brl(data.notes.overdueValue)}</b>
+                <b
+                  style={{
+                    color: data.notes.overdue ? 'var(--danger)' : undefined,
+                  }}
+                >
+                  {brl(data.notes.overdueValue)}
+                </b>
               </div>
             </div>
 
@@ -161,7 +220,11 @@ export function Gestao({ version }: { version: number }) {
                     </div>
                   </div>
                 ))}
-                {data.stock.noCost ? <p className="help">{num(data.stock.noCost)} {data.stock.noCost === 1 ? 'item sem custo cadastrado fica' : 'itens sem custo cadastrado ficam'} fora do valor.</p> : null}
+                {data.stock.noCost ? (
+                  <p className="help">
+                    {num(data.stock.noCost)} {data.stock.noCost === 1 ? 'item sem custo cadastrado fica' : 'itens sem custo cadastrado ficam'} fora do valor.
+                  </p>
+                ) : null}
               </div>
 
               <div className="g-card">
@@ -217,7 +280,11 @@ export function Gestao({ version }: { version: number }) {
                     </div>
                   </div>
                 ))}
-                {data.replenish ? <p className="help">{num(data.replenish)} {data.replenish === 1 ? 'item' : 'itens'} com reposição sugerida na aba Compras do Almoxarifado.</p> : null}
+                {data.replenish ? (
+                  <p className="help">
+                    {num(data.replenish)} {data.replenish === 1 ? 'item' : 'itens'} com reposição sugerida na aba Compras do Almoxarifado.
+                  </p>
+                ) : null}
               </div>
 
               <div className="g-card">
@@ -273,7 +340,8 @@ export function Gestao({ version }: { version: number }) {
                           {i.size ? ` ${i.size}` : ''}
                         </span>
                         <b>
-                          {num(i.quantity)} un.{i.value ? ` · ${brl(i.value)}` : ''}
+                          {num(i.quantity)} un.
+                          {i.value ? ` · ${brl(i.value)}` : ''}
                         </b>
                       </div>
                     </div>
@@ -282,7 +350,9 @@ export function Gestao({ version }: { version: number }) {
               ) : null}
             </div>
             <ComprasGestao version={version} />
-            <p className="help" style={{ marginTop: 12 }}>Atualizado {new Date(data.at).toLocaleString('pt-BR')}.</p>
+            <p className="help" style={{ marginTop: 12 }}>
+              Atualizado {new Date(data.at).toLocaleString('pt-BR')}.
+            </p>
           </>
         )}
       </div>
@@ -336,7 +406,16 @@ function StockCycler(v: { physical: number; reserved: number; available: number 
         <span>{cur.hint}</span>
         <span className="g-dots">
           {STOCK_VIEWS.map((x, k) => (
-            <button key={x.key} type="button" aria-label={x.label} className={k === i ? 'is-on' : ''} onClick={() => { setDir(k > i ? 1 : -1); setI(k); }} />
+            <button
+              key={x.key}
+              type="button"
+              aria-label={x.label}
+              className={k === i ? 'is-on' : ''}
+              onClick={() => {
+                setDir(k > i ? 1 : -1);
+                setI(k);
+              }}
+            />
           ))}
         </span>
       </div>

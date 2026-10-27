@@ -125,7 +125,7 @@ function Shell() {
       user,
       tabs: [
         { id: 'setores', label: 'Setores', aliases: ['setores', 'visao geral', 'inicio', 'pagina inicial'] },
-        { id: 'gestao', label: 'Gestão', aliases: ['gestao', 'indicadores', 'painel da gestao', 'relatorios', 'dashboard'] },
+        { id: 'gestao', label: 'Gestão', aliases: ['gestao', 'indicadores', 'painel da gestao', 'relatorios', 'dashboard', 'fardamento', 'controle de fardamento'] },
         { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas', 'cadastro de usuarios', 'acessos'] },
         { id: 'auditoria', label: 'Auditoria', aliases: ['auditoria', 'registros', 'historico de acoes', 'log', 'logs', 'quem fez o que', 'atividades'] },
         { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max', 'o que voce aprendeu'] },
