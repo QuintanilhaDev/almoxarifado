@@ -130,7 +130,8 @@ q = r.body.quote;
 const pBotas = q.proposals.find((p) => p.supplier_id === botasF.id);
 r = await carlos.patch(`/api/compras/cotacoes/${q.id}`, { action: 'decide', lines: { [kBota]: pBotas.id, [kCalca]: pFardas.id } });
 ok(r.status === 409 && /homologad/.test(r.body.error), 'não contrata fornecedor sem homologação: ' + r.body.error);
-r = await carlos.patch(`/api/compras/cotacoes/${q.id}`, { action: 'decide', lines: { [kBota]: pFardas.id, [kCalca]: pFardas.id } });
+// a calça da Marvin (90) é mais cara que a da Fardas (80); o fornecedor sem homologação nem entra na recomendação
+r = await carlos.patch(`/api/compras/cotacoes/${q.id}`, { action: 'decide', lines: { [kBota]: pFardas.id, [kCalca]: pMarvin.id } });
 ok(r.status === 400 && r.body.needs === 'justification', 'escolher quem não é o de menor custo exige justificativa');
 r = await carlos.patch(`/api/compras/cotacoes/${q.id}`, { action: 'decide', lines: { [kBota]: pFardas.id, [kCalca]: pFardas.id }, justification: 'Bracol tem CA válido e a Botas Forte ainda não foi homologada; um fornecedor só reduz frete.' });
 ok(r.status === 200 && r.body.orders.length === 1, 'mapa decidido com justificativa → 1 pedido de compra em rascunho');
