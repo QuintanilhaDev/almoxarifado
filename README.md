@@ -686,3 +686,31 @@ Painel master → **Gestão → Fardamento**. Organiza a planilha de controle de
   - os funcionários com 3 ou mais entregas no período, para conferir;
   - a lista de entregas, com busca.
 - **Dados:** a planilha lida fica guardada no banco (tabela `hub_meta`, chave `fardamento_controle`), sem tabela nova e sem SQL para rodar. Só masters gerais veem e importam. O arquivo com os nomes dos funcionários não vai para o GitHub.
+
+## Desligamento e devolução de fardamento (RH)
+
+> **Ative no banco antes de usar:** no SQL Editor do Supabase, rode `supabase/desligamento.sql`. Ele só acrescenta colunas e uma tabela; não apaga nada e pode ser rodado mais de uma vez. Até rodar, a ficha continua com o botão antigo "Marcar como desligado".
+
+**Registrar o desligamento:** RH → Colaboradores → ficha da pessoa → **Registrar desligamento**.
+- Informe a data (não pode ser no futuro nem antes da admissão), o motivo (opcional) e observações.
+- A tela mostra o que a pessoa recebeu, juntando as quantidades por item e tamanho. Vem de duas fontes:
+  - as entregas registradas no sistema, descontando o que já voltou pelo Almoxarifado;
+  - a planilha de controle de fardamento importada na Gestão, procurando pelo nome.
+- Em cada item, escolha **Devolvido**, **Pendente**, **Não devolvido** ou **Não se aplica**, e informe a quantidade devolvida, a data e uma observação. O "Não se aplica" deixa o item fora da conferência.
+- Dá para incluir itens que não estão em nenhuma das listas (crachá, rádio, colete).
+- **O estoque não muda:** a devolução só fica registrada. A avaliação do item, a higienização e o reaproveitamento ficam para o controle de estoque.
+
+**Depois do desligamento:**
+- O cadastro fica inativo e sai dos alertas de troca anual e dos pedidos.
+- A ficha continua com todo o histórico: entregas, pedidos e a devolução de cada item, com quem mudou o quê e quando.
+- As pendências seguem na aba **Colaboradores → Devoluções**, onde dá para atualizar cada item.
+- **Reativar** tira a pessoa da lista de desligados, e as devoluções continuam no histórico.
+
+**Relatório:** na aba Devoluções, os botões **Relatório PDF** e **Excel** saem com os filtros aplicados: situação (com pendência ou todos os desligados), cliente e posto.
+- O cliente é o da coluna "Descrição Serviço" da planilha do RH. Sem ela, é o nome do posto antes do " - ".
+- Se o cadastro não tem posto, vale o último posto da planilha de controle de fardamento.
+
+**Importar a planilha de colaboradores:** a coluna "Descrição Serviço" vira o cliente.
+- Planilha com várias abas (ex.: "SEM O TRE" e "TODOS"): a tela pergunta qual aba importar.
+- A empresa é sugerida pelo nome do arquivo (ex.: `Colaboradores_Max_Servicos.xlsx` → Max Serviços).
+- CPF e data de nascimento não são gravados.

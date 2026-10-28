@@ -6,7 +6,8 @@ import { broadcast } from '@/lib/broadcast';
 import { rateLimit } from '@/lib/rateLimit';
 import { almoxOrders, colabAccess, opOrders, rhOrders } from '@/lib/pedidos/access';
 import { missingP3, p3Fail } from '@/lib/pedidos/server';
-import { COLLAB_COLS, collabFields } from '@/lib/pedidos/rh';
+import { collabFields } from '@/lib/pedidos/rh';
+import { collabCols, temDesligamento } from '@/lib/rh/desligamento';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,11 @@ export async function GET() {
   try {
     const user = await requireUser();
     if (!colabAccess(user) && !rhOrders(user) && !opOrders(user) && !almoxOrders(user)) throw new AccessError(403, 'Você não tem acesso aos colaboradores.');
-    const { data, error } = await db().from('collaborators').select(COLLAB_COLS).order('name').limit(10000);
+    const { data, error } = await db()
+      .from('collaborators')
+      .select(await collabCols())
+      .order('name')
+      .limit(10000);
     if (error) throw error;
     return NextResponse.json({ collaborators: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
@@ -36,9 +41,11 @@ export async function POST(req: Request) {
     if (!rateLimit(`colab:${user.id}`, 30, 60_000).ok) return fail('Muitas alterações em sequência. Espere um instante.', 429);
     const { data: postos } = await db().from('postos').select('id, name').limit(2000);
     const ps = (postos ?? []) as { id: string; name: string }[];
+    // sem o desligamento.sql ainda não existe a coluna do cliente
+    const semCliente = !(await temDesligamento());
 
     if (Array.isArray(b.rows)) {
-      if (b.rows.length > 3000) return fail('No máximo 3000 linhas por planilha.');
+      if (b.rows.length > 5000) return fail('No máximo 5000 linhas por planilha.');
       const errors: string[] = [];
       let created = 0;
       let updated = 0;
@@ -53,6 +60,7 @@ export async function POST(req: Request) {
           errors.push(`Linha ${n + 2}: ${r.error}`);
           continue;
         }
+        if (semCliente) delete r.row.client;
         const mat = r.row.matricula ? String(r.row.matricula) : null;
         const id = mat ? byMat.get(mat) : undefined;
         if (id) {
@@ -73,7 +81,9 @@ export async function POST(req: Request) {
       }
       for (let i = 0; i < fresh.length; i += 500) {
         const chunk = fresh.slice(i, i + 500);
-        const { error } = await db().from('collaborators').insert(chunk.map((c) => c.row));
+        const { error } = await db()
+          .from('collaborators')
+          .insert(chunk.map((c) => c.row));
         if (!error) {
           created += chunk.length;
           continue;
@@ -91,7 +101,12 @@ export async function POST(req: Request) {
 
     const r = collabFields(b, ps);
     if ('error' in r) return fail(r.error);
-    const { data, error } = await db().from('collaborators').insert({ ...r.row, created_by: user.display_name }).select(COLLAB_COLS).single();
+    if (semCliente) delete r.row.client;
+    const { data, error } = await db()
+      .from('collaborators')
+      .insert({ ...r.row, created_by: user.display_name })
+      .select(await collabCols())
+      .single();
     if (error) {
       if (error.code === '23505') return fail('Já existe um colaborador com essa matrícula.', 409);
       throw error;

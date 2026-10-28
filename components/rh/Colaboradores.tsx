@@ -1,7 +1,7 @@
 'use client';
 import { deg } from '@/lib/fx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, FileText, FileUp, Pencil, Plus, Search, Shirt, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { AlertCircle, FileText, FileUp, Pencil, Plus, RotateCcw, Search, Shirt, Trash2, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../core/api';
 import { useToast } from '../core/Toasts';
@@ -10,6 +10,8 @@ import { formatDateTime } from '@/lib/format';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
 import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/types';
 import { ItemPicker, dateBR, type PickItem } from '../pedidos/ui';
+import { DesligarSheet, DevolucaoFicha, DevolucoesView } from './Desligamento';
+import { clienteDe, type Devolucao } from '@/lib/rh/devolucao';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
 import '../pedidos/pedidos.css';
@@ -28,6 +30,12 @@ export interface Collab {
   phone: string | null;
   notes: string | null;
   updated_at?: string;
+  /** cliente (tomador do serviço) e desligamento: só depois do supabase/desligamento.sql */
+  client?: string | null;
+  dismissed_at?: string | null;
+  dismissal_reason?: string | null;
+  dismissal_notes?: string | null;
+  dismissed_by?: string | null;
 }
 interface Kit {
   role: string;
@@ -39,7 +47,7 @@ interface Kit {
 /** Colaboradores (cadastro, tamanhos, histórico de entregas) e kits por função. */
 export function Colaboradores({ canEdit, version }: { canEdit: boolean; version: number }) {
   const toast = useToast();
-  const [view, setView] = useState<'pessoas' | 'kits'>('pessoas');
+  const [view, setView] = useState<'pessoas' | 'devolucoes' | 'kits'>('pessoas');
   const [list, setList] = useState<Collab[] | null>(null);
   const [kits, setKits] = useState<Kit[] | null>(null);
   const [failed, setFailed] = useState('');
@@ -48,7 +56,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
   const [openId, setOpenId] = useState<string | null>(null);
   const [form, setForm] = useState<{ c: Collab | null } | null>(null);
   const [kitForm, setKitForm] = useState<{ k: Kit | null } | null>(null);
-  const [importRows, setImportRows] = useState<{ rows: Record<string, unknown>[]; columns: string[]; warnings: string[] } | null>(null);
+  const [importRows, setImportRows] = useState<ImportData | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -67,7 +75,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
 
   const shown = useMemo(() => {
     const t = fold(query.trim());
-    return (list ?? []).filter((c) => (showInactive ? !c.active : c.active) && (!t || fold(`${c.name} ${c.matricula ?? ''} ${c.role ?? ''} ${c.posto_name ?? ''} ${c.company ?? ''}`).includes(t)));
+    return (list ?? []).filter((c) => (showInactive ? !c.active : c.active) && (!t || fold(`${c.name} ${c.matricula ?? ''} ${c.role ?? ''} ${c.posto_name ?? ''} ${c.company ?? ''} ${c.client ?? ''}`).includes(t)));
   }, [list, query, showInactive]);
   const noKit = useMemo(() => {
     const roles = new Set((kits ?? []).map((k) => fold(k.role)));
@@ -89,7 +97,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
     }
   };
 
-  const open = openId ? (list ?? []).find((c) => c.id === openId) ?? null : null;
+  const open = openId ? ((list ?? []).find((c) => c.id === openId) ?? null) : null;
   return (
     <div className="section-scroll">
       <div className="section-pad wide">
@@ -99,7 +107,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
             <p>Cadastro, tamanhos e kits por função.</p>
           </div>
           <div className="head-actions">
-            {view === 'pessoas' ? (
+            {view === 'devolucoes' ? null : view === 'pessoas' ? (
               <>
                 <button data-max="colab-importar" data-max-file="#colab-file" className="btn btn-ghost edit-only" onClick={() => fileRef.current?.click()} disabled={!canEdit}>
                   <FileUp size={18} /> Importar planilha
@@ -120,6 +128,9 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
           <div className="filter-seg" role="tablist" aria-label="Seção">
             <button className={view === 'pessoas' ? 'is-active' : ''} onClick={() => setView('pessoas')}>
               Pessoas <em>{num((list ?? []).filter((c) => c.active).length)}</em>
+            </button>
+            <button data-max="colab-devolucoes" className={view === 'devolucoes' ? 'is-active' : ''} onClick={() => setView('devolucoes')}>
+              Devoluções
             </button>
             <button data-max="colab-kits" className={view === 'kits' ? 'is-active' : ''} onClick={() => setView('kits')}>
               Kits por função <em>{num(kits?.length ?? 0)}</em>
@@ -151,6 +162,8 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
             <strong>Não foi possível carregar</strong>
             <span>{failed}</span>
           </div>
+        ) : view === 'devolucoes' ? (
+          <DevolucoesView version={version + (list?.length ?? 0)} onOpen={setOpenId} />
         ) : !list || !kits ? (
           <div className="skeleton" style={{ height: 200, borderRadius: 16 }} />
         ) : view === 'pessoas' ? (
@@ -171,7 +184,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                     <th>Função</th>
                     <th>Posto</th>
                     <th>Tamanhos</th>
-                    <th>Admissão</th>
+                    <th>{showInactive ? 'Desligado em' : 'Admissão'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -182,9 +195,16 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                         <small>{c.matricula ? `Matrícula ${c.matricula}` : 'Sem matrícula'}</small>
                       </td>
                       <td>{c.role ?? '—'}</td>
-                      <td>{c.posto_name ?? '—'}</td>
-                      <td>{[c.sizes?.camisa && `Camisa ${c.sizes.camisa}`, c.sizes?.calca && `Calça ${c.sizes.calca}`, c.sizes?.calcado && `Calçado ${c.sizes.calcado}`].filter(Boolean).join(' · ') || <span className="pbadge amber">Sem tamanhos</span>}</td>
-                      <td>{dateBR(c.admitted_at)}</td>
+                      <td>
+                        {c.posto_name ?? (clienteDe(c) || '—')}
+                        {c.posto_name && c.client && c.client !== c.posto_name ? <small>{c.client}</small> : null}
+                      </td>
+                      <td>
+                        {[c.sizes?.camisa && `Camisa ${c.sizes.camisa}`, c.sizes?.calca && `Calça ${c.sizes.calca}`, c.sizes?.calcado && `Calçado ${c.sizes.calcado}`].filter(Boolean).join(' · ') || (
+                          <span className="pbadge amber">Sem tamanhos</span>
+                        )}
+                      </td>
+                      <td>{showInactive ? dateBR(c.dismissed_at ?? null) : dateBR(c.admitted_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -196,9 +216,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
             {noKit.length ? (
               <div className="banner">
                 <Shirt size={20} color="var(--amber)" />
-                <span>
-                  Funções sem kit: {noKit.join(', ')}. Sem kit, a admissão e a troca anual dessas pessoas precisam de itens digitados.
-                </span>
+                <span>Funções sem kit: {noKit.join(', ')}. Sem kit, a admissão e a troca anual dessas pessoas precisam de itens digitados.</span>
               </div>
             ) : null}
             {kits.length === 0 ? (
@@ -215,7 +233,9 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                   <div key={k.role} className="g-card">
                     <h3 style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                       {k.role}
-                      <span className="pbadge lilac">troca a cada {k.period_months} {k.period_months === 1 ? 'mês' : 'meses'}</span>
+                      <span className="pbadge lilac">
+                        troca a cada {k.period_months} {k.period_months === 1 ? 'mês' : 'meses'}
+                      </span>
                     </h3>
                     {k.items.map((i, n) => (
                       <div key={n} className="g-row">
@@ -245,42 +265,76 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
         {open ? <CollabDrawer key={open.id} c={open} canEdit={canEdit} onClose={() => setOpenId(null)} onEdit={() => setForm({ c: open })} reload={load} modalOpen={Boolean(form)} /> : null}
       </AnimatePresence>
       <AnimatePresence>
-        {form ? <CollabForm key="f" c={form.c} roles={(kits ?? []).map((k) => k.role)} onClose={() => setForm(null)} onSaved={async () => { setForm(null); await load(); }} /> : null}
-        {kitForm ? <KitForm key="k" k={kitForm.k} onClose={() => setKitForm(null)} onSaved={async () => { setKitForm(null); await load(); }} /> : null}
+        {form ? (
+          <CollabForm
+            key="f"
+            c={form.c}
+            roles={(kits ?? []).map((k) => k.role)}
+            onClose={() => setForm(null)}
+            onSaved={async () => {
+              setForm(null);
+              await load();
+            }}
+          />
+        ) : null}
+        {kitForm ? (
+          <KitForm
+            key="k"
+            k={kitForm.k}
+            onClose={() => setKitForm(null)}
+            onSaved={async () => {
+              setKitForm(null);
+              await load();
+            }}
+          />
+        ) : null}
         {importRows ? (
-          <Sheet key="imp" title="Importar colaboradores" lead={`${importRows.rows.length} pessoa(s) na planilha. Quem já existe (mesma matrícula) é atualizado; o resto é cadastrado.`} onClose={() => setImportRows(null)}>
-            {importRows.columns.length ? <p className="help">Colunas reconhecidas: {importRows.columns.join(' · ')}</p> : null}
-            {importRows.warnings.length ? <p className="help">{importRows.warnings.join(' ')}</p> : null}
-            <div className="t-wrap" style={{ maxHeight: 260 }}>
-              <table className="t-table">
-                <tbody>
-                  {importRows.rows.slice(0, 50).map((r, i) => (
-                    <tr key={i}>
-                      <td>{String(r.name ?? '')}</td>
-                      <td>{String(r.matricula ?? '')}</td>
-                      <td>{String(r.role ?? '')}</td>
-                      <td>{String(r.posto ?? '')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <ImportConfirm rows={importRows.rows} onDone={async () => { setImportRows(null); await load(); }} onClose={() => setImportRows(null)} />
-          </Sheet>
+          <ImportSheet
+            key="imp"
+            data={importRows}
+            onClose={() => setImportRows(null)}
+            onDone={async () => {
+              setImportRows(null);
+              await load();
+            }}
+          />
         ) : null}
       </AnimatePresence>
     </div>
   );
 }
 
-function ImportConfirm({ rows, onDone, onClose }: { rows: Record<string, unknown>[]; onDone: () => void; onClose: () => void }) {
+interface ImportData {
+  rows: Record<string, unknown>[];
+  columns: string[];
+  warnings: string[];
+  abas?: { nome: string; linhas: number }[];
+  empresa?: string;
+}
+
+/** conferência da importação: escolhe a aba (planilhas com várias) e a empresa de quem não tem */
+function ImportSheet({ data, onDone, onClose }: { data: ImportData; onDone: () => void; onClose: () => void }) {
   const toast = useToast();
+  const abas = data.abas ?? [];
+  const [aba, setAba] = useState(abas[0]?.nome ?? '');
+  const [empresa, setEmpresa] = useState(data.empresa ?? '');
   const [busy, setBusy] = useState(false);
+  const rows = useMemo(
+    () => data.rows.filter((r) => abas.length < 2 || !aba || r._aba === aba).map(({ _aba, ...r }): Record<string, unknown> => ({ ...r, company: r.company || empresa || null })),
+    [data.rows, abas.length, aba, empresa],
+  );
   const go = async () => {
     setBusy(true);
     try {
       const j = await api<{ created: number; updated: number; errors: string[] }>('/api/rh/colaboradores', { method: 'POST', json: { rows } });
-      toast({ kind: j.errors.length ? 'info' : 'success', title: `${j.created} cadastrado(s), ${j.updated} atualizado(s)`, text: j.errors.length ? `${j.errors.length} linha(s) com problema: ${j.errors.slice(0, 2).join('; ')}` : undefined }, 10000);
+      toast(
+        {
+          kind: j.errors.length ? 'info' : 'success',
+          title: `${j.created} cadastrado(s), ${j.updated} atualizado(s)`,
+          text: j.errors.length ? `${j.errors.length} linha(s) com problema: ${j.errors.slice(0, 2).join('; ')}` : undefined,
+        },
+        10000,
+      );
       onDone();
     } catch (e) {
       toast({ kind: 'error', title: 'Importação falhou', text: (e as Error).message });
@@ -288,14 +342,51 @@ function ImportConfirm({ rows, onDone, onClose }: { rows: Record<string, unknown
     }
   };
   return (
-    <div className="modal-actions">
-      <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
-        Cancelar
-      </button>
-      <button className="btn btn-primary" onClick={go} disabled={busy}>
-        {busy ? <span className="spinner" /> : <FileUp size={16} />} Importar {rows.length}
-      </button>
-    </div>
+    <Sheet title="Importar colaboradores" lead={`${rows.length} pessoa(s) para importar. Quem já existe (mesma matrícula) é atualizado; o resto é cadastrado.`} onClose={onClose}>
+      {abas.length > 1 ? (
+        <div className="imp-abas">
+          <span className="label">Qual aba importar?</span>
+          <div className="filter-seg">
+            {abas.map((a) => (
+              <button key={a.nome} type="button" className={aba === a.nome ? 'is-active' : ''} onClick={() => setAba(a.nome)}>
+                {a.nome} <em>{num(a.linhas)}</em>
+              </button>
+            ))}
+            <button type="button" className={!aba ? 'is-active' : ''} onClick={() => setAba('')}>
+              Todas
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <label className="imp-emp">
+        <span className="label">Empresa (para quem não tem na planilha)</span>
+        <input className="input" value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ex.: Max Serviços" aria-label="Empresa" />
+      </label>
+      {data.columns.length ? <p className="help">Colunas reconhecidas: {data.columns.join(' · ')}</p> : null}
+      {data.warnings.length ? <p className="help">{data.warnings.join(' ')}</p> : null}
+      <div className="t-wrap" style={{ maxHeight: 260 }}>
+        <table className="t-table">
+          <tbody>
+            {rows.slice(0, 50).map((r, i) => (
+              <tr key={i}>
+                <td>{String(r.name ?? '')}</td>
+                <td>{String(r.matricula ?? '')}</td>
+                <td>{String(r.role ?? '')}</td>
+                <td>{String(r.client ?? r.posto ?? '')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
+          Cancelar
+        </button>
+        <button className="btn btn-primary" onClick={go} disabled={busy || !rows.length}>
+          {busy ? <span className="spinner" /> : <FileUp size={16} />} Importar {num(rows.length)}
+        </button>
+      </div>
+    </Sheet>
   );
 }
 
@@ -317,7 +408,9 @@ function CollabForm({ c, roles, onClose, onSaved }: { c: Collab | null; roles: s
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    api<{ postos: { id: string; name: string }[] }>('/api/pedidos/catalogo').then((j) => setPostos(j.postos)).catch(() => undefined);
+    api<{ postos: { id: string; name: string }[] }>('/api/pedidos/catalogo')
+      .then((j) => setPostos(j.postos))
+      .catch(() => undefined);
   }, []);
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   const save = async (e: React.FormEvent) => {
@@ -326,7 +419,17 @@ function CollabForm({ c, roles, onClose, onSaved }: { c: Collab | null; roles: s
     setBusy(true);
     setError('');
     try {
-      const body = { name: f.name, matricula: f.matricula, role: f.role, posto_name: f.posto_name, company: f.company, admitted_at: f.admitted_at, phone: f.phone, notes: f.notes, sizes: { camisa: f.camisa, calca: f.calca, calcado: f.calcado } };
+      const body = {
+        name: f.name,
+        matricula: f.matricula,
+        role: f.role,
+        posto_name: f.posto_name,
+        company: f.company,
+        admitted_at: f.admitted_at,
+        phone: f.phone,
+        notes: f.notes,
+        sizes: { camisa: f.camisa, calca: f.calca, calcado: f.calcado },
+      };
       if (c) await api(`/api/rh/colaboradores/${c.id}`, { method: 'PATCH', json: body });
       else await api('/api/rh/colaboradores', { method: 'POST', json: body });
       onSaved();
@@ -430,7 +533,9 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    api<{ items: PickItem[] }>('/api/pedidos/catalogo').then((j) => setItems(j.items)).catch(() => undefined);
+    api<{ items: PickItem[] }>('/api/pedidos/catalogo')
+      .then((j) => setItems(j.items))
+      .catch(() => undefined);
   }, []);
   // nomes de produto sem tamanho (o tamanho vem do colaborador)
   const products = useMemo(() => {
@@ -449,7 +554,15 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
     setBusy(true);
     setError('');
     try {
-      await api('/api/rh/kits', { method: 'PUT', json: { role, old_role: k?.role, period_months: Number(months), items: lines.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), size_from: l.size_from, qty: Number(l.qty) || 0, item_id: l.size_from ? null : l.item_id })) } });
+      await api('/api/rh/kits', {
+        method: 'PUT',
+        json: {
+          role,
+          old_role: k?.role,
+          period_months: Number(months),
+          items: lines.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), size_from: l.size_from, qty: Number(l.qty) || 0, item_id: l.size_from ? null : l.item_id })),
+        },
+      });
       toast({ kind: 'success', title: `Kit ${role} salvo` });
       onSaved();
     } catch (e) {
@@ -499,13 +612,25 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
                 onText={(t) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, name: t, item_id: null, size_from: x.size_from ?? guess(t) } : x)))}
               />
             </div>
-            <select className="select input p-line-size" style={{ width: 120 }} aria-label={`Tamanho do item ${n + 1}`} value={l.size_from ?? ''} onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, size_from: (e.target.value || null) as typeof l.size_from } : x)))}>
+            <select
+              className="select input p-line-size"
+              style={{ width: 120 }}
+              aria-label={`Tamanho do item ${n + 1}`}
+              value={l.size_from ?? ''}
+              onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, size_from: (e.target.value || null) as typeof l.size_from } : x)))}
+            >
               <option value="">Sem tamanho</option>
               <option value="camisa">Tam. camisa</option>
               <option value="calca">Tam. calça</option>
               <option value="calcado">Nº calçado</option>
             </select>
-            <input className="input p-line-qty" aria-label={`Quantidade ${n + 1}`} inputMode="numeric" value={l.qty} onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, qty: e.target.value.replace(/\D/g, '').slice(0, 2) } : x)))} />
+            <input
+              className="input p-line-qty"
+              aria-label={`Quantidade ${n + 1}`}
+              inputMode="numeric"
+              value={l.qty}
+              onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, qty: e.target.value.replace(/\D/g, '').slice(0, 2) } : x)))}
+            />
             {lines.length > 1 ? (
               <button type="button" className="icon-btn" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} aria-label={`Remover item ${n + 1}`}>
                 <X size={16} />
@@ -543,16 +668,26 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
 
 function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: Collab; canEdit: boolean; onClose: () => void; onEdit: () => void; reload: () => Promise<void>; modalOpen: boolean }) {
   const toast = useToast();
-  const [detail, setDetail] = useState<{ deliveries: { id: string; group_id: string; item_name: string; size: string | null; qty: number; returned_qty: number; kind: string; delivered_at: string; order_number: number | null }[]; orders: MaterialOrder[] } | null>(null);
+  const [detail, setDetail] = useState<{
+    deliveries: { id: string; group_id: string; item_name: string; size: string | null; qty: number; returned_qty: number; kind: string; delivered_at: string; order_number: number | null }[];
+    orders: MaterialOrder[];
+    returns?: Devolucao[];
+    desligamento?: boolean;
+  } | null>(null);
+  const [desligar, setDesligar] = useState(false);
+  const [n, setN] = useState(0);
   useEffect(() => {
-    api<typeof detail>(`/api/rh/colaboradores/${c.id}`).then(setDetail).catch(() => setDetail({ deliveries: [], orders: [] }));
-  }, [c.id, c.updated_at]);
+    api<typeof detail>(`/api/rh/colaboradores/${c.id}`)
+      .then(setDetail)
+      .catch(() => setDetail({ deliveries: [], orders: [] }));
+  }, [c.id, c.updated_at, n]);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && !modalOpen && onClose();
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && !modalOpen && !desligar && onClose();
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
-  }, [onClose, modalOpen]);
+  }, [onClose, modalOpen, desligar]);
   const toggle = async () => {
+    if (!c.active && !window.confirm(`Reativar ${c.name}? Ele volta para os alertas e pedidos. As devoluções registradas continuam no histórico.`)) return;
     try {
       await api(`/api/rh/colaboradores/${c.id}`, { method: 'PATCH', json: { active: !c.active } });
       toast({ kind: 'success', title: c.active ? 'Colaborador desligado' : 'Colaborador reativado' });
@@ -561,14 +696,26 @@ function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: C
       toast({ kind: 'error', title: 'Não foi possível', text: (e as Error).message });
     }
   };
+  // com o desligamento ativado no banco, sair passa pela conferência da devolução
+  const comConferencia = detail?.desligamento === true;
   return (
     <motion.div className="drawer-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.aside className="drawer o-drawer" role="dialog" aria-modal="true" aria-label={c.name} initial={{ x: 60, opacity: 0, rotateY: deg(-24), transformPerspective: 1400 }} animate={{ x: 0, opacity: 1, rotateY: 0, transitionEnd: { transform: 'none' } }} exit={{ x: 60, opacity: 0, rotateY: deg(-18) }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} onClick={(e) => e.stopPropagation()}>
+      <motion.aside
+        className="drawer o-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={c.name}
+        initial={{ x: 60, opacity: 0, rotateY: deg(-24), transformPerspective: 1400 }}
+        animate={{ x: 0, opacity: 1, rotateY: 0, transitionEnd: { transform: 'none' } }}
+        exit={{ x: 60, opacity: 0, rotateY: deg(-18) }}
+        transition={{ type: 'spring', stiffness: 360, damping: 34 }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="drawer-top">
           <div style={{ minWidth: 0 }}>
             <h2>{c.name}</h2>
             <p>
-              {[c.matricula && `Matrícula ${c.matricula}`, c.role, c.posto_name, c.company].filter(Boolean).join(' · ')}
+              {[c.matricula && `Matrícula ${c.matricula}`, c.role, c.client, c.posto_name, c.company].filter(Boolean).join(' · ')}
               {!c.active ? <span className="pbadge gray"> Desligado</span> : null}
             </p>
           </div>
@@ -577,6 +724,7 @@ function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: C
           </button>
         </div>
         <div className="drawer-body">
+          {!c.active && detail?.desligamento ? <DevolucaoFicha c={c} itens={detail.returns ?? []} canEdit={canEdit} onChange={() => setN((x) => x + 1)} /> : null}
           <div className="mini-stats">
             <div>
               <small>Camisa</small>
@@ -644,13 +792,42 @@ function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: C
               <button className="btn btn-ghost btn-sm" onClick={onEdit}>
                 <Pencil size={15} /> Editar dados e tamanhos
               </button>
-              <button className="btn btn-ghost btn-sm" onClick={toggle}>
-                {c.active ? 'Marcar como desligado' : 'Reativar'}
-              </button>
+              {c.active && comConferencia ? (
+                <button className="btn btn-ghost btn-sm" onClick={() => setDesligar(true)} data-max="colab-desligar">
+                  <UserMinus size={15} /> Registrar desligamento
+                </button>
+              ) : (
+                <button className="btn btn-ghost btn-sm" onClick={toggle} disabled={!detail}>
+                  {c.active ? (
+                    'Marcar como desligado'
+                  ) : (
+                    <>
+                      <RotateCcw size={14} /> Reativar
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           ) : null}
         </div>
       </motion.aside>
+      {/* a conferência abre por cima da ficha; o clique nela não pode fechar a ficha */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <AnimatePresence>
+          {desligar ? (
+            <DesligarSheet
+              key="desl"
+              c={c}
+              onClose={() => setDesligar(false)}
+              onDone={async () => {
+                setDesligar(false);
+                await reload();
+                setN((x) => x + 1);
+              }}
+            />
+          ) : null}
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 }

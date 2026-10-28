@@ -520,7 +520,7 @@ export const MANUAL: ManualTopic[] = [
       'Novo colaborador cadastra um; Importar planilha cadastra vários (quem já existe é atualizado pela matrícula).',
       'Toque em alguém para ver tudo o que recebeu, com os termos, e para editar os tamanhos.',
       'Em Kits por função, diga o que cada função recebe e a cada quantos meses troca.',
-      'Quem saiu da empresa: Marcar como desligado.',
+      'Quem saiu da empresa: na ficha, Registrar desligamento (confere a devolução de cada item). As pendências ficam na aba Devoluções.',
     ],
     ask: 'Max, como cadastro um colaborador?',
   },

@@ -154,6 +154,7 @@ export function collabFields(x: Row, postos: { id: string; name: string }[]): { 
   row.matricula = str(x.matricula, 40);
   row.role = str(x.role ?? x.funcao ?? x['função'], 80);
   row.company = str(x.company ?? x.empresa, 80);
+  row.client = str(x.client ?? x.cliente, 120);
   row.phone = str(x.phone ?? x.telefone, 30);
   row.notes = str(x.notes ?? x.observacoes, 300);
   const adm = String(x.admitted_at ?? x.admissao ?? '').trim();

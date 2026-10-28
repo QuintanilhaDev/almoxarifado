@@ -7,6 +7,7 @@ const nextConfig = {
   serverExternalPackages: ['pdfkit', 'pdfjs-dist'],
   outputFileTracingIncludes: {
     '/api/gestao/pdf': ['./node_modules/pdfkit/js/data/**'],
+    '/api/rh/devolucoes/relatorio': ['./node_modules/pdfkit/js/data/**'],
     '/api/compras/**': ['./node_modules/pdfkit/js/data/**'],
     '/api/pontos/**': ['./node_modules/pdfkit/js/data/**', './node_modules/pdfjs-dist/legacy/build/**'],
     '/api/almoxarifado/notas/**': ['./node_modules/pdfkit/js/data/**', './node_modules/pdfjs-dist/legacy/build/**'],
