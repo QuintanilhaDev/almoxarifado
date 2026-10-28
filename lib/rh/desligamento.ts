@@ -3,7 +3,7 @@ import { db } from '../supabaseAdmin';
 import { fail } from '../http';
 import { COLLAB_COLS } from '../pedidos/rh';
 import type { ControleFarda } from '../fardamento/types';
-import { DEV_COLS, type Desligado, type Devolucao, type ItemEntregue } from './devolucao';
+import { DEV_COLS, arquivada, type Desligado, type Devolucao, type ItemEntregue } from './devolucao';
 
 /**
  * Desligamento: o que o colaborador recebeu (para conferir a devolução) e a checagem de que
@@ -30,6 +30,9 @@ export const DESL_COLS = 'client, dismissed_at, dismissal_reason, dismissal_note
 export async function collabCols(): Promise<string> {
   return (await temDesligamento()) ? `${COLLAB_COLS}, ${DESL_COLS}` : COLLAB_COLS;
 }
+
+/** dia em Salvador (UTC-3) de um horário do banco */
+const dataBahia = (iso: string) => new Date(Date.parse(iso) - 3 * 3_600_000).toISOString().slice(0, 10);
 
 const fold = (s: string) =>
   s
@@ -63,7 +66,7 @@ export async function itensEntregues(c: { id: string; name: string }): Promise<{
   const { data: del, error } = await db().from('deliveries').select('item_name, size, qty, returned_qty, delivered_at, posto_name').eq('collaborator_id', c.id).limit(2000);
   if (error) throw error;
   for (const d of del ?? [])
-    add('sistema', String(d.item_name), (d.size as string | null) ?? null, Number(d.qty) - Number(d.returned_qty ?? 0), String(d.delivered_at).slice(0, 10), (d.posto_name as string | null) ?? null);
+    add('sistema', String(d.item_name), (d.size as string | null) ?? null, Number(d.qty) - Number(d.returned_qty ?? 0), dataBahia(String(d.delivered_at)), (d.posto_name as string | null) ?? null);
 
   let postoPlanilha: string | null = null;
   const { data: meta } = await db().from('hub_meta').select('value').eq('key', 'fardamento_controle').maybeSingle();
@@ -110,7 +113,8 @@ export function itemDevolucao(x: Record<string, unknown>, padraoData: string | n
     returned_at ??= padraoData;
     if (!returned_at) return { error: `${item_name}: informe a data da devolução.` };
   }
-  if (status === 'pendente' && !qty_returned) returned_at = null;
+  // sem nada devolvido não há data de devolução (vale para pendente e não devolvido)
+  if (status !== 'devolvido' && !qty_returned) returned_at = null;
   if (qty_delivered && qty_returned > qty_delivered) return { error: `${item_name}: devolveu ${qty_returned}, mas recebeu ${qty_delivered}.` };
   const source = ['sistema', 'planilha', 'manual'].includes(String(x.source)) ? String(x.source) : 'manual';
   return {
@@ -153,7 +157,8 @@ export async function desligados(opts: { pendentes?: boolean } = {}): Promise<De
     }
   }
   const out = (cs ?? []).map((c) => {
-    const itens = por.get(c.id as string) ?? [];
+    // só a conferência do desligamento atual (a de um desligamento anterior fica no histórico da ficha)
+    const itens = (por.get(c.id as string) ?? []).filter((x) => !arquivada(x));
     return { ...(c as unknown as Desligado), itens, pendentes: itens.filter((x) => x.status === 'pendente').length };
   });
   return opts.pendentes ? out.filter((d) => d.pendentes > 0) : out;

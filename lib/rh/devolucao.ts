@@ -57,6 +57,10 @@ export interface Desligado {
   pendentes: number;
 }
 
+/** marca, no histórico, a conferência de um desligamento anterior (a pessoa foi reativada depois) */
+export const ARQUIVADO = 'Arquivado';
+export const arquivada = (d: { history?: { what?: string }[] | null }) => (d.history ?? []).some((h) => String(h?.what ?? '').startsWith(ARQUIVADO));
+
 /** cliente: o cadastrado; sem ele, o nome do posto antes do " - " (ex.: "ADIB - ILHA" → "ADIB") */
 export function clienteDe(c: { client?: string | null; posto_name?: string | null }): string {
   const cl = (c.client ?? '').trim();

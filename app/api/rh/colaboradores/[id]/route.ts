@@ -8,7 +8,7 @@ import { almoxOrders, colabAccess, opOrders, rhOrders } from '@/lib/pedidos/acce
 import { ORDER_COLS, missingP3, p3Fail, toOrder } from '@/lib/pedidos/server';
 import { collabFields } from '@/lib/pedidos/rh';
 import { collabCols, temDesligamento } from '@/lib/rh/desligamento';
-import { DEV_COLS } from '@/lib/rh/devolucao';
+import { ARQUIVADO, DEV_COLS } from '@/lib/rh/devolucao';
 
 export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ id: string }> };
@@ -61,7 +61,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (Object.keys(b).some((k) => k !== 'active')) {
       const { data: postos } = await db().from('postos').select('id, name').limit(2000);
-      const atual = cur as unknown as Record<string, unknown>;
+      const atual = { ...(cur as unknown as Record<string, unknown>) };
+      // trocou o nome do posto sem escolher outro da lista: o posto antigo não pode "voltar"
+      if ('posto_name' in b && !('posto_id' in b)) atual.posto_id = null;
       const r = collabFields({ ...atual, ...b, sizes: b.sizes ?? atual.sizes }, (postos ?? []) as { id: string; name: string }[]);
       if ('error' in r) return fail(r.error);
       if (!desl) delete r.row.client;
@@ -69,6 +71,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     if ('active' in b) {
       patch.active = b.active !== false;
+      // com o desligamento ativado, sair da empresa passa pela conferência da devolução
+      if (desl && !patch.active && (cur as unknown as { active: boolean }).active) return fail('Use "Registrar desligamento" na ficha: ele confere a devolução do fardamento.', 409);
       // reativado: sai da lista de desligados (as devoluções registradas ficam no histórico)
       if (desl && patch.active) Object.assign(patch, { dismissed_at: null, dismissal_reason: null, dismissal_notes: null, dismissed_by: null });
     }
@@ -76,6 +80,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (error) {
       if (error.code === '23505') return fail('Já existe outro colaborador com essa matrícula.', 409);
       throw error;
+    }
+    // reativado: a conferência do desligamento anterior vai para o histórico (não conta mais como pendente)
+    if (desl && 'active' in b && patch.active && !(cur as unknown as { active: boolean }).active) {
+      const { data: rs } = await db().from('collaborator_returns').select('id, history').eq('collaborator_id', id).limit(1000);
+      const quando = new Date().toISOString();
+      for (const r of rs ?? []) {
+        const h = Array.isArray(r.history) ? r.history : [];
+        if (h.some((x: { what?: string }) => String(x?.what ?? '').startsWith(ARQUIVADO))) continue;
+        await db().from('collaborator_returns').update({ history: [...h, { at: quando, by: user.display_name, what: `${ARQUIVADO}: colaborador reativado` }] }).eq('id', r.id);
+      }
     }
     await broadcast('collab:update', { by: user.display_name });
     return NextResponse.json({ collaborator: data });

@@ -24,16 +24,25 @@ export interface SchemaSpec {
   fields: FieldSpec[];
   /** "01 - Posto Central" vira código 01 + nome "Posto Central" */
   leadingCode?: boolean;
+  /**
+   * quem é o mesmo registro (ex.: a mesma matrícula): a mesma pessoa/item em várias abas
+   * vira UM registro só, com os campos completados pelas outras abas
+   */
+  identity?: (data: Record<string, string | number | null>) => string | null;
 }
 
 export interface ParsedSheet {
   name: string;
   rows: string[][];
+  /** aba oculta no Excel (só entra se tiver a mesma tabela das outras) */
+  hidden?: boolean;
 }
 
 export interface ReadRow {
   data: Record<string, string | number | null>;
   source: string;
+  /** todas as abas/linhas em que o registro apareceu (quando juntado) */
+  sources?: string[];
 }
 
 export interface ReadResult {
@@ -43,16 +52,21 @@ export interface ReadResult {
     headerRow: number | null;
     columns: { letter: string; header: string; field: string | null }[];
     read: number;
+    /** por que a aba ficou de fora (resumo, tabela dinâmica, lista auxiliar…) */
+    skipped?: string;
+    hidden?: boolean;
   }[];
   ignored: number;
   warnings: string[];
+  /** registros que apareciam em mais de uma aba e foram juntados */
+  merged?: number;
 }
 
 export class SheetError extends Error {}
 
 const MAX_ROWS = 20000;
 const MAX_COLS = 120;
-const MAX_IMPORT = 5000;
+const MAX_IMPORT = 20000;
 
 /* ------------------------------------------------------------------ */
 /* textos                                                              */
@@ -247,11 +261,9 @@ export async function loadSheets(buf: Buffer, filename: string): Promise<ParsedS
     } catch {
       throw new SheetError('Não consegui abrir esse arquivo. Confirme que é uma planilha .xlsx válida (e sem senha).');
     }
-    const all = wb.worksheets;
-    const visible = all.filter((w) => w.state === 'visible');
-    const use = visible.length ? visible : all;
+    // todas as abas, inclusive as ocultas (a leitura decide o que é tabela de verdade)
     const sheets: ParsedSheet[] = [];
-    for (const ws of use) {
+    for (const ws of wb.worksheets) {
       const rowCount = Math.min(ws.rowCount || 0, MAX_ROWS);
       const colCount = Math.min(ws.columnCount || 0, MAX_COLS);
       const rows: string[][] = [];
@@ -275,7 +287,7 @@ export async function loadSheets(buf: Buffer, filename: string): Promise<ParsedS
         }
         rows.push(out);
       }
-      sheets.push({ name: ws.name, rows });
+      sheets.push({ name: ws.name, rows, hidden: ws.state !== 'visible' });
     }
     return sheets;
   }
@@ -365,7 +377,7 @@ function hasLetters(s: string) {
 
 const TOTAL_RE = /^(sub ?total|total( geral)?|soma|totais)\b/;
 
-function readSheet(sheet: ParsedSheet, schema: SchemaSpec): { rows: ReadRow[]; info: ReadResult['sheets'][number]; ignored: number; warning?: string } {
+function readSheet(sheet: ParsedSheet, schema: SchemaSpec): { rows: ReadRow[]; info: ReadResult['sheets'][number]; ignored: number; warning?: string; strong?: boolean } {
   const rows = sheet.rows;
   const nonEmpty = rows.some((r) => r.some((c) => c));
   const empty = {
@@ -526,6 +538,8 @@ function readSheet(sheet: ParsedSheet, schema: SchemaSpec): { rows: ReadRow[]; i
   const shown = columns.filter((c) => c.header || c.field);
   return {
     rows: out,
+    // cabeçalho de verdade: achado pelos títulos, com a coluna do nome e mais um campo
+    strong: headerIdx >= 0 && !inferred && mappedFields.size >= 2,
     ignored,
     info: { name: sheet.name, headerRow: headerIdx >= 0 ? headerIdx + 1 : null, columns: shown, read: out.length },
     warning:
@@ -537,20 +551,69 @@ function readSheet(sheet: ParsedSheet, schema: SchemaSpec): { rows: ReadRow[]; i
   };
 }
 
+/**
+ * Lê TODAS as abas da planilha e junta o resultado com inteligência:
+ *  - abas com a tabela (cabeçalho reconhecido) entram; abas de resumo, tabela dinâmica ou listas
+ *    auxiliares ficam de fora quando há outra aba com a tabela de verdade (e dizem por quê);
+ *  - o mesmo registro em várias abas (ex.: a aba "TODOS" repete as pessoas de outra aba) vira um
+ *    só, com os campos vazios completados pelas outras abas; valores diferentes ficam com o da
+ *    primeira aba e geram aviso.
+ */
 export function readSheets(sheets: ParsedSheet[], schema: SchemaSpec): ReadResult {
-  const result: ReadResult = { rows: [], sheets: [], ignored: 0, warnings: [] };
-  for (const sheet of sheets) {
-    const r = readSheet(sheet, schema);
-    result.rows.push(...r.rows);
-    result.ignored += r.ignored;
-    result.sheets.push(r.info);
-    if (r.warning) result.warnings.push(r.warning);
-    else if (!r.rows.length && sheets.length > 1 && sheet.rows.some((x) => x.some(Boolean))) {
-      result.warnings.push(`Nada reconhecível na aba "${sheet.name}".`);
+  const result: ReadResult = { rows: [], sheets: [], ignored: 0, warnings: [], merged: 0 };
+  const lidas = sheets.map((sheet) => ({ sheet, r: readSheet(sheet, schema) }));
+  const temTabela = lidas.some((x) => x.r.strong && x.r.rows.length);
+  const idx = new Map<string, number>();
+  const abaDe = new Map<number, string>();
+  let conflitos = 0;
+  const exemploConflito: string[] = [];
+  for (const { sheet, r } of lidas) {
+    const info = { ...r.info, hidden: sheet.hidden || undefined };
+    const vazia = !sheet.rows.some((x) => x.some(Boolean));
+    // aba sem a tabela (resumo/dinâmica/lista) quando outra aba tem a tabela de verdade
+    if (!vazia && !r.strong && (temTabela || sheet.hidden)) {
+      result.sheets.push({ ...info, read: 0, skipped: sheet.hidden ? 'aba oculta sem a tabela' : 'não tem as colunas da tabela (resumo ou lista auxiliar)' });
+      continue;
     }
+    result.ignored += r.ignored;
+    if (r.warning) result.warnings.push(r.warning);
+    else if (!r.rows.length && sheets.length > 1 && !vazia) result.warnings.push(`Nada reconhecível na aba "${sheet.name}".`);
+    for (const row of r.rows) {
+      const key = schema.identity?.(row.data) ?? `=${JSON.stringify(row.data)}`;
+      const at = idx.get(key);
+      if (at === undefined) {
+        idx.set(key, result.rows.length);
+        abaDe.set(result.rows.length, sheet.name);
+        result.rows.push(row);
+        continue;
+      }
+      // repetido na MESMA aba: segue como está (a conferência de cada importação mostra como "repetido")
+      const base = result.rows[at];
+      if (abaDe.get(at) === sheet.name) {
+        result.rows.push(row);
+        continue;
+      }
+      // mesmo registro em outra aba: completa o que faltava e anota de onde veio
+      for (const [k, v] of Object.entries(row.data)) {
+        if (v === null || v === '') continue;
+        const cur = base.data[k];
+        if (cur === null || cur === undefined || cur === '') base.data[k] = v;
+        else if (norm(String(cur)) !== norm(String(v))) {
+          conflitos++;
+          if (exemploConflito.length < 3) exemploConflito.push(`${base.data.name} (${k}: "${cur}" × "${v}")`);
+        }
+      }
+      base.sources = [...(base.sources ?? [base.source]), row.source];
+      result.merged!++;
+    }
+    result.sheets.push({ ...info, read: r.rows.length });
   }
+  const fora = result.sheets.filter((x) => x.skipped);
+  if (fora.length) result.warnings.push(`Aba(s) sem a tabela, ignorada(s): ${fora.map((x) => `"${x.name}"`).join(', ')}.`);
+  if (result.merged) result.warnings.push(`${result.merged} registro(s) apareciam em mais de uma aba e foram juntados (contados uma vez).`);
+  if (conflitos) result.warnings.push(`${conflitos} informação(ões) diferentes entre abas; ficou a da primeira aba. Ex.: ${exemploConflito.join('; ')}.`);
   if (result.rows.length > MAX_IMPORT) {
-    result.warnings.push(`A planilha tem ${result.rows.length} linhas. Só as primeiras ${MAX_IMPORT} serão consideradas.`);
+    result.warnings.push(`A planilha tem ${result.rows.length} registros. Só os primeiros ${MAX_IMPORT} serão considerados.`);
     result.rows = result.rows.slice(0, MAX_IMPORT);
   }
   return result;
@@ -562,6 +625,7 @@ export function readSheets(sheets: ParsedSheet[], schema: SchemaSpec): ReadResul
 
 export const POSTO_SCHEMA: SchemaSpec = {
   leadingCode: true,
+  identity: (d) => (d.name ? `p:${norm(d.name)}` : null),
   fields: [
     {
       key: 'code',
@@ -585,6 +649,7 @@ export const POSTO_SCHEMA: SchemaSpec = {
 };
 
 export const ITEM_SCHEMA: SchemaSpec = {
+  identity: (d) => (d.name ? `i:${norm(d.name)}|${norm(d.size)}` : null),
   fields: [
     {
       key: 'quantity',
@@ -651,6 +716,11 @@ export function classify(
 
 /** Planilha de colaboradores (RH). */
 export const COLLAB_SCHEMA: SchemaSpec = {
+  // a mesma pessoa: mesma matrícula (sem zeros à esquerda); sem matrícula, o mesmo nome
+  identity: (d) => {
+    const m = String(d.matricula ?? '').replace(/\D/g, '').replace(/^0+/, '');
+    return m ? `m:${m}` : d.name ? `n:${norm(d.name)}` : null;
+  },
   fields: [
     { key: 'matricula', kind: 'text', synonyms: ['matricula', 'mat', 're', 'registro', 'chapa', 'codigo do colaborador', 'cod colaborador'] },
     { key: 'camisa', kind: 'text', synonyms: ['tamanho camisa', 'tam camisa', 'camisa', 'tamanho da camisa', 'blusa', 'tamanho roupa', 'tamanho do fardamento'] },
@@ -668,6 +738,10 @@ export const COLLAB_SCHEMA: SchemaSpec = {
 
 /** Planilha de fornecedores (Compras). A ordem importa: telefone e e-mail antes de "contato". */
 export const SUPPLIER_SCHEMA: SchemaSpec = {
+  identity: (d) => {
+    const c = String(d.cnpj ?? '').replace(/\D/g, '');
+    return c.length >= 11 ? `c:${c}` : d.name ? `n:${norm(d.name)}` : null;
+  },
   fields: [
     { key: 'cnpj', kind: 'text', synonyms: ['cnpj', 'cnpj cpf', 'cpf cnpj', 'cpf', 'documento', 'cnpj do fornecedor', 'inscricao federal'] },
     { key: 'trade_name', kind: 'text', synonyms: ['nome fantasia', 'fantasia', 'apelido', 'marca'] },

@@ -240,3 +240,72 @@
 .imp-abas .filter-seg {
   flex-wrap: wrap;
 }
+.imp-aba-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.imp-aba {
+  display: grid;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--onix-2);
+  font-size: 13px;
+}
+.imp-aba em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 12px;
+}
+.imp-aba.is-off {
+  opacity: 0.55;
+}
+.imp-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.imp-card {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--onix-2);
+}
+.imp-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.imp-card b {
+  font-family: var(--font-display);
+  font-size: 22px;
+}
+.imp-card em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.imp-card.is-on {
+  border-color: var(--lilac);
+  background: var(--lilac-soft);
+}
+.imp-card:not(.is-static):hover {
+  border-color: var(--line-strong);
+}
+.imp-warn {
+  color: var(--amber);
+}
+.modal .t-table td small {
+  display: block;
+  color: var(--muted);
+}
+.dl-anteriores summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 6px 0;
+}

@@ -206,102 +206,118 @@ export async function lerControleFarda(buf: Buffer | ArrayBuffer, nome = 'planil
   } catch {
     throw new FardaFileError('Não consegui abrir esta planilha. Salve de novo no Excel como .xlsx e tente outra vez.');
   }
-  // a aba das entregas: a que tem Funcionário + Data de Entrega no cabeçalho (preferindo "Controle")
-  let melhor: { ws: ExcelJS.Worksheet; linha: number; nota: number } | null = null;
+  // TODAS as abas com entregas (cabeçalho com Funcionário e mais duas colunas conhecidas):
+  // ex.: uma aba por ano ou por empresa. Resumos e tabelas dinâmicas ficam de fora.
+  const abas: { ws: ExcelJS.Worksheet; linha: number }[] = [];
+  const ignoradas: string[] = [];
   for (const ws of wb.worksheets) {
+    let melhor: { linha: number; nota: number } | null = null;
     for (let r = 1; r <= Math.min(15, ws.actualRowCount + 5); r++) {
       const cols = new Set<Col>();
       ws.getRow(r).eachCell((c) => {
         const k = campo(String(valor(c.value) ?? ''));
         if (k) cols.add(k);
       });
-      const nota = cols.size + (cols.has('func') ? 3 : 0) + (cols.has('entrega') ? 2 : 0) + (/controle/i.test(ws.name) ? 1 : 0);
-      if (cols.has('func') && cols.size >= 3 && (!melhor || nota > melhor.nota)) melhor = { ws, linha: r, nota };
+      const nota = cols.size + (cols.has('entrega') ? 2 : 0);
+      if (cols.has('func') && cols.size >= 3 && (!melhor || nota > melhor.nota)) melhor = { linha: r, nota };
     }
+    if (melhor) abas.push({ ws, linha: melhor.linha });
+    else if (ws.actualRowCount > 0) ignoradas.push(ws.name);
   }
-  if (!melhor) throw new FardaFileError('Não encontrei a aba com as entregas (precisa ter as colunas Funcionário, Posto e Data de Entrega).');
-  const { ws, linha } = melhor;
-  const head: { col: number; texto: string }[] = [];
-  ws.getRow(linha).eachCell((c, col) => head.push({ col, texto: String(valor(c.value) ?? '') }));
-  const fixo = new Map<Col, number>();
-  const pecas: {
-    col: number;
-    qcol: number | null;
-    def: NonNullable<ReturnType<typeof pecaDe>>;
-  }[] = [];
-  for (const [k, h] of head.entries()) {
-    const c = campo(h.texto);
-    if (c && !fixo.has(c)) {
-      fixo.set(c, h.col);
-      continue;
-    }
-    const p = pecaDe(h.texto);
-    if (p) {
-      const prox = head[k + 1];
-      pecas.push({
-        col: h.col,
-        qcol: prox && /^qtd|^quant/i.test(fold(prox.texto)) ? prox.col : null,
-        def: p,
-      });
-    }
-  }
+  if (!abas.length) throw new FardaFileError('Não encontrei nenhuma aba com as entregas (precisa ter as colunas Funcionário, Posto e Data de Entrega).');
   const entregas: Entrega[] = [];
+  const vistos = new Map<string, number>();
   let semData = 0;
   let semQtd = 0;
-  const ultima = ws.actualRowCount + 50;
-  let vazias = 0;
-  for (let r = linha + 1; r <= Math.min(ws.rowCount, 200_000); r++) {
-    const row = ws.getRow(r);
-    const get = (c: Col) => (fixo.has(c) ? valor(row.getCell(fixo.get(c)!).value) : null);
-    const func = limpa(get('func')).toUpperCase();
-    if (!func || /^total/i.test(func)) {
-      if (++vazias > 400 && r > ultima) break;
-      continue;
-    }
-    vazias = 0;
-    const d = data(get('entrega'));
-    const s = data(get('solic'));
-    const m = d?.slice(0, 7) ?? mesAno(get('mes')) ?? s?.slice(0, 7) ?? null;
-    if (!m) {
-      semData++;
-      continue;
-    }
-    const itens: Peca[] = [];
-    for (const p of pecas) {
-      const v = valor(row.getCell(p.col).value);
-      if (vazio(v) && !(typeof v === 'number' && v > 0)) continue;
-      let q = p.qcol ? qtd(valor(row.getCell(p.qcol).value)) : 1;
-      if (q === null) {
-        // peça marcada sem quantidade: conta 1 e avisa
-        semQtd++;
-        q = 1;
+  let repetidas = 0;
+  const lidas: { nome: string; n: number }[] = [];
+  for (const { ws, linha } of abas) {
+    const head: { col: number; texto: string }[] = [];
+    ws.getRow(linha).eachCell((c, col) => head.push({ col, texto: String(valor(c.value) ?? '') }));
+    const fixo = new Map<Col, number>();
+    const pecas: { col: number; qcol: number | null; def: NonNullable<ReturnType<typeof pecaDe>> }[] = [];
+    for (const [k, h] of head.entries()) {
+      const c = campo(h.texto);
+      if (c && !fixo.has(c)) {
+        fixo.set(c, h.col);
+        continue;
       }
-      if (p.def.tipo === 'fixa') itens.push([p.def.nome, tamanho(v), q]);
-      else {
-        const [nome, tam] = separa(String(v), p.def.tipo === 'calcado');
-        if (nome) itens.push([nome, tam, q]);
+      const p = pecaDe(h.texto);
+      if (p) {
+        const prox = head[k + 1];
+        pecas.push({ col: h.col, qcol: prox && /^qtd|^quant/i.test(fold(prox.texto)) ? prox.col : null, def: p });
       }
     }
-    entregas.push({
-      e: empresa(get('empresa')),
-      s,
-      q: limpa(get('solicitante')).toUpperCase() || 'Não informado',
-      f: func,
-      fn: limpa(get('funcao')).toUpperCase() || 'Não informada',
-      p: limpa(get('posto')).toUpperCase() || 'Não informado',
-      d,
-      m,
-      i: itens,
-    });
+    let n = 0;
+    const ultima = ws.actualRowCount + 50;
+    let vazias = 0;
+    for (let r = linha + 1; r <= Math.min(ws.rowCount, 200_000); r++) {
+      const row = ws.getRow(r);
+      const get = (c: Col) => (fixo.has(c) ? valor(row.getCell(fixo.get(c)!).value) : null);
+      const func = limpa(get('func')).toUpperCase();
+      if (!func || /^total/i.test(func)) {
+        if (++vazias > 400 && r > ultima) break;
+        continue;
+      }
+      vazias = 0;
+      const d = data(get('entrega'));
+      const s = data(get('solic'));
+      const m = d?.slice(0, 7) ?? mesAno(get('mes')) ?? s?.slice(0, 7) ?? null;
+      if (!m) {
+        semData++;
+        continue;
+      }
+      const itens: Peca[] = [];
+      for (const p of pecas) {
+        const v = valor(row.getCell(p.col).value);
+        if (vazio(v) && !(typeof v === 'number' && v > 0)) continue;
+        let q = p.qcol ? qtd(valor(row.getCell(p.qcol).value)) : 1;
+        if (q === null) {
+          // peça marcada sem quantidade: conta 1 e avisa
+          semQtd++;
+          q = 1;
+        }
+        if (p.def.tipo === 'fixa') itens.push([p.def.nome, tamanho(v), q]);
+        else {
+          const [nome, tam] = separa(String(v), p.def.tipo === 'calcado');
+          if (nome) itens.push([nome, tam, q]);
+        }
+      }
+      const e: Entrega = {
+        e: empresa(get('empresa')),
+        s,
+        q: limpa(get('solicitante')).toUpperCase() || 'Não informado',
+        f: func,
+        fn: limpa(get('funcao')).toUpperCase() || 'Não informada',
+        p: limpa(get('posto')).toUpperCase() || 'Não informado',
+        d,
+        m,
+        i: itens,
+      };
+      // a mesma entrega copiada em duas abas (ex.: "2026" e "TODAS") conta uma vez só
+      const chave = `${fold(e.f)}|${e.d ?? e.m}|${fold(e.p)}|${JSON.stringify(e.i)}`;
+      const de = vistos.get(chave);
+      if (de !== undefined && de !== lidas.length) {
+        repetidas++;
+        continue;
+      }
+      vistos.set(chave, lidas.length);
+      entregas.push(e);
+      n++;
+    }
+    lidas.push({ nome: ws.name, n });
   }
   unificaNomes(entregas);
-  if (!entregas.length) throw new FardaFileError(`A aba "${ws.name}" não tem entregas preenchidas.`);
+  if (!entregas.length) throw new FardaFileError(`${abas.length > 1 ? 'As abas' : 'A aba'} ${abas.map((a) => `"${a.ws.name}"`).join(', ')} não têm entregas preenchidas.`);
   const avisos: string[] = [];
+  const comDados = lidas.filter((l) => l.n);
+  if (comDados.length > 1) avisos.push(`Entregas lidas de ${comDados.length} abas: ${comDados.map((l) => `${l.nome} (${l.n})`).join(', ')}.`);
+  if (repetidas) avisos.push(`${repetidas} entrega(s) repetidas em mais de uma aba foram contadas uma vez.`);
   if (semData) avisos.push(`${semData} linha(s) sem data de entrega nem mês ficaram de fora.`);
   if (semQtd) avisos.push(`${semQtd} peça(s) estavam sem quantidade e foram contadas como 1.`);
   const semPeca = entregas.filter((e) => !e.i.length).length;
   if (semPeca) avisos.push(`${semPeca} entrega(s) sem nenhuma peça preenchida (contam como entrega, sem peças).`);
-  return { aba: ws.name, entregas, avisos };
+  return { aba: comDados.map((l) => l.nome).join(' + ') || abas[0].ws.name, entregas, avisos };
 }
 
 function distancia(a: string, b: string): number {

@@ -86,7 +86,7 @@ export function DesligarSheet({ c, onClose, onDone }: { c: { id: string; name: s
     if (semNome) return setErro('Dê um nome ao item incluído ou remova a linha.');
     setBusy(true);
     try {
-      await api(`/api/rh/colaboradores/${c.id}/desligamento`, {
+      const j = await api<{ pedidosAbertos?: number[] }>(`/api/rh/colaboradores/${c.id}/desligamento`, {
         method: 'POST',
         json: {
           date,
@@ -106,6 +106,9 @@ export function DesligarSheet({ c, onClose, onDone }: { c: { id: string; name: s
         },
       });
       toast({ kind: 'success', title: 'Desligamento registrado', text: conta.pend ? `${conta.pend} item(ns) pendente(s) ficam em Devoluções para acompanhar.` : 'Conferência completa.' }, 8000);
+      // pedidos de material ainda abertos para a pessoa: precisam ser cancelados ou concluídos em Pedidos
+      if (j.pedidosAbertos?.length)
+        toast({ kind: 'info', title: `${j.pedidosAbertos.length} pedido(s) de material em aberto`, text: `Pedido(s) ${j.pedidosAbertos.map((x) => `#${x}`).join(', ')} desta pessoa continuam abertos. Cancele em Pedidos para liberar a reserva do estoque.` }, 15000);
       onDone();
     } catch (e) {
       setErro((e as Error).message);

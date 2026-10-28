@@ -37,6 +37,7 @@ export async function POST(req: Request) {
     if (!(await temDesligamento())) return deslFail();
     const { data: c } = await db().from('collaborators').select('id, active, dismissed_at').eq('id', b.collaborator_id).maybeSingle();
     if (!c) return fail('Colaborador não encontrado.', 404);
+    if (c.active) return fail('A conferência da devolução é feita no desligamento. Este colaborador está ativo.', 409);
     const r = itemDevolucao({ ...b, source: 'manual' }, todayBahia());
     if ('error' in r) return fail(r.error);
     const { data, error } = await db()

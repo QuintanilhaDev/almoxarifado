@@ -18,10 +18,12 @@ create table if not exists public.admins (
   updated_at    timestamptz not null default now()
 );
 
--- Senha inicial dos dois usuários: 123456  (hash bcrypt)
+-- Os dois usuários nascem SEM senha que funcione (o repositório é público).
+-- O master define a senha de cada um no painel (Usuários) ou no SQL Editor:
+--   update public.admins set password_hash = crypt('SENHA', gen_salt('bf', 10)) where username = 'neilton';
 insert into public.admins (username, display_name, password_hash) values
-  ('neilton', 'Neilton', '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW'),
-  ('juliana', 'Juliana', '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW')
+  ('neilton', 'Neilton', '!sem-senha-defina-no-painel'),
+  ('juliana', 'Juliana', '!sem-senha-defina-no-painel')
 on conflict (username) do nothing;
 
 -- ---------------------------------------------------------------------

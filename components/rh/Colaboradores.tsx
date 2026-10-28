@@ -11,7 +11,7 @@ import { fold, num } from '@/lib/almoxarifado/stockFormat';
 import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/types';
 import { ItemPicker, dateBR, type PickItem } from '../pedidos/ui';
 import { DesligarSheet, DevolucaoFicha, DevolucoesView } from './Desligamento';
-import { clienteDe, type Devolucao } from '@/lib/rh/devolucao';
+import { arquivada, clienteDe, type Devolucao } from '@/lib/rh/devolucao';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
 import '../pedidos/pedidos.css';
@@ -308,30 +308,40 @@ interface ImportData {
   rows: Record<string, unknown>[];
   columns: string[];
   warnings: string[];
-  abas?: { nome: string; linhas: number }[];
+  abas?: { nome: string; linhas: number; ignorada: string | null; oculta: boolean }[];
+  juntados?: number;
+  resumo?: { novos: number; atualizar: number; desligados: number; semMatricula: number; semFuncao: number; clientes: { nome: string; n: number }[]; funcoes: { nome: string; n: number }[] };
   empresa?: string;
 }
+type StatusImp = 'novo' | 'atualizar' | 'desligado';
+const IMP_LABEL: Record<StatusImp, string> = { novo: 'Novo', atualizar: 'Atualiza', desligado: 'Desligado' };
 
-/** conferência da importação: escolhe a aba (planilhas com várias) e a empresa de quem não tem */
+/**
+ * Conferência da importação: TODAS as abas são lidas e a mesma pessoa em várias abas vira uma só.
+ * Mostra de onde veio cada um, quem é novo, quem será atualizado e o que falta na planilha.
+ */
 function ImportSheet({ data, onDone, onClose }: { data: ImportData; onDone: () => void; onClose: () => void }) {
   const toast = useToast();
-  const abas = data.abas ?? [];
-  const [aba, setAba] = useState(abas[0]?.nome ?? '');
   const [empresa, setEmpresa] = useState(data.empresa ?? '');
   const [busy, setBusy] = useState(false);
-  const rows = useMemo(
-    () => data.rows.filter((r) => abas.length < 2 || !aba || r._aba === aba).map(({ _aba, ...r }): Record<string, unknown> => ({ ...r, company: r.company || empresa || null })),
-    [data.rows, abas.length, aba, empresa],
-  );
+  const [filtro, setFiltro] = useState<StatusImp | ''>('');
+  const [q, setQ] = useState('');
+  const rows = useMemo(() => data.rows.map(({ _abas, _status, ...r }): Record<string, unknown> => ({ ...r, company: r.company || empresa || null })), [data.rows, empresa]);
+  const vis = useMemo(() => {
+    const t = fold(q.trim());
+    return data.rows.filter((r) => (!filtro || r._status === filtro) && (!t || fold(`${r.name} ${r.matricula ?? ''} ${r.role ?? ''} ${r.client ?? ''}`).includes(t)));
+  }, [data.rows, filtro, q]);
+  const res = data.resumo;
+  const abas = data.abas ?? [];
   const go = async () => {
     setBusy(true);
     try {
-      const j = await api<{ created: number; updated: number; errors: string[] }>('/api/rh/colaboradores', { method: 'POST', json: { rows } });
+      const j = await api<{ created: number; updated: number; unchanged?: number; errors: string[] }>('/api/rh/colaboradores', { method: 'POST', json: { rows } });
       toast(
         {
           kind: j.errors.length ? 'info' : 'success',
-          title: `${j.created} cadastrado(s), ${j.updated} atualizado(s)`,
-          text: j.errors.length ? `${j.errors.length} linha(s) com problema: ${j.errors.slice(0, 2).join('; ')}` : undefined,
+          title: `${num(j.created)} cadastrado(s), ${num(j.updated)} atualizado(s)${j.unchanged ? `, ${num(j.unchanged)} sem mudança` : ''}`,
+          text: j.errors.length ? `${j.errors.length} com problema: ${j.errors.slice(0, 2).join('; ')}` : undefined,
         },
         10000,
       );
@@ -342,21 +352,46 @@ function ImportSheet({ data, onDone, onClose }: { data: ImportData; onDone: () =
     }
   };
   return (
-    <Sheet title="Importar colaboradores" lead={`${rows.length} pessoa(s) para importar. Quem já existe (mesma matrícula) é atualizado; o resto é cadastrado.`} onClose={onClose}>
+    <Sheet title="Importar colaboradores" lead={`${num(rows.length)} pessoa(s) encontradas em ${abas.filter((a) => !a.ignorada && a.linhas).length || 1} aba(s). Confira antes de importar.`} onClose={onClose} wide>
       {abas.length > 1 ? (
         <div className="imp-abas">
-          <span className="label">Qual aba importar?</span>
-          <div className="filter-seg">
+          <span className="label">Abas da planilha</span>
+          <div className="imp-aba-list">
             {abas.map((a) => (
-              <button key={a.nome} type="button" className={aba === a.nome ? 'is-active' : ''} onClick={() => setAba(a.nome)}>
-                {a.nome} <em>{num(a.linhas)}</em>
-              </button>
+              <span key={a.nome} className={`imp-aba${a.ignorada ? ' is-off' : ''}`} title={a.ignorada ?? undefined}>
+                <b>{a.nome}</b>
+                <em>{a.ignorada ? `ignorada: ${a.ignorada}` : `${num(a.linhas)} pessoa(s)${a.oculta ? ' · oculta' : ''}`}</em>
+              </span>
             ))}
-            <button type="button" className={!aba ? 'is-active' : ''} onClick={() => setAba('')}>
-              Todas
-            </button>
+          </div>
+          {data.juntados ? <p className="help">{num(data.juntados)} pessoa(s) aparecem em mais de uma aba e entram uma vez só (pela matrícula), com os dados completados pelas outras abas.</p> : null}
+        </div>
+      ) : null}
+      {res ? (
+        <div className="imp-resumo">
+          {(['novo', 'atualizar', 'desligado'] as StatusImp[]).map((k) => {
+            const n = k === 'novo' ? res.novos : k === 'atualizar' ? res.atualizar : res.desligados;
+            if (!n && k === 'desligado') return null;
+            return (
+              <button key={k} type="button" className={`imp-card${filtro === k ? ' is-on' : ''}`} onClick={() => setFiltro(filtro === k ? '' : k)}>
+                <small>{k === 'novo' ? 'Novos cadastros' : k === 'atualizar' ? 'Já cadastrados (atualiza)' : 'Desligados (continuam desligados)'}</small>
+                <b>{num(n)}</b>
+              </button>
+            );
+          })}
+          <div className="imp-card is-static">
+            <small>Atenção</small>
+            <b className="imp-warn">{num(res.semMatricula + res.semFuncao)}</b>
+            <em>
+              {res.semMatricula} sem matrícula · {res.semFuncao} sem função
+            </em>
           </div>
         </div>
+      ) : null}
+      {res?.clientes.length ? (
+        <p className="help">
+          Clientes com mais gente: {res.clientes.slice(0, 5).map((c) => `${c.nome} (${c.n})`).join(' · ')}
+        </p>
       ) : null}
       <label className="imp-emp">
         <span className="label">Empresa (para quem não tem na planilha)</span>
@@ -364,20 +399,40 @@ function ImportSheet({ data, onDone, onClose }: { data: ImportData; onDone: () =
       </label>
       {data.columns.length ? <p className="help">Colunas reconhecidas: {data.columns.join(' · ')}</p> : null}
       {data.warnings.length ? <p className="help">{data.warnings.join(' ')}</p> : null}
-      <div className="t-wrap" style={{ maxHeight: 260 }}>
+      <div className="search" style={{ marginBottom: 8 }}>
+        <Search size={16} />
+        <input className="input" placeholder="Buscar na planilha" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar na planilha" />
+      </div>
+      <div className="t-wrap" style={{ maxHeight: 300 }}>
         <table className="t-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Função</th>
+              <th>Cliente</th>
+              <th>Aba</th>
+              <th />
+            </tr>
+          </thead>
           <tbody>
-            {rows.slice(0, 50).map((r, i) => (
+            {vis.slice(0, 200).map((r, i) => (
               <tr key={i}>
-                <td>{String(r.name ?? '')}</td>
-                <td>{String(r.matricula ?? '')}</td>
-                <td>{String(r.role ?? '')}</td>
-                <td>{String(r.client ?? r.posto ?? '')}</td>
+                <td>
+                  <b>{String(r.name ?? '')}</b>
+                  <small>{r.matricula ? `Matrícula ${r.matricula}` : 'Sem matrícula'}</small>
+                </td>
+                <td>{String(r.role ?? '—')}</td>
+                <td>{String(r.client ?? r.posto ?? '—')}</td>
+                <td>
+                  <small>{String(r._abas ?? '')}</small>
+                </td>
+                <td>{r._status ? <span className={`pbadge ${r._status === 'novo' ? 'lilac' : r._status === 'desligado' ? 'gray' : 'green'}`}>{IMP_LABEL[r._status as StatusImp]}</span> : null}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {vis.length > 200 ? <p className="help">Mostrando 200 de {num(vis.length)}. Use a busca para achar alguém.</p> : null}
       <div className="modal-actions">
         <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
           Cancelar
@@ -397,6 +452,7 @@ function CollabForm({ c, roles, onClose, onSaved }: { c: Collab | null; roles: s
     role: c?.role ?? '',
     posto_name: c?.posto_name ?? '',
     company: c?.company ?? '',
+    client: c?.client ?? '',
     admitted_at: c?.admitted_at ?? '',
     phone: c?.phone ?? '',
     camisa: c?.sizes?.camisa ?? '',
@@ -425,6 +481,7 @@ function CollabForm({ c, roles, onClose, onSaved }: { c: Collab | null; roles: s
         role: f.role,
         posto_name: f.posto_name,
         company: f.company,
+        client: f.client,
         admitted_at: f.admitted_at,
         phone: f.phone,
         notes: f.notes,
@@ -475,6 +532,12 @@ function CollabForm({ c, roles, onClose, onSaved }: { c: Collab | null; roles: s
               Posto
             </label>
             <input id="c-posto" className="input" list="c-postos" value={f.posto_name} maxLength={120} onChange={(e) => set('posto_name', e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="c-cli">
+              Cliente
+            </label>
+            <input id="c-cli" className="input" value={f.client} maxLength={120} onChange={(e) => set('client', e.target.value)} placeholder="Tomador do serviço" />
           </div>
           <div>
             <label className="label" htmlFor="c-comp">
@@ -724,7 +787,7 @@ function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: C
           </button>
         </div>
         <div className="drawer-body">
-          {!c.active && detail?.desligamento ? <DevolucaoFicha c={c} itens={detail.returns ?? []} canEdit={canEdit} onChange={() => setN((x) => x + 1)} /> : null}
+          {!c.active && detail?.desligamento ? <DevolucaoFicha c={c} itens={(detail.returns ?? []).filter((x) => !arquivada(x))} canEdit={canEdit} onChange={() => setN((x) => x + 1)} /> : null}
           <div className="mini-stats">
             <div>
               <small>Camisa</small>
@@ -772,6 +835,21 @@ function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: C
               ))
             )}
           </div>
+          {(detail?.returns ?? []).some(arquivada) ? (
+            <details className="dl-anteriores">
+              <summary>Devoluções de um desligamento anterior ({(detail?.returns ?? []).filter(arquivada).length})</summary>
+              {(detail?.returns ?? []).filter(arquivada).map((r) => (
+                <div className="kv-row" key={r.id}>
+                  <span>
+                    {r.qty_delivered ? `${r.qty_delivered}× ` : ''}
+                    {r.item_name}
+                    {r.size ? ` ${r.size}` : ''}
+                  </span>
+                  <b>{r.status === 'devolvido' ? 'Devolvido' : r.status === 'nao_devolvido' ? 'Não devolvido' : 'Pendente'}</b>
+                </div>
+              ))}
+            </details>
+          ) : null}
           <div>
             <h3 className="sec-title">Pedidos</h3>
             {!detail ? null : detail.orders.length === 0 ? (

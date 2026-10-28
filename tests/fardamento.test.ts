@@ -95,6 +95,23 @@ async function planilha() {
   ok(ano.anoAnterior !== null && ano.anoAnterior.entregas === 3, 'compara com o mesmo período do ano anterior');
 
   ok(s.parcial?.mes === '2026-03' && s.parcial.ate === '2026-03-01', 'último mês ainda em andamento (entregas só até 01/03) fica marcado');
+  {
+    // duas abas: "2025" e "TODAS" (que repete as de 2025 e traz mais uma): lê as duas e não duplica
+    const wb = new ExcelJS.Workbook();
+    const cab = ['Empresa', 'Funcionário', 'Função', 'Posto', 'Data de Entrega', 'CALÇA', 'QTD CALÇA'];
+    const l1 = ['MAX FORTE', 'ANA TESTE', 'VIGIA', 'POSTO A', new Date(Date.UTC(2025, 4, 2)), 44, 2];
+    const l2 = ['MAX FORTE', 'BIA TESTE', 'VIGIA', 'POSTO B', new Date(Date.UTC(2026, 0, 9)), 46, 1];
+    const a = wb.addWorksheet('2025');
+    a.addRow(cab);
+    a.addRow(l1);
+    const b = wb.addWorksheet('TODAS');
+    b.addRow(cab);
+    b.addRow(l1);
+    b.addRow(l2);
+    wb.addWorksheet('Resumo').addRow(['Soma de QTD', 'Total']);
+    const r2 = await lerControleFarda(Buffer.from(await wb.xlsx.writeBuffer()), 'x.xlsx');
+    ok(r2.entregas.length === 2 && r2.avisos.some((x) => /repetidas em mais de uma aba/.test(x)), 'lê todas as abas e não duplica a entrega repetida: ' + r2.entregas.length + ' / ' + r2.avisos.join(' '));
+  }
   let erro = '';
   try {
     const wb = new ExcelJS.Workbook();
@@ -103,7 +120,7 @@ async function planilha() {
   } catch (e) {
     erro = (e as Error).message;
   }
-  ok(/Não encontrei a aba/.test(erro), 'planilha errada: mensagem clara');
+  ok(/Não encontrei nenhuma aba/.test(erro), 'planilha errada: mensagem clara');
 
   console.log(fails ? `\n${fails} FALHA(S)` : '\nTUDO CERTO');
   process.exit(fails ? 1 : 0);

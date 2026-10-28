@@ -238,7 +238,7 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 1. **Supabase:** crie o projeto (região *South America (São Paulo)*) e, no **SQL Editor**, rode nesta ordem: `supabase/schema.sql`, `supabase/estoque.sql`, `supabase/seed_estoque.sql` (opcional, carga inicial), `supabase/baixa_e_usuarios.sql`, `supabase/maxhub.sql`, `supabase/categorias.sql`, `supabase/max_aprendizado.sql` e `supabase/compras.sql`. Em **Project Settings → Realtime**, deixe **Allow public access** ligado.
 2. **GitHub:** crie um repositório **privado** e envie o conteúdo deste projeto.
 3. **Vercel:** importe o repositório e cadastre as variáveis do arquivo `.env.example` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`). Clique em **Deploy**.
-4. Os usuários iniciais são `master` (senha `berrythedev45`), `neilton` e `juliana` (senha `123456`). Entre com `master`, troque as senhas e ajuste os acessos no painel master.
+4. Os usuários iniciais (`master`, `neilton` e `juliana`) nascem **sem senha** que funcione, porque o repositório é público e nenhuma senha pode ficar escrita nele. No **SQL Editor**, defina a do master com `update admins set password_hash = crypt('SUA-SENHA', gen_salt('bf', 10)) where username = 'master';`. Depois entre com `master`, defina as senhas dos outros em **Usuários** e ajuste os acessos.
 
 > Mudou alguma variável? Altere em **Settings → Environment Variables** e faça **Redeploy**.
 
@@ -627,7 +627,7 @@ middleware.ts              barra quem não está logado
 | "Falta rodar o arquivo baixa_e_usuarios.sql" ao dar baixa | Rode `supabase/baixa_e_usuarios.sql` no SQL Editor. |
 | Estoque ou Postos mostram "Não foi possível carregar" | Rode `supabase/estoque.sql` no SQL Editor e recarregue a página. |
 | Alguém esqueceu a senha | O master geral abre **Painel master → Usuários**, clica na pessoa e define uma **Nova senha**. |
-| O master geral esqueceu a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = '$2b$10$c3tnk4UPkHj9.kv9pl7KsuDlaHAWcXU2EzcaZSKcTtwSADSM2pAIW' where username = 'mateus';`. A senha volta a ser `123456`; troque em seguida. |
+| O master geral esqueceu a senha | No Supabase, em **SQL Editor**, rode: `update admins set password_hash = crypt('NOVA-SENHA', gen_salt('bf', 10)) where username = 'mateus';` (troque `NOVA-SENHA` pela senha que quiser). Não use senhas que apareçam neste repositório. |
 | "As solicitações de compra ainda não foram ativadas no banco" | Rode `supabase/compras.sql` no SQL Editor. |
 | "O aprendizado da Max ainda não foi ativado no banco" | Rode `supabase/max_aprendizado.sql` no SQL Editor. |
 | "As categorias ainda não foram ativadas no banco" | Rode `supabase/categorias.sql` no SQL Editor. |
@@ -711,6 +711,19 @@ Painel master → **Gestão → Fardamento**. Organiza a planilha de controle de
 - Se o cadastro não tem posto, vale o último posto da planilha de controle de fardamento.
 
 **Importar a planilha de colaboradores:** a coluna "Descrição Serviço" vira o cliente.
-- Planilha com várias abas (ex.: "SEM O TRE" e "TODOS"): a tela pergunta qual aba importar.
+- Planilha com várias abas (ex.: "SEM O TRE" e "TODOS"): **todas as abas são lidas**. A mesma pessoa em mais de uma aba (mesma matrícula; "00123" e "123" contam como iguais) entra uma vez só, com os dados completados pelas outras abas. Antes de importar, a conferência mostra de quais abas veio cada pessoa, quantas são novas, quantas já estão cadastradas (só o que mudou é atualizado) e quantas já foram desligadas (continuam desligadas).
 - A empresa é sugerida pelo nome do arquivo (ex.: `Colaboradores_Max_Servicos.xlsx` → Max Serviços).
 - CPF e data de nascimento não são gravados.
+
+## Leitura de planilhas (todas as importações)
+
+Vale para estoque, postos, fornecedores, colaboradores, controle de fardamento e espelho de ponto.
+- **Todas as abas são lidas**, inclusive as ocultas.
+- Só entram as abas que têm a tabela, ou seja, o cabeçalho com as colunas reconhecidas. Abas de resumo, tabelas dinâmicas e listas auxiliares ficam de fora, e a conferência diz qual aba foi ignorada e por quê.
+- **O mesmo registro em várias abas entra uma vez só:**
+  - a mesma pessoa, pela matrícula;
+  - o mesmo item, pelo nome e tamanho;
+  - o mesmo fornecedor, pelo CNPJ;
+  - o mesmo posto, pelo nome.
+  O que estiver vazio numa aba é completado pela outra. Se as abas discordarem, fica o valor da primeira aba, com aviso. Assim, um saldo repetido em duas abas não é somado duas vezes.
+- **Controle de fardamento:** entregas de várias abas (uma por ano, por exemplo) são somadas, e a mesma entrega copiada em duas abas conta uma vez.

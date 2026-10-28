@@ -79,11 +79,12 @@ try {
   await p.setInputFiles('input[aria-label="Planilha de colaboradores"]', rhFile);
   await p.waitForSelector('.imp-abas', { timeout: 20000 });
   const imp = (await p.locator('.modal').innerText()).replace(/\s+/g, ' ');
-  ok(/SEM O TRE 2/.test(imp) && /TODOS 3/.test(imp) && /Importar 2\b/.test(imp), 'mostra as duas abas e importa só a primeira (2 pessoas)');
+  ok(/SEM O TRE 2 pessoa/.test(imp) && /TODOS 3 pessoa/.test(imp) && /Importar 3\b/.test(imp), 'lê as duas abas e junta quem aparece nas duas (3 pessoas): ' + imp.slice(0, 160));
+  ok(/2 pessoa\(s\) aparecem em mais de uma aba/.test(imp) && /Novos cadastros 3/.test(imp), 'mostra quantas foram juntadas e quantas são novas');
   ok(/Descrição Serviço → cliente/.test(imp) && (await p.inputValue('input[aria-label="Empresa"]')) === 'Max Serviços', 'reconhece o cliente e a empresa pelo nome do arquivo');
   await p.click('.modal .btn-primary');
   await p.waitForSelector('tr:has-text("JOSE TESTE DESLIGADO")', { timeout: 20000 });
-  ok((await p.locator('tr:has-text("PEDRO TESTE TRE")').count()) === 0, 'quem só está na aba TODOS não entrou');
+  ok((await p.locator('tr:has-text("PEDRO TESTE TRE")').count()) === 1, 'quem só está na aba TODOS também entrou');
 
   console.log('\n[3] Registrar desligamento com a conferência');
   await p.waitForSelector('.modal', { state: 'detached', timeout: 10000 }).catch(() => undefined);

@@ -76,12 +76,6 @@ export async function POST(req: Request, ctx: Ctx) {
         ],
       });
     }
-    let novos: string[] = [];
-    if (rows.length) {
-      const { data: ins, error } = await db().from('collaborator_returns').insert(rows).select('id');
-      if (error) throw error;
-      novos = (ins ?? []).map((x) => x.id as string);
-    }
     // posto: se o cadastro não tem, fica o último posto da planilha de fardamento
     let posto = c.posto_name;
     if (!posto) posto = (await itensEntregues({ id, name: c.name })).postoPlanilha;
@@ -94,15 +88,23 @@ export async function POST(req: Request, ctx: Ctx) {
       updated_at: new Date().toISOString(),
     };
     if (posto && !c.posto_name) patch.posto_name = posto;
-    const { data, error } = await db().from('collaborators').update(patch).eq('id', id).select(cols).maybeSingle();
-    if (error) {
-      // não deixa a conferência solta se o cadastro não foi atualizado
-      if (novos.length) await db().from('collaborator_returns').delete().in('id', novos);
-      throw error;
+    // primeiro o cadastro, e só se ainda estiver ativo: dois cliques (ou duas pessoas) não registram duas vezes
+    const { data, error } = await db().from('collaborators').update(patch).eq('id', id).eq('active', true).select(cols).maybeSingle();
+    if (error) throw error;
+    if (!data) return fail('Este colaborador já está desligado.', 409);
+    if (rows.length) {
+      const { error: e1 } = await db().from('collaborator_returns').insert(rows);
+      if (e1) {
+        // a conferência não entrou: o cadastro volta como estava
+        await db().from('collaborators').update({ active: true, dismissed_at: null, dismissal_reason: null, dismissal_notes: null, dismissed_by: null, posto_name: c.posto_name }).eq('id', id);
+        throw e1;
+      }
     }
+    // pedidos de material ainda abertos para a pessoa: a tela avisa para cancelar ou concluir
+    const { data: abertos } = await db().from('material_orders').select('number, origin, stage').eq('collaborator_id', id).in('stage', ['solicitado', 'validacao', 'encaminhado']).limit(50);
     const { data: dev } = await db().from('collaborator_returns').select(DEV_COLS).eq('collaborator_id', id).order('created_at');
     await broadcast('collab:update', { by: user.display_name });
-    return NextResponse.json({ collaborator: data, returns: dev ?? [] });
+    return NextResponse.json({ collaborator: data, returns: dev ?? [], pedidosAbertos: (abertos ?? []).map((o) => Number(o.number)) });
   } catch (e) {
     if (missingP3(e)) return p3Fail();
     return serverError(e);

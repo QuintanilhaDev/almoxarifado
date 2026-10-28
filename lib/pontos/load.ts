@@ -143,7 +143,8 @@ export async function loadEspelho(buf: Buffer, filename: string): Promise<{ shee
       throw new PontoFileError('Não consegui abrir essa planilha. Confirme que é .xlsx (e sem senha).');
     }
     const sheets: Sheet[] = [];
-    for (const ws of wb.worksheets.filter((w) => w.state !== 'hidden' && w.state !== 'veryHidden')) {
+    // todas as abas, inclusive as ocultas: só vira funcionário o que tiver dias e batidas
+    for (const ws of wb.worksheets) {
       const rows: string[][] = [];
       const rc = Math.min(ws.rowCount || 0, MAX_ROWS);
       const cc = Math.min(ws.columnCount || 0, MAX_COLS);

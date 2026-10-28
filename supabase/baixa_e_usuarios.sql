@@ -7,15 +7,17 @@
 
 -- ---------------------------------------------------------------------
 -- 1) Usuário master
---    Usuário:  master      Senha inicial:  berrythedev45
---    (o banco guarda só o "hash" da senha, nunca a senha em texto).
---    Rodar de novo NÃO volta a senha para a inicial: se o master já
---    existe, só garante que ele continua sendo master.
+--    Usuário: master. Ele nasce SEM senha que funcione (o repositório é
+--    público, então nenhuma senha inicial fica escrita aqui). Defina a
+--    senha logo depois, no SQL Editor:
+--      update public.admins set password_hash = crypt('SUA-SENHA', gen_salt('bf', 10)) where username = 'master';
+--    Rodar de novo NÃO mexe na senha: se o master já existe, só garante
+--    que ele continua sendo master.
 -- ---------------------------------------------------------------------
 alter table public.admins add column if not exists is_master boolean not null default false;
 
 insert into public.admins (username, display_name, password_hash, is_master) values
-  ('master', 'Usuário Master', '$2b$10$i7Ylq7ypQTuAogu0FTg6F.22NvNkrINFyaodhQoAi2fFscmXgapx.', true)
+  ('master', 'Usuário Master', '!sem-senha-defina-no-sql-editor', true)
 on conflict (username) do update set is_master = true;
 
 -- ---------------------------------------------------------------------
