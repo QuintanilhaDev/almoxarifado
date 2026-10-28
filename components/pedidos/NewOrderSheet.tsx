@@ -41,6 +41,13 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
   const blank = (): Line => ({ key: ++seq.current, item_id: null, text: '', size: '', qty: '1', note: null });
   const [lines, setLines] = useState<Line[]>(() => [blank()]);
   const [touched, setTouched] = useState(false);
+  // a resposta do kit pode chegar depois que a pessoa já mexeu nos itens
+  const touchedRef = useRef(false);
+  const touch = () => {
+    touchedRef.current = true;
+    setTouched(true);
+  };
+  const lastChosen = useRef<string | null>(null);
   const [f, setF] = useState({ posto: '', collaborator: '', matricula: '', role: '', company: '', supervisor: '', camisa: '', calca: '', calcado: '', start: '', needed: '', reason: '' });
   const [priority, setPriority] = useState<'normal' | 'urgente'>('normal');
   const [forward, setForward] = useState(true);
@@ -69,6 +76,22 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
   // escolheu um colaborador cadastrado: preenche o resto
   useEffect(() => {
     if (!chosen) return;
+    const trocou = lastChosen.current !== null && lastChosen.current !== chosen.id;
+    lastChosen.current = chosen.id;
+    // trocou de colaborador: os dados do anterior não valem mais
+    if (trocou) {
+      setF((x) => ({
+        ...x,
+        matricula: chosen.matricula || '',
+        role: chosen.role || '',
+        posto: chosen.posto_name || '',
+        company: chosen.company || '',
+        camisa: chosen.sizes?.camisa || '',
+        calca: chosen.sizes?.calca || '',
+        calcado: chosen.sizes?.calcado || '',
+      }));
+      return;
+    }
     setF((x) => ({
       ...x,
       matricula: x.matricula || chosen.matricula || '',
@@ -84,10 +107,12 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
   // admissão: o kit da função entra sozinho (enquanto a pessoa não mexer nos itens)
   useEffect(() => {
     if (type !== 'rh_admissao' || touched || !f.role.trim() || !cat) return;
+    let alive = true;
     const t = setTimeout(async () => {
       try {
         const qs = new URLSearchParams({ role: f.role.trim(), camisa: f.camisa, calca: f.calca, calcado: f.calcado });
         const j = await api<{ kit: { role: string; period_months: number } | null; lines: { item_id: string | null; name: string; size: string | null; qty: number; note?: string | null }[] }>(`/api/rh/kits?${qs}`);
+        if (!alive || touchedRef.current) return;
         if (!j.kit) {
           setKitInfo(`A função "${f.role.trim()}" não tem kit cadastrado.`);
           return;
@@ -103,11 +128,14 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
         /* sem kit: segue à mão */
       }
     }, 350);
-    return () => clearTimeout(t);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
   }, [type, touched, f.role, f.camisa, f.calca, f.calcado, cat]);
 
   const setLine = (key: number, p: Partial<Line>) => {
-    setTouched(true);
+    touch();
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
     setError('');
   };
@@ -297,7 +325,7 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
               <input className="input p-line-size" aria-label={`Tamanho do item ${n + 1}`} placeholder="Tam." value={l.item_id ? '' : l.size} readOnly={Boolean(l.item_id)} tabIndex={l.item_id ? -1 : undefined} maxLength={40} onChange={(e) => setLine(l.key, { size: e.target.value })} />
               <input className="input p-line-qty" aria-label={`Quantidade do item ${n + 1}`} inputMode="numeric" value={l.qty} onChange={(e) => setLine(l.key, { qty: e.target.value.replace(/\D/g, '').slice(0, 5) })} />
               {lines.length > 1 ? (
-                <button type="button" className="icon-btn" onClick={() => { setTouched(true); setLines((ls) => ls.filter((x) => x.key !== l.key)); }} aria-label={`Remover item ${n + 1}`}>
+                <button type="button" className="icon-btn" onClick={() => { touch(); setLines((ls) => ls.filter((x) => x.key !== l.key)); }} aria-label={`Remover item ${n + 1}`}>
                   <X size={16} />
                 </button>
               ) : (
@@ -306,7 +334,7 @@ export function NewOrderSheet({ scope, onClose, onSaved }: { scope: 'operacao' |
             </div>
           ))}
         </div>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLines((ls) => [...ls, blank()])} disabled={lines.length >= 40} style={{ marginBottom: 14 }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => { touch(); setLines((ls) => [...ls, blank()]); }} disabled={lines.length >= 40} style={{ marginBottom: 14 }}>
           <Plus size={15} /> Adicionar item
         </button>
 

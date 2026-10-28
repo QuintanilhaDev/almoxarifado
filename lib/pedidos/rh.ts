@@ -97,7 +97,9 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
       const cid = d.collaborator_id as string | null;
       if (!cid || lastBy.has(cid)) continue;
       const personal = d.cat_code === '01' || d.cat_code === '02' || Boolean(sizeFieldFor(String(d.item_name)));
-      if (personal) lastBy.set(cid, String(d.delivered_at).slice(0, 10));
+      // dia em Salvador (UTC-3): entrega às 21h30 não pode cair no dia seguinte
+      const t = Date.parse(String(d.delivered_at));
+      if (personal) lastBy.set(cid, Number.isFinite(t) ? new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) : String(d.delivered_at).slice(0, 10));
     }
   }
   const { data: open } = await db().from('material_orders').select('number, collaborator_id').eq('origin', 'rh_troca').in('stage', ['validacao', 'encaminhado', 'solicitado']).limit(5000);
@@ -144,6 +146,13 @@ export function cleanSizes(v: unknown): Partial<Record<SizeField, string>> {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** data que existe no calendário (Date.parse aceita 2024-02-31) */
+const dataReal = (iso: string) => {
+  if (!DATE_RE.test(iso)) return false;
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+};
 type Row = Record<string, unknown>;
 
 /** um colaborador a partir do corpo (ou da linha da planilha) */
@@ -161,7 +170,7 @@ export function collabFields(x: Row, postos: { id: string; name: string }[]): { 
   if (adm) {
     const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(adm);
     const iso = br ? `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}` : adm.slice(0, 10);
-    if (!DATE_RE.test(iso) || !Number.isFinite(Date.parse(iso))) return { error: `Data de admissão inválida: ${adm}` };
+    if (!dataReal(iso)) return { error: `Data de admissão inválida: ${adm}` };
     row.admitted_at = iso;
   } else row.admitted_at = null;
   const pid = typeof x.posto_id === 'string' && UUID_RE.test(x.posto_id) ? x.posto_id : null;

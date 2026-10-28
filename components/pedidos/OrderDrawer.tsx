@@ -10,6 +10,7 @@ import {
   Flame,
   Link2,
   PackageCheck,
+  Pencil,
   SendHorizontal,
   ShieldCheck,
   ShoppingCart,
@@ -86,12 +87,15 @@ export function OrderDrawer({
   const [minAsk, setMinAsk] = useState<{ action: string; body: Record<string, unknown>; message: string } | null>(null);
   const [linking, setLinking] = useState<number | null>(null);
   const [giveBack, setGiveBack] = useState<Delivery | null>(null);
+  const [editing, setEditing] = useState(false);
+  // a devolução não muda o updated_at do pedido: recarrega os termos por este contador
+  const [termsTick, setTermsTick] = useState(0);
 
   const almox = scope === 'almox';
   const almoxMaster = canManageSector(user, 'almoxarifado');
   const open = o.stage !== 'concluido' && o.stage !== 'cancelado';
   const withAlmox = o.stage === 'encaminhado';
-  const anyModal = modalOpen || Boolean(sheet || ask || minAsk || giveBack);
+  const anyModal = modalOpen || Boolean(sheet || ask || minAsk || giveBack || editing);
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && !anyModal && onClose();
@@ -108,7 +112,7 @@ export function OrderDrawer({
     return () => {
       alive = false;
     };
-  }, [o.id, o.updated_at]);
+  }, [o.id, o.updated_at, termsTick]);
 
   // sugestão automática do Almoxarifado: calcula sozinha, mas só grava com a confirmação
   const openBuy = (l: OrderItem) => {
@@ -172,6 +176,7 @@ export function OrderDrawer({
       toast({ kind: 'success', title: done, text: orderLabel(o.number) });
       setAsk(null);
       setLinking(null);
+      setEditing(false);
       await reload();
     } catch (e) {
       setError((e as Error).message);
@@ -185,6 +190,8 @@ export function OrderDrawer({
   const delivered = o.items.reduce((t, l) => t + l.delivered, 0);
   const due = o.origin === 'rh_admissao' ? o.start_date : o.needed_by;
   const owner = scope === 'operacao' ? o.origin === 'operacao' : scope === 'rh' ? isRhOrigin(o.origin) : true;
+  // devolvido para correção (ou ainda não encaminhado): quem abriu corrige e reenvia
+  const canForward = !almox && owner && canEdit && o.stage === 'solicitado';
   const canCancel = open && owner && (almox ? canEdit : canEdit && !o.items.some((l) => l.delivered > 0));
   const readyToDeliver = withAlmox && o.items.some((l) => l.reserved > 0);
   const terms = useMemo(() => {
@@ -292,10 +299,15 @@ export function OrderDrawer({
           {/* ---------- ações ---------- */}
           {canEdit && open ? (
             <div className="drawer-actions o-actions">
-              {scope === 'operacao' && o.stage === 'solicitado' ? (
-                <button className="btn btn-primary btn-sm" disabled={Boolean(busy) || o.origin !== 'operacao'} onClick={() => patch({ action: 'forward' }, 'Encaminhado ao Almoxarifado')}>
-                  {busy === 'forward' ? <span className="spinner" /> : <SendHorizontal size={15} />} Encaminhar ao Almoxarifado
-                </button>
+              {canForward ? (
+                <>
+                  <button className="btn btn-primary btn-sm" disabled={Boolean(busy)} onClick={() => patch({ action: 'forward' }, 'Encaminhado ao Almoxarifado')}>
+                    {busy === 'forward' ? <span className="spinner" /> : <SendHorizontal size={15} />} {o.forwarded_at ? 'Reenviar ao Almoxarifado' : 'Encaminhar ao Almoxarifado'}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" disabled={Boolean(busy)} onClick={() => setEditing(true)}>
+                    <Pencil size={15} /> Corrigir quantidades
+                  </button>
+                </>
               ) : null}
               {scope === 'operacao' && o.stage === 'validacao' ? (
                 <button className="btn btn-primary btn-sm" disabled={Boolean(busy)} onClick={() => patch({ action: 'validate' }, 'Troca validada e encaminhada')}>
@@ -485,6 +497,8 @@ export function OrderDrawer({
         </div>
       </motion.aside>
 
+      {/* as janelas abrem por cima da ficha; o clique nelas não pode fechar a ficha */}
+      <div onClick={(e) => e.stopPropagation()}>
       <AnimatePresence>
         {sheet ? <QtySheet key={sheet} mode={sheet} order={o} data={data} busy={busy === sheet} error={error} onClose={() => setSheet(null)} onSubmit={(lines, receiver) => act(sheet, sheet === 'deliver' ? { lines, receiver } : { lines }, sheet === 'deliver' ? 'Entrega registrada' : 'Reserva feita')} /> : null}
         {ask ? (
@@ -519,8 +533,10 @@ export function OrderDrawer({
             </div>
           </Sheet>
         ) : null}
-        {giveBack ? <GiveBackSheet key="gb" d={giveBack} onClose={() => setGiveBack(null)} onDone={async () => { setGiveBack(null); await reload(); setDeliveries(null); }} /> : null}
+        {giveBack ? <GiveBackSheet key="gb" d={giveBack} onClose={() => setGiveBack(null)} onDone={async () => { setGiveBack(null); await reload(); setTermsTick((t) => t + 1); }} /> : null}
+        {editing ? <EditSheet key="edit" order={o} busy={busy === 'edit'} error={error} onClose={() => setEditing(false)} onSubmit={(items) => patch({ action: 'edit', items }, 'Pedido corrigido')} /> : null}
       </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
@@ -607,6 +623,42 @@ function QtySheet({
         </button>
         <button className="btn btn-primary" disabled={busy || !total} onClick={() => onSubmit(Object.entries(qty).map(([i, v]) => ({ i: Number(i), qty: Number(v) || 0 })).filter((x) => x.qty > 0), receiver)}>
           {busy ? <span className="spinner" /> : mode === 'deliver' ? <PackageCheck size={17} /> : <Link2 size={17} />} {mode === 'deliver' ? `Entregar ${num(total)}` : `Reservar ${num(total)}`}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+/** Corrige as quantidades antes de reenviar (0 tira o item do pedido). */
+function EditSheet({ order: o, busy, error, onClose, onSubmit }: { order: MaterialOrder; busy: boolean; error: string; onClose: () => void; onSubmit: (items: Record<string, unknown>[]) => void }) {
+  const [qty, setQty] = useState<string[]>(() => o.items.map((l) => String(l.qty)));
+  const items = o.items.map((l, i) => ({ item_id: l.item_id, name: l.name, size: l.size, note: l.note, qty: Number(qty[i]) || 0 })).filter((x) => x.qty > 0);
+  const changed = o.items.some((l, i) => (Number(qty[i]) || 0) !== l.qty);
+  return (
+    <Sheet title={`Corrigir · pedido ${orderLabel(o.number)}`} lead="Ajuste as quantidades e depois reenvie ao Almoxarifado. Deixe 0 para tirar o item." onClose={onClose} wide locked={changed}>
+      <div className="o-qty-list">
+        {o.items.map((l, i) => (
+          <div key={i} className="o-qty-row">
+            <span>
+              <b>{lineLabel(l)}</b>
+              <small>pedido {num(l.qty)}</small>
+            </span>
+            <input className="input" inputMode="numeric" aria-label={`Quantidade de ${lineLabel(l)}`} value={qty[i] ?? ''} onChange={(e) => setQty((q) => q.map((v, k) => (k === i ? e.target.value.replace(/\D/g, '').slice(0, 5) : v)))} />
+          </div>
+        ))}
+      </div>
+      {!items.length ? <p className="help">O pedido precisa de pelo menos um item. Para desistir, cancele o pedido.</p> : null}
+      {error ? (
+        <div className="sx-error" role="alert">
+          <AlertCircle size={16} /> {error}
+        </div>
+      ) : null}
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
+          Voltar
+        </button>
+        <button className="btn btn-primary" disabled={busy || !changed || !items.length} onClick={() => onSubmit(items)}>
+          {busy ? <span className="spinner" /> : <CheckCircle2 size={17} />} Salvar correção
         </button>
       </div>
     </Sheet>

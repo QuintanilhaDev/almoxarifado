@@ -105,9 +105,10 @@ export async function POST(req: Request) {
     };
     if (typeof b.collaborator_id === 'string' && b.collaborator_id) {
       if (!UUID_RE.test(b.collaborator_id)) return fail('Colaborador inválido.');
-      const { data: c, error } = await db().from('collaborators').select('id, name, matricula, role, posto_id, posto_name, company').eq('id', b.collaborator_id).maybeSingle();
+      const { data: c, error } = await db().from('collaborators').select('id, name, matricula, role, posto_id, posto_name, company, active').eq('id', b.collaborator_id).maybeSingle();
       if (error) throw error;
       if (!c) return fail('Colaborador não encontrado.', 404);
+      if (c.active === false) return fail('Colaborador desligado: não recebe novos pedidos.', 409);
       collab = { id: c.id, name: c.name, matricula: c.matricula, role: collab.role ?? c.role, posto_id: collab.posto_id ?? c.posto_id, posto_name: collab.posto_name ?? c.posto_name, company: collab.company ?? c.company };
     }
     if (type !== 'operacao' && !collab.name) return fail('Informe o colaborador.');

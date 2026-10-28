@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { db } from '@/lib/supabaseAdmin';
 import { currentUser } from '@/lib/auth';
-import { almoxOrders, colabAccess, rhOrders } from '@/lib/pedidos/access';
+import { almoxOrders, canSeeOrder, colabAccess, opOrders, rhOrders } from '@/lib/pedidos/access';
 import { ORIGIN_LABEL, orderLabel, type OrderOrigin } from '@/lib/pedidos/types';
 import { PrintButton } from '@/components/pedidos/PrintButton';
 import './termo.css';
@@ -36,11 +36,14 @@ export default async function TermoPage({ params }: Props) {
   if (!UUID_RE.test(id)) notFound();
   const user = await currentUser();
   if (!user) redirect('/');
-  if (!almoxOrders(user) && !rhOrders(user) && !colabAccess(user)) notFound();
+  const full = almoxOrders(user) || rhOrders(user) || colabAccess(user);
+  // a Operação vê os termos dos pedidos que ela acompanha (só leitura)
+  if (!full && !opOrders(user)) notFound();
   const { data } = await db().from('deliveries').select('item_name, size, item_code, ca_number, qty, returned_qty, collaborator_name, matricula, role, posto_name, order_number, origin, receiver, by_name, delivered_at').eq('group_id', id).order('item_name');
   const rows = (data ?? []) as Row[];
   if (!rows.length) notFound();
   const h = rows[0];
+  if (!full && (!h.origin || !canSeeOrder(user, { origin: h.origin }))) notFound();
   const when = new Date(h.delivered_at);
   const date = when.toLocaleDateString('pt-BR', { timeZone: 'America/Bahia' });
   const time = when.toLocaleTimeString('pt-BR', { timeZone: 'America/Bahia', hour: '2-digit', minute: '2-digit' });

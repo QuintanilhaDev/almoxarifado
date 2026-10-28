@@ -60,6 +60,10 @@ export async function POST(req: Request) {
     const created: { id: string; number: number; name: string }[] = [];
     const skipped: string[] = [];
     for (const c of (cs ?? []) as Collaborator[]) {
+      if (c.active === false) {
+        skipped.push(`${c.name}: colaborador desligado, não recebe novos pedidos`);
+        continue;
+      }
       if (openBy.has(c.id)) {
         skipped.push(`${c.name}: já tem a troca ${orderLabel(openBy.get(c.id)!)} em aberto`);
         continue;

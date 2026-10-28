@@ -14,13 +14,18 @@ export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ id: string; action: string }> };
 type Line = { i: number; qty: number };
 
-function parseLines(v: unknown, o: MaterialOrder): Line[] | string {
+/** linhas do corpo; anyQty: só importa a linha (liberar reserva solta a linha inteira, qty pode vir 0 ou faltar) */
+function parseLines(v: unknown, o: MaterialOrder, anyQty = false): Line[] | string {
   if (!Array.isArray(v) || !v.length) return 'Escolha os itens e as quantidades.';
   const out: Line[] = [];
   for (const x of v as Record<string, unknown>[]) {
     const i = Number(x?.i);
-    const qty = Number(x?.qty);
     if (!Number.isInteger(i) || !o.items[i]) return 'Linha do pedido inválida.';
+    if (anyQty) {
+      if (!out.some((l) => l.i === i)) out.push({ i, qty: 0 });
+      continue;
+    }
+    const qty = Number(x?.qty);
     if (!Number.isInteger(qty) || qty < 0 || qty > 100_000) return `"${lineLabel(o.items[i])}": quantidade inválida.`;
     if (qty > 0) out.push({ i, qty });
   }
@@ -88,7 +93,14 @@ export async function POST(req: Request, ctx: Ctx) {
       }
       case 'release': {
         if (!almoxEdit) throw new AccessError(403, 'Só o Almoxarifado mexe nas reservas.');
-        result = await rpc('order_release', { p_order: id, p_lines: Array.isArray(b.lines) ? b.lines : null, p_by: by });
+        // sem linhas: libera todas
+        let lines: Line[] | null = null;
+        if (b.lines !== undefined && b.lines !== null) {
+          const parsed = parseLines(b.lines, o, true);
+          if (typeof parsed === 'string') return fail(parsed);
+          lines = parsed;
+        }
+        result = await rpc('order_release', { p_order: id, p_lines: lines && lines.map((l) => ({ i: l.i })), p_by: by });
         break;
       }
       case 'cancel': {
@@ -121,6 +133,14 @@ export async function POST(req: Request, ctx: Ctx) {
         } else {
           const lines = parseLines(b.lines, o);
           if (typeof lines === 'string') return fail(lines);
+          // compra só do que ainda falta, e nunca duas compras abertas para a mesma linha
+          for (const x of lines) {
+            const l = o.items[x.i];
+            if (l.purchase_id && openPurchases.has(l.purchase_id)) return fail(`"${lineLabel(l)}" já tem compra em andamento${l.purchase_number ? ` (${l.purchase_number})` : ''}.`, 409);
+            const need = Math.max(0, l.qty - l.delivered - l.reserved);
+            if (!need) return fail(`"${lineLabel(l)}" não tem mais nada faltando.`, 409);
+            x.qty = Math.min(x.qty, need);
+          }
           buy = lines;
         }
         if (reserve.length) await rpc('order_reserve', { p_order: id, p_lines: reserve, p_force: false, p_by: by });

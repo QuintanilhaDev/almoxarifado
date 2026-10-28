@@ -150,9 +150,9 @@ export function isLate(o: MaterialOrder): boolean {
   const due = o.needed_by ?? o.start_date;
   return Boolean(due && due < todayBahia());
 }
-/** Admissão em risco: começa em até 3 dias e ainda falta separar/entregar. */
+/** Admissão em risco: começa em até 3 dias e ainda falta separar/entregar (só pedidos de admissão). */
 export function atRisk(o: MaterialOrder): boolean {
-  if (o.stage === 'concluido' || o.stage === 'cancelado' || isLate(o)) return false;
+  if (o.origin !== 'rh_admissao' || o.stage === 'concluido' || o.stage === 'cancelado' || isLate(o)) return false;
   const due = o.start_date ?? o.needed_by;
   if (!due) return false;
   const days = (Date.parse(due + 'T12:00:00-03:00') - Date.now()) / 86_400_000;

@@ -6,7 +6,7 @@ import { broadcast } from '@/lib/broadcast';
 import { UUID_RE, loadItems, str } from '@/lib/almoxarifado/stockData';
 import { almoxOrders, colabAccess, rhOrders } from '@/lib/pedidos/access';
 import { missingP3, p3Fail } from '@/lib/pedidos/server';
-import { cleanSizes, kitFor, kitLines, loadKits, type KitItem, type SizeField } from '@/lib/pedidos/rh';
+import { cleanSizes, kitFor, kitLines, loadKits, roleKey, type KitItem, type SizeField } from '@/lib/pedidos/rh';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,9 +59,16 @@ export async function PUT(req: Request) {
     const user = await requireUser();
     if (!colabAccess(user, 'edit')) throw new AccessError(403, 'Só o RH altera os kits por função.');
     const old = str(b.old_role, 80);
-    if (old && old !== role) await db().from('role_kits').delete().eq('role', old);
+    // não sobrescreve o kit de outra função (sem diferenciar acento e maiúscula)
+    const outro = (await loadKits()).find((k) => k.role !== old && roleKey(k.role) === roleKey(role));
+    if (outro) return fail(`A função "${outro.role}" já tem kit cadastrado. Edite esse kit.`, 409);
     const { error } = await db().from('role_kits').upsert({ role, items, period_months: months, updated_by: user.display_name, updated_at: new Date().toISOString() }, { onConflict: 'role' });
     if (error) throw error;
+    // renomeou: apaga o antigo só depois de salvar o novo
+    if (old && old !== role) {
+      const { error: e2 } = await db().from('role_kits').delete().eq('role', old);
+      if (e2) throw e2;
+    }
     await broadcast('collab:update', { by: user.display_name });
     return NextResponse.json({ kits: await loadKits() });
   } catch (e) {

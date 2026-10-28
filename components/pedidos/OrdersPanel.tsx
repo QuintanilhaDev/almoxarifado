@@ -66,7 +66,9 @@ export function OrdersPanel({
   stockItems?: PickItem[] | null;
 }) {
   const toast = useToast();
-  const [seg, setSeg] = useState<Seg>(scope === 'rh' ? 'abertos' : 'acao');
+  // o RH não tem a aba "Em aberto": lá "Em andamento" já mostra tudo o que está aberto
+  const openSeg: Seg = scope === 'rh' ? 'acao' : 'abertos';
+  const [seg, setSeg] = useState<Seg>('acao');
   const [query, setQuery] = useState('');
   const [origin, setOrigin] = useState<'' | OrderOrigin>('');
   const [priority, setPriority] = useState('');
@@ -77,7 +79,7 @@ export function OrdersPanel({
   const [routingBusy, setRoutingBusy] = useState(false);
 
   useMaxBus('pedidos:open', (p) => {
-    if (p.filter) setSeg(p.filter as Seg);
+    if (p.filter) setSeg(p.filter === 'abertos' ? openSeg : (p.filter as Seg));
     if (p.query !== undefined) setQuery(p.query);
     if (p.id) setOpenId(p.id);
     if (p.number && data) {
@@ -237,7 +239,13 @@ export function OrdersPanel({
                 <span>
                   {counts.risco === 1 ? '1 admissão começa' : `${counts.risco} admissões começam`} em até 3 dias com material pendente.
                 </span>
-                <button className="btn btn-ghost btn-sm" onClick={() => setSeg('abertos')}>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setSeg(openSeg);
+                    setOrigin('rh_admissao');
+                  }}
+                >
                   Ver
                 </button>
               </div>
@@ -421,7 +429,7 @@ export function OrdersPanel({
             onClose={() => setCreating(false)}
             onSaved={async (o) => {
               setCreating(false);
-              setSeg(scope === 'rh' ? 'abertos' : 'todos');
+              setSeg(scope === 'rh' ? openSeg : 'todos');
               await reload();
               setOpenId(o.id);
             }}
