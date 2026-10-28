@@ -75,12 +75,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     const changed = next !== row.status;
     if (changed && ['comprada', 'entregue', 'recusada'].includes(next)) {
-      // com cotações/pedidos de compra ativados, o andamento segue os pedidos (sem marcar à mão)
+      // com pedido de compra, o andamento segue o pedido; recusar só fora de cotação/pedido
       const { data: os, error: eo } = await db().from('purchase_orders').select('status').contains('request_ids', [id]);
       if (!eo) {
         const live = (os ?? []).filter((o) => o.status !== 'cancelado');
         const open = live.filter((o) => !['rascunho', 'aguardando_aprovacao'].includes(String(o.status)));
-        if (next !== 'recusada' && !open.length) return fail(`Para marcar como "${STATUS_LABEL[next]}", gere o pedido de compra (cotação ou compra direta) e aprove. O andamento acompanha o pedido.`, 409);
+        // com pedido de compra, o andamento segue o pedido; sem pedido (compra simples), marca à mão
+        if (next !== 'recusada' && live.length) return fail(`Esta solicitação já tem pedido de compra${open.length ? '' : ' aguardando aprovação'}: o andamento ("${STATUS_LABEL[next]}") acompanha o pedido e o recebimento da nota.`, 409);
         if (next === 'recusada') {
           const { data: qs } = await db().from('purchase_quotes').select('number').eq('status', 'aberta').contains('request_ids', [id]);
           if (live.length || qs?.length) return fail('Esta solicitação está numa cotação aberta ou num pedido de compra. Cancele a cotação/pedido antes de recusar.', 409);
