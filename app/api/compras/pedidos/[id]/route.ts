@@ -153,7 +153,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     } else if (action === 'approve') {
       if (o.status !== 'aguardando_aprovacao') return fail('Este pedido não está aguardando aprovação.', 409);
       // quem emitiu ou alterou o pedido não aprova (vale também para o master: README "Quem emitiu não aprova")
-      if (authorsSinceApproval(o).has(by)) return fail('Quem emitiu ou alterou o pedido não aprova a própria versão. Peça a outra pessoa com a permissão de aprovação.', 409);
+      if (authorsSinceApproval(o).has(by)) return fail('Quem emitiu ou alterou o pedido não aprova o próprio pedido. Peça a outra pessoa com a permissão de aprovação.', 409);
       const blocked = await supplierBlock(o);
       if (blocked) return fail(blocked, 409);
       const note = str(b.note, 300);
