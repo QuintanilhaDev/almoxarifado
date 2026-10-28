@@ -270,7 +270,7 @@ export function Metricas({ version }: { version: number }) {
           </div>
 
           <p className="mt-foot">
-            <b>Entradas</b> = entrada + devolução de posto. <b>Saídas</b> = saída + transferência a posto. Ajustes, consumo nos postos e criação/exclusão de item ficam só na planilha. Horário da Bahia.
+            <b>Entradas</b> = entrada + devolução de posto + devolução de colaborador (só a que volta ao saldo). <b>Saídas</b> = saída + envio a posto + entrega com termo + perda ou avaria + devolução ao fornecedor + estorno de nota. Ajustes, inventário, consumo nos postos e criação/exclusão de item ficam só na planilha. Horário da Bahia.
             {data?.truncated ? <span className="mt-warn"> Havia mais registros do que o limite de leitura: os números podem estar incompletos.</span> : null}
           </p>
         </div>

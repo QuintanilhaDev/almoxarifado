@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from '../supabaseAdmin';
+import { isMissingColumn } from '../auth';
 import { buildWindow, computeMetrics, type MetricsData, type MoveInput, type Period, type ReqInput, type StockSnapshot } from './metrics';
 
 const PAGE = 1000;
@@ -28,6 +29,20 @@ export function parseAt(raw: string | null, now = Date.now()): number {
   if (t > now + 60_000) return now;
   if (t < now - 40 * 86_400_000) return now;
   return Math.min(t, now);
+}
+
+type StockRow = { id: string; quantity: number; min_quantity: number; reserved?: number | null };
+
+/** Saldo de cada item; sem a coluna "reserved" (antes do Projeto 3), lê sem ela. */
+async function readStock() {
+  const read = (cols: string) =>
+    readAll<StockRow>((a, b) => db().from('stock_items').select(cols).order('id', { ascending: true }).range(a, b), 20_000);
+  try {
+    return await read('id, quantity, min_quantity, reserved');
+  } catch (e) {
+    if (!isMissingColumn(e)) throw e;
+    return read('id, quantity, min_quantity');
+  }
 }
 
 export interface Loaded {
@@ -68,10 +83,7 @@ export async function loadMetrics(period: Period, at: number): Promise<Loaded> {
           .range(a, b),
       MAX_REQS,
     ),
-    readAll<{ id: string; quantity: number; min_quantity: number }>(
-      (a, b) => sb.from('stock_items').select('id, quantity, min_quantity').order('id', { ascending: true }).range(a, b),
-      20_000,
-    ),
+    readStock(),
   ]);
 
   const stock: StockSnapshot = { items: st.rows.length, units: 0, low: 0, zero: 0, qtyById: {} };
@@ -79,7 +91,8 @@ export async function loadMetrics(period: Period, at: number): Promise<Loaded> {
     const q = Number(i.quantity) || 0;
     stock.units += q;
     if (q === 0) stock.zero++;
-    if (Number(i.min_quantity) > 0 && q <= Number(i.min_quantity)) stock.low++;
+    // mesma regra do Estoque: o reservado não está disponível
+    if (Number(i.min_quantity) > 0 && q - (Number(i.reserved) || 0) <= Number(i.min_quantity)) stock.low++;
     stock.qtyById![i.id] = q;
   }
   const truncated = mv.truncated || rq.truncated;

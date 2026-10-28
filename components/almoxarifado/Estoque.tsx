@@ -37,6 +37,7 @@ import { categoryKey, categoryOptions, countCategories, findCategory, hasCategor
 import { useMaxBus } from '@/lib/max/bus';
 import { ClassifySheet, InventorySheet, WriteoffSheet, groupName, useCatalog } from './CatalogTools';
 import { categoryName } from '@/lib/catalog';
+import { todayBahia } from '@/lib/compras/prazo';
 import './estoque.css';
 
 type Filter = 'todos' | 'baixo' | 'zerado' | 'postos';
@@ -199,7 +200,7 @@ export function Estoque({
       i.ca_number ?? '',
       i.location ?? '',
     ]);
-    downloadCsv(`estoque-${new Date().toISOString().slice(0, 10)}.csv`, ['Código', 'Ref', 'Item', 'Tamanho', 'Categorias', 'Unidade', 'Almoxarifado', 'Nos postos', 'Total', 'Mínimo', 'Custo unitário', 'Valor em estoque', 'Reservado', 'Disponível', 'Marca/modelo', 'CA', 'Localização'], rows);
+    downloadCsv(`estoque-${todayBahia()}.csv`, ['Código', 'Ref', 'Item', 'Tamanho', 'Categorias', 'Unidade', 'Almoxarifado', 'Nos postos', 'Total', 'Mínimo', 'Custo unitário', 'Valor em estoque', 'Reservado', 'Disponível', 'Marca/modelo', 'CA', 'Localização'], rows);
   };
 
   const openItem = openId ? list.find((i) => i.id === openId) ?? null : null;
@@ -440,6 +441,7 @@ export function Estoque({
             version={version}
             onClose={() => setOpenId(null)}
             onQty={(kind) => setQty({ itemId: openItem.id, kind })}
+            canAdjust={Boolean(canInventory)}
             onSend={() => setSend({ itemId: openItem.id })}
             onEdit={() => setForm({ item: openItem })}
             onDelete={() => setDel(openItem)}
@@ -455,7 +457,7 @@ export function Estoque({
       <AnimatePresence>
         {form ? <ItemFormModal key="form" item={form.item} options={options} initialCategories={!form.item && cat && cat !== NONE ? [cat] : undefined} onClose={() => setForm(null)} onSaved={reload} /> : null}
         {qty && qtyItem ? (
-          <QtyModal key="qty" item={qtyItem} kind={qty.kind} onClose={() => setQty(null)} onSaved={reload} />
+          <QtyModal key="qty" item={qtyItem} kind={qty.kind} canAdjust={Boolean(canInventory)} onClose={() => setQty(null)} onSaved={reload} />
         ) : null}
         {send && items && postos ? (
           <SendModal key="send" items={items} postos={postos} initialItemId={send.itemId} onClose={() => setSend(null)} onSaved={reload} />
@@ -516,7 +518,10 @@ function ItemDrawer({
   buy,
   groupLabel,
   modalOpen,
+  canAdjust,
 }: {
+  /** ajustar o saldo direto: só o master do Almoxarifado (mesma regra do inventário) */
+  canAdjust: boolean;
   onPurchase?: () => void;
   onWriteoff?: () => void;
   buy?: BuyInfo | null;
@@ -673,9 +678,11 @@ function ItemDrawer({
             <button className="btn btn-ghost btn-sm" onClick={() => onQty('saida')} disabled={item.quantity < 1}>
               <ArrowUpFromLine size={15} /> Saída
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => onQty('ajuste')}>
-              <SlidersHorizontal size={15} /> Ajustar saldo
-            </button>
+            {canAdjust ? (
+              <button className="btn btn-ghost btn-sm" onClick={() => onQty('ajuste')}>
+                <SlidersHorizontal size={15} /> Ajustar saldo
+              </button>
+            ) : null}
             {onWriteoff ? (
               <button className="btn btn-ghost btn-sm" onClick={onWriteoff} disabled={item.quantity - item.reserved < 1}>
                 <PackageX size={15} /> Baixa (perda ou fornecedor)

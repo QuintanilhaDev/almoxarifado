@@ -3,6 +3,7 @@ import { db } from '../supabaseAdmin';
 import type { Posto, StockItem } from './types';
 import { isMissingColumn } from '../auth';
 import { sortCategories } from './categories';
+import { parseIntBR } from './stockFormat';
 
 const PAGE = 1000; // o Supabase devolve no máximo 1000 linhas por consulta
 
@@ -111,12 +112,11 @@ export function str(v: unknown, max: number): string | null {
   return s || null;
 }
 
-/** Inteiro >= 0 (aceita número ou texto). Devolve null se inválido. */
+/** Inteiro >= 0 (número ou texto em pt-BR: "1.000" é mil). Fração ("2,7") ou texto inválido: null. */
 export function intOrNull(v: unknown, max = 1_000_000): number | null {
-  if (v === '' || v === null || v === undefined) return null;
-  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
-  if (!Number.isFinite(n) || n < 0 || n > max) return null;
-  return Math.round(n);
+  const n = parseIntBR(v);
+  if (n === null || n < 0 || n > max) return null;
+  return n;
 }
 
 export function moneyOrNull(v: unknown): number | null {

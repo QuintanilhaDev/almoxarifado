@@ -3,6 +3,9 @@ import { db } from '../supabaseAdmin';
 import type { StockItem } from './types';
 import { fetchAll, loadItems } from './stockData';
 import type { OrderItem } from '../pedidos/types';
+import { onOrderByItem } from '../compras/painel';
+import { missingPC } from '../compras/pcServer';
+import { missingP3 } from '../pedidos/server';
 
 /** saídas do almoxarifado central que contam como consumo */
 const OUT = new Set(['saida', 'transferencia', 'entrega', 'perda']);
@@ -27,7 +30,7 @@ export interface Replenish {
   safety: number;
   /** ponto de reposição = consumo diário × prazo + segurança */
   point: number;
-  /** compras abertas (nova, em cotação, comprada) */
+  /** o que falta receber dos pedidos de compra vigentes */
   in_transit: number;
   /** pedidos de material ainda sem reserva nem compra */
   demand: number;
@@ -47,6 +50,27 @@ export interface ReplenishResult {
   rows: Replenish[];
   /** itens sem nenhuma movimentação no período */
   idle: { item_id: string; name: string; size: string | null; quantity: number; value: number | null; last_move: string | null }[];
+}
+
+/**
+ * Demanda pendente por item: pedidos de material encaminhados, linhas sem compra vinculada,
+ * o que falta entregar e ainda não está reservado. Mesma conta no Estoque e na Reposição.
+ */
+export async function demandByItem(): Promise<Map<string, number>> {
+  const demand = new Map<string, number>();
+  const { data: os, error } = await db().from('material_orders').select('items').eq('stage', 'encaminhado').limit(5000);
+  if (error) {
+    if (missingP3(error)) return demand; // pedidos de material ainda não ativados
+    throw error;
+  }
+  for (const o of os ?? []) {
+    for (const l of (o.items as OrderItem[]) ?? []) {
+      if (!l.item_id || l.purchase_id) continue;
+      const need = Math.max(0, Number(l.qty) - Number(l.delivered || 0) - Number(l.reserved || 0));
+      if (need) demand.set(l.item_id, (demand.get(l.item_id) ?? 0) + need);
+    }
+  }
+  return demand;
 }
 
 /**
@@ -73,22 +97,14 @@ export async function replenishment(opts: { days: number; defaultLead: number; i
     else if (BACK.has(m.kind) && !(m.kind === 'devolucao_colaborador' && Number(m.after_qty) <= Number(m.before_qty))) consumed.set(m.item_id, (consumed.get(m.item_id) ?? 0) - q);
   }
 
+  // em trânsito = o que falta receber dos pedidos de compra vigentes (o mesmo "a receber" do Estoque)
   const transit = new Map<string, number>();
-  const { data: ps } = await db().from('purchase_requests').select('items, status').in('status', ['nova', 'em_cotacao', 'comprada']).limit(1000);
-  for (const p of ps ?? []) {
-    for (const it of (p.items as { item_id: string | null; quantity: number }[]) ?? []) {
-      if (it.item_id) transit.set(it.item_id, (transit.get(it.item_id) ?? 0) + (Number(it.quantity) || 0));
-    }
+  try {
+    for (const [id, o] of Object.entries(await onOrderByItem())) transit.set(id, o.qty);
+  } catch (e) {
+    if (!missingPC(e)) throw e;
   }
-  const demand = new Map<string, number>();
-  const { data: os } = await db().from('material_orders').select('items').eq('stage', 'encaminhado').limit(1000);
-  for (const o of os ?? []) {
-    for (const l of (o.items as OrderItem[]) ?? []) {
-      if (!l.item_id || l.purchase_id) continue;
-      const need = Math.max(0, Number(l.qty) - Number(l.delivered || 0) - Number(l.reserved || 0));
-      if (need) demand.set(l.item_id, (demand.get(l.item_id) ?? 0) + need);
-    }
-  }
+  const demand = await demandByItem();
 
   const rows: Replenish[] = [];
   const idle: ReplenishResult['idle'] = [];

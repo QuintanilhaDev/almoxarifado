@@ -84,7 +84,7 @@ export function MovementRow({ m, showItem = true }: { m: StockMovement; showItem
       </div>
       <div className="move-qty">
         {amount(m)}
-        {m.after_qty !== null && m.kind !== 'ajuste' && m.kind !== 'inventario' && m.kind !== 'exclusao' ? <small>saldo {num(m.after_qty)}</small> : null}
+        {m.after_qty !== null && m.kind !== 'ajuste' && m.kind !== 'inventario' && m.kind !== 'exclusao' && m.kind !== 'baixa_posto' ? <small>saldo {num(m.after_qty)}</small> : null}
       </div>
     </div>
   );

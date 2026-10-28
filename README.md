@@ -295,12 +295,12 @@ Você vai precisar de 3 contas gratuitas: **GitHub**, **Supabase** e **Vercel**.
 
 **Estoque** (`/setor/almoxarifado#estoque`)
 - Cada item tem **saldo no almoxarifado**, quanto está **nos postos**, estoque mínimo, custo e tamanho. O total é a soma dos dois.
-- Toque em um item para: **Enviar a posto**, registrar **Entrada**, **Saída** ou **Ajustar saldo** (contagem de inventário), editar os dados, excluir, e ver onde ele está e o histórico dele.
+- Toque em um item para: **Enviar a posto**, registrar **Entrada**, **Saída** ou **Ajustar saldo** (só o master do Almoxarifado, mesma regra do inventário), editar os dados, excluir, e ver onde ele está e o histórico dele.
 - **Novo item** cadastra um produto. **Transferir** envia vários itens de uma vez para um posto (tudo ou nada: se um item não tiver saldo, nada sai).
 - Cartões de resumo (itens, unidades, valor), busca sem acento, filtros (**Estoque baixo**, **Sem saldo**, **Nos postos**) e ordenação.
 - Item com saldo igual ou menor que o **estoque mínimo** ganha um aviso, e o menu mostra quantos estão assim.
 - **Histórico:** toda movimentação fica registrada (quem fez, quando, saldo depois).
-- **Exportar** baixa um `.csv` que abre direto no Excel. **Importar planilha** cadastra os itens novos e **atualiza os que já existem** (mesmo nome + tamanho): saldo, mínimo e custo ficam iguais aos da planilha. A pré-visualização mostra cada mudança (ex.: saldo ~~12~~ → **0**) antes de gravar. A mudança de saldo entra no histórico como **ajuste** ("Atualizado pela planilha"); nada do histórico é apagado, e itens que não estão na planilha ficam como estão. Na planilha do Almoxarifado vale a coluna **SALDO** (já com entradas e saídas), e saldos calculados por fórmula que dão 0 são lidos como 0.
+- **Exportar** baixa um `.csv` que abre direto no Excel. **Importar planilha** cadastra os itens novos e **atualiza os que já existem** (mesmo nome + tamanho): saldo, mínimo e custo ficam iguais aos da planilha. A pré-visualização mostra cada mudança (ex.: saldo ~~12~~ → **0**) antes de gravar. A mudança de saldo entra no histórico como **ajuste** ("Atualizado pela planilha") e, como o ajuste de inventário, só o master do Almoxarifado pode fazê-la: para os demais, o saldo dos itens que já existem é ignorado (itens novos, mínimo e custo entram normalmente). Um item sem tamanho na planilha vale o item sem tamanho cadastrado ou, se não houver, a única variação com tamanho; com várias variações, a linha fica marcada para você informar o tamanho. Nada do histórico é apagado, e itens que não estão na planilha ficam como estão. Na planilha do Almoxarifado vale a coluna **SALDO** (já com entradas e saídas), e saldos calculados por fórmula que dão 0 são lidos como 0.
 
 **Postos** (`/setor/almoxarifado#postos`)
 - Lista de postos com o que cada um tem. Toque em um posto para ver o estoque dele, **devolver** ao almoxarifado, dar **baixa** (consumido no posto), **enviar itens**, editar ou **remover**. Ao remover um posto, o que estava nele volta para o almoxarifado.
@@ -546,7 +546,7 @@ Não precisa rodar nenhum SQL novo nem criar variável: usa o histórico do esto
 - O gráfico mostra **entradas** e **saídas** em unidades. Passe o mouse (ou o dedo) para ver cada hora/dia, com o total de movimentações e solicitações.
 - **Baixar gráfico** gera uma imagem **PNG** (2560×1720, abre no Power BI, PowerPoint, WhatsApp etc.) do **período que está na tela**. **Baixar planilha** gera um `.xlsx` do **mesmo período e do mesmo instante** que a tela mostra, então os números sempre batem.
 - A planilha tem as abas **Resumo**, **Linha do tempo**, **Itens**, **Postos**, **Movimentações** e **Solicitações**. Nas abas de dados o cabeçalho fica na primeira linha e não há linhas de total, para filtrar no Excel ou importar no Power BI sem ajuste.
-- **Como contamos:** *Entradas* = entrada + devolução de posto. *Saídas* = saída + transferência a posto. Ajuste de inventário, consumo no posto e criação/exclusão de item aparecem só nos detalhes (assim importar uma planilha de itens não vira "milhares de entradas"). Horário da Bahia (UTC−3).
+- **Como contamos:** *Entradas* = entrada + devolução de posto + devolução de colaborador (só a que volta ao saldo; devolução avariada não conta). *Saídas* = saída + envio a posto + entrega com termo + perda ou avaria + devolução ao fornecedor + estorno de nota. Ajuste de saldo, inventário, consumo no posto e criação/exclusão de item aparecem só nos detalhes (assim importar uma planilha de itens não vira "milhares de entradas"). Horário da Bahia (UTC−3).
 - Limites: lê até 50 mil movimentações e 20 mil solicitações por período; se passar disso, a tela e a planilha avisam.
 
 ---

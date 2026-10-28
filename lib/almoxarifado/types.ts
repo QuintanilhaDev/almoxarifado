@@ -237,7 +237,13 @@ export interface ImportPreview {
     headerRow: number | null;
     columns: { letter: string; header: string; field: string | null }[];
     read: number;
+    /** por que a aba foi deixada de fora (resumo, tabela dinâmica…) */
+    skipped?: string;
+    /** aba oculta na planilha */
+    hidden?: boolean;
   }[];
   ignored: number;
   warnings: string[];
+  /** registros que estavam em mais de uma aba e foram juntados */
+  merged?: number;
 }

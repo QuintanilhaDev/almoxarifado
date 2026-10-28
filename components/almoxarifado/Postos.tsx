@@ -28,6 +28,7 @@ import { MovementFeed } from './Movements';
 import { LoadError } from './LoadError';
 import { PostoFormModal, QtyModal, SendModal } from './StockModals';
 import { useMaxBus } from '@/lib/max/bus';
+import { todayBahia } from '@/lib/compras/prazo';
 import './estoque.css';
 
 const keyOf = (s: string) => fold(s).replace(/[^a-z0-9]+/g, ' ').trim();
@@ -143,7 +144,7 @@ export function Postos({
 
   const exportCsv = () =>
     downloadCsv(
-      `postos-${new Date().toISOString().slice(0, 10)}.csv`,
+      `postos-${todayBahia()}.csv`,
       ['Posto', 'Código', 'Cidade', 'Endereço', 'Responsável', 'Itens diferentes', 'Unidades'],
       [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true })).map((p) => [p.name, p.code ?? '', p.city ?? '', p.address ?? '', p.supervisor ?? '', p.items_count, p.units]),
     );

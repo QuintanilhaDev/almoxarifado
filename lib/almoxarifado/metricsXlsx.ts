@@ -3,7 +3,7 @@
  * então o Excel filtra/ordena e o Power BI importa direto. A aba "Resumo" é a visão para ler.
  */
 import ExcelJS from 'exceljs';
-import { KIND_LABEL, KIND_ORDER, tzOffsetMs, type MetricsData, type MoveInput, type ReqInput } from './metrics';
+import { IN_OUT_RULE, KIND_LABEL, KIND_ORDER, tzOffsetMs, type MetricsData, type MoveInput, type ReqInput } from './metrics';
 
 const C = {
   ink: 'FF1D1430',
@@ -241,7 +241,7 @@ export async function buildWorkbook(data: MetricsData, moves: MoveInput[], reqs:
   kpi('Transferidas a postos (unidades)', t.transfers, INT, 'Do almoxarifado para o estoque de um posto');
   kpi('Devolvidas por postos (unidades)', t.returns, INT, 'Do posto de volta ao almoxarifado');
   kpi('Consumidas nos postos (unidades)', t.consumed, INT, 'Baixa feita no estoque do posto');
-  kpi('Ajustes de inventário', t.adjustments, INT, 'Contagens que corrigiram o saldo (registros)');
+  kpi('Ajustes de saldo e inventário', t.adjustments, INT, 'Ajustes e contagens que corrigiram o saldo (registros)');
   kpi('Solicitações recebidas', t.requests, INT, 'Pedidos que chegaram pelo formulário no período', C.amber);
   kpi('Solicitações ainda abertas', t.requestsOpen, INT, 'Entre as recebidas: novas ou pendentes agora');
   r++;
@@ -286,7 +286,7 @@ export async function buildWorkbook(data: MetricsData, moves: MoveInput[], reqs:
   section('COMO LER ESTA PLANILHA');
   const notes = [
     'Abas: "Linha do tempo" (números por hora ou por dia), "Itens" (o que mais entrou e saiu), "Postos" (o que cada posto recebeu), "Movimentações" (todos os registros) e "Solicitações".',
-    'Entradas = entrada + devolução de posto. Saídas = saída + transferência a posto. Ajustes, consumo nos postos e criação/exclusão de item aparecem nos detalhes, mas não entram nesses dois totais.',
+    `${IN_OUT_RULE} Ajustes de saldo, inventário, consumo nos postos e criação/exclusão de item aparecem nos detalhes, mas não entram nesses dois totais.`,
     'Todas as abas de dados têm o cabeçalho na primeira linha, sem linhas de total, e podem ser filtradas no Excel ou importadas no Power BI.',
     `Datas e horas no horário da Bahia (UTC−3). O período vai de ${dt(fromMs)} até ${dt(toMs)}.`,
   ];

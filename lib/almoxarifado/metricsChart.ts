@@ -292,7 +292,7 @@ export function reportSvg(data: MetricsData): { svg: string; width: number; heig
   o.push(`<line x1="${L}" x2="${R}" y1="${fy - 28}" y2="${fy - 28}" stroke="${COLORS.line}"/>`);
   o.push(
     `<text x="${L}" y="${fy}" font-size="14" fill="${COLORS.faint}" font-family="${FONT}">Gerado em ${esc(formatDateTime(data.generatedAt))} · horário da Bahia (UTC−3)</text>`,
-    `<text x="${R}" y="${fy}" text-anchor="end" font-size="14" fill="${COLORS.faint}" font-family="${FONT}">Entradas = entrada + devolução · Saídas = saída + transferência</text>`,
+    `<text x="${R}" y="${fy}" text-anchor="end" font-size="14" fill="${COLORS.faint}" font-family="${FONT}">Entradas = entrada + devoluções · Saídas = saída + envio + entrega + perda + dev. fornecedor + estorno</text>`,
   );
   o.push('</svg>');
   return { svg: o.join(''), width: W, height: H };

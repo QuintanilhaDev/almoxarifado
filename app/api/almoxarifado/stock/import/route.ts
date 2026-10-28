@@ -3,6 +3,7 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireAlmox } from '@/lib/access';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
+import { canManageSector } from '@/lib/permissions';
 import { dbMessage, fetchAll, intOrNull, moneyOrNull, str } from '@/lib/almoxarifado/stockData';
 import { ITEM_SCHEMA, SheetError, classify, itemKey, loadSheets, norm, readSheets } from '@/lib/almoxarifado/sheetReader';
 import { isMissingColumn } from '@/lib/auth';
@@ -24,9 +25,14 @@ async function existingKeys() {
   const byKey = new Map<string, Current>();
   for (const r of rows) byKey.set(itemKey(r.name, r.size), r);
   const keys = new Set(byKey.keys());
-  // nome -> uma chave de variação com tamanho já cadastrada
-  const sized = new Map<string, string>();
-  for (const r of rows) if (norm(r.size)) sized.set(norm(r.name), itemKey(r.name, r.size));
+  // nome -> chaves das variações com tamanho já cadastradas
+  const sized = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!norm(r.size)) continue;
+    const list = sized.get(norm(r.name)) ?? [];
+    list.push(itemKey(r.name, r.size));
+    sized.set(norm(r.name), list);
+  }
   return { keys, sized, byKey };
 }
 
@@ -44,27 +50,35 @@ function diffOf(cur: Current, d: Record<string, unknown>) {
 const changed = (x: ReturnType<typeof diffOf>) => x.quantity !== null || x.min_quantity !== null || x.cost !== null;
 
 /**
- * Chave de comparação de uma linha da planilha. Se o item vem SEM tamanho mas o mesmo
- * produto já existe com tamanho, a linha é tratada como o item que já existe (e não como
- * uma cópia nova "sem tamanho"), evitando duplicar o estoque.
+ * Chave de comparação de uma linha da planilha. Linha SEM tamanho: vale o item sem tamanho,
+ * se existir; senão, a única variação com tamanho daquele produto (evita duplicar o estoque).
+ * Com duas ou mais variações não dá para saber qual é: a linha fica ambígua (`ambiguous`).
  */
-function rowKey(name: unknown, size: unknown, sized: Map<string, string>) {
+function rowKey(name: unknown, size: unknown, sized: Map<string, string[]>, keys: Set<string>) {
   const k = itemKey(name, size);
-  if (!norm(size)) return sized.get(norm(name)) ?? k;
-  return k;
+  if (norm(size) || keys.has(k)) return { key: k, ambiguous: 0 };
+  const list = sized.get(norm(name)) ?? [];
+  if (list.length === 1) return { key: list[0], ambiguous: 0 };
+  return { key: k, ambiguous: list.length };
 }
+const ambiguousMsg = (n: number) => `Há ${n} tamanhos cadastrados para esse item. Informe o tamanho na planilha.`;
+const BALANCE_LOCKED =
+  'Só o master do Almoxarifado pode trocar o saldo de itens que já existem. Tire a coluna de saldo desses itens (ou peça a importação a ele); itens novos, mínimo e custo podem ser importados normalmente.';
 
 /**
  * Passo 1 (multipart, campo "file"): lê a planilha de itens e devolve a pré-visualização,
  * mostrando o que muda nos itens que já existem.
  * Passo 2 (JSON { rows }): cadastra os itens novos e atualiza os que já existem (mesmo nome
- * + tamanho): o saldo vira um ajuste no histórico; mínimo e custo são trocados. Itens que
+ * + tamanho): o saldo vira um ajuste no histórico (só o master do setor); mínimo e custo são trocados. Itens que
  * não estão na planilha ficam como estão, e nenhuma movimentação é apagada.
  */
 export async function POST(req: Request) {
   try {
     const admin = await requireAlmox('estoque', 'edit');
+    // trocar o saldo de quem já existe é ajuste de inventário: só o master do setor
+    const canBalance = canManageSector(admin, 'almoxarifado');
     const { keys: existing, sized, byKey } = await existingKeys();
+    const keyOf = (name: unknown, size: unknown) => rowKey(name, size, sized, existing);
 
     if ((req.headers.get('content-type') || '').includes('multipart/form-data')) {
       const up = await readUpload(req);
@@ -83,21 +97,37 @@ export async function POST(req: Request) {
           { sheets: read.sheets, warnings: read.warnings },
         );
       }
+      let locked = 0;
       const preview: ImportPreview = {
-        rows: classify(read.rows, (d) => rowKey(d.name, d.size, sized), existing).rows.map((r) => {
+        rows: classify(read.rows, (d) => keyOf(d.name, d.size).key, existing).rows.map((r) => {
+          const amb = keyOf(r.data.name, r.data.size).ambiguous;
+          if (amb > 1 && r.status !== 'duplicate') return { ...r, status: 'invalid' as const, error: ambiguousMsg(amb) };
           if (r.status !== 'exists') return r;
-          const cur = byKey.get(rowKey(r.data.name, r.data.size, sized));
+          const cur = byKey.get(keyOf(r.data.name, r.data.size).key);
           if (!cur) return r;
-          const x = diffOf(cur, r.data);
+          let data = r.data;
+          if (!canBalance && intOrNull(data.quantity) !== null && intOrNull(data.quantity) !== Number(cur.quantity)) {
+            // sem permissão o saldo da planilha não é aplicado (nem enviado na gravação)
+            data = { ...data, quantity: null };
+            locked++;
+          }
+          const x = diffOf(cur, data);
           return {
             ...r,
+            data,
             status: changed(x) ? ('update' as const) : r.status,
             current: { quantity: Number(cur.quantity), min_quantity: Number(cur.min_quantity), cost: cur.cost === null ? null : Number(cur.cost) },
           };
         }),
         sheets: read.sheets,
+        merged: read.merged,
         ignored: read.ignored,
-        warnings: read.warnings,
+        warnings: locked
+          ? [
+              ...read.warnings,
+              `${locked} ${locked === 1 ? 'item já cadastrado tem' : 'itens já cadastrados têm'} saldo diferente na planilha. Só o master do Almoxarifado pode trocar o saldo, então ${locked === 1 ? 'esse saldo será ignorado' : 'esses saldos serão ignorados'}.`,
+            ]
+          : read.warnings,
       };
       return NextResponse.json(preview);
     }
@@ -109,12 +139,18 @@ export async function POST(req: Request) {
     const fresh: Record<string, unknown>[] = [];
     const updates: { cur: Current; x: ReturnType<typeof diffOf> }[] = [];
     let skipped = 0;
+    const errors: string[] = [];
     const withCategories = body.rows.some((r) => cleanCategories(r?.categories).length > 0);
     for (const r of body.rows) {
       const name = str(r?.name, 160);
       if (!name) continue;
       const size = str(r.size, 40);
-      const k = rowKey(name, size, sized);
+      const { key: k, ambiguous } = keyOf(name, size);
+      if (ambiguous > 1) {
+        // não cria uma cópia "sem tamanho" de um item que tem várias variações
+        errors.push(`${name}: ${ambiguousMsg(ambiguous)}`);
+        continue;
+      }
       if (seen.has(k)) {
         skipped++;
         continue;
@@ -141,6 +177,7 @@ export async function POST(req: Request) {
         created_by: admin.display_name,
       });
     }
+    if (!canBalance && updates.some((u) => u.x.quantity !== null)) return fail(BALANCE_LOCKED, 403);
     let added = 0;
     for (let i = 0; i < fresh.length; i += 500) {
       const { data, error } = await db()
@@ -174,7 +211,6 @@ export async function POST(req: Request) {
 
     // itens que já existem: saldo por ajuste (fica no histórico), mínimo e custo direto
     let updated = 0;
-    const errors: string[] = [];
     const label = (c: Current) => c.name + (c.size ? ` · ${c.size}` : '');
     const one = async ({ cur, x }: (typeof updates)[number]) => {
       if (x.quantity !== null) {

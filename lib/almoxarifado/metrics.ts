@@ -3,13 +3,17 @@
  * Código puro (sem banco, sem React): a tela, o PNG e a planilha usam estes mesmos números.
  *
  * Regras de contagem (valem para o gráfico e para a planilha):
- *  - ENTRADAS = unidades que entraram no almoxarifado: "entrada" + "devolução" (posto → almoxarifado).
- *  - SAÍDAS   = unidades que saíram do almoxarifado: "saída" + "transferência" (almoxarifado → posto).
- *  - Ajuste de inventário, consumo no posto, criação e exclusão de item NÃO entram em entradas/saídas
- *    (aparecem só nas tabelas de detalhe), para uma importação de planilha não parecer "milhares de entradas".
+ *  - ENTRADAS = IN_KINDS: entrada, devolução de posto e devolução de colaborador (só a que voltou ao
+ *    saldo; devolução avariada não conta).
+ *  - SAÍDAS   = OUT_KINDS: saída, envio a posto, entrega com termo, perda/avaria, devolução ao
+ *    fornecedor e estorno de nota.
+ *  - Ajuste de saldo, inventário, consumo no posto, criação e exclusão de item NÃO entram em
+ *    entradas/saídas (aparecem só nas tabelas de detalhe), para uma importação de planilha não
+ *    parecer "milhares de entradas".
  *  - MOVIMENTAÇÕES = quantidade de registros, exceto criação/exclusão de item.
  */
 import { TZ } from '../format';
+import { MOVEMENT_LABEL } from './types';
 
 export type Period = 'ultimo-dia' | 'hoje' | 'ultima-semana' | 'ultimo-mes';
 
@@ -123,25 +127,25 @@ export interface MetricsData {
 
 export const IN_KINDS = ['entrada', 'devolucao', 'devolucao_colaborador'];
 export const OUT_KINDS = ['saida', 'transferencia', 'entrega', 'perda', 'devolucao_fornecedor', 'estorno'];
+/** mudam o saldo direto (contam como "ajustes") */
+export const ADJUST_KINDS = ['ajuste', 'inventario'];
 const NOT_MOVES = ['criacao', 'exclusao'];
 
+/** A regra em uma frase (tela, PNG e planilha). */
+export const IN_OUT_RULE =
+  'Entradas = entrada + devolução de posto + devolução de colaborador (só a que volta ao saldo). Saídas = saída + envio a posto + entrega com termo + perda ou avaria + devolução ao fornecedor + estorno de nota.';
+
+/** Entrou no almoxarifado? Devolução de colaborador avariada não volta ao saldo (depois = antes). */
+export function isInMove(m: { kind: string; before_qty?: number | null; after_qty?: number | null }) {
+  if (!IN_KINDS.includes(m.kind)) return false;
+  if (m.kind === 'devolucao_colaborador') return Number(m.after_qty) > Number(m.before_qty);
+  return true;
+}
+export const isOutMove = (m: { kind: string }) => OUT_KINDS.includes(m.kind);
+
 export const KIND_ORDER = ['entrada', 'devolucao', 'devolucao_colaborador', 'saida', 'entrega', 'transferencia', 'ajuste', 'inventario', 'baixa_posto', 'perda', 'devolucao_fornecedor', 'estorno', 'criacao', 'exclusao'];
-export const KIND_LABEL: Record<string, string> = {
-  entrada: 'Entrada',
-  devolucao: 'Devolução de posto',
-  saida: 'Saída',
-  transferencia: 'Transferência a posto',
-  ajuste: 'Ajuste de inventário',
-  baixa_posto: 'Consumo no posto',
-  criacao: 'Item criado',
-  exclusao: 'Item excluído',
-  entrega: 'Entrega com termo',
-  devolucao_colaborador: 'Devolução de colaborador',
-  inventario: 'Inventário',
-  perda: 'Perda ou avaria',
-  devolucao_fornecedor: 'Devolução ao fornecedor',
-  estorno: 'Estorno de nota',
-};
+/** os mesmos nomes do histórico do Estoque (um mapa só) */
+export const KIND_LABEL: Record<string, string> = MOVEMENT_LABEL;
 
 const HOUR = 3600_000;
 const WEEKDAY = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -345,8 +349,8 @@ export function computeMetrics(
     t.moves++;
     buckets[i].moves++;
 
-    const isIn = IN_KINDS.includes(k);
-    const isOut = OUT_KINDS.includes(k);
+    const isIn = isInMove(m);
+    const isOut = isOutMove(m);
     if (isIn) {
       t.in += q;
       buckets[i].in += q;
@@ -357,7 +361,7 @@ export function computeMetrics(
     }
     if (k === 'transferencia') t.transfers += q;
     if (k === 'devolucao') t.returns += q;
-    if (k === 'ajuste') t.adjustments++;
+    if (ADJUST_KINDS.includes(k)) t.adjustments++;
     if (k === 'baixa_posto') t.consumed += q;
 
     if (isIn || isOut) {

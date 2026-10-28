@@ -3,6 +3,7 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireAlmox } from '@/lib/access';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
+import { canManageSector } from '@/lib/permissions';
 import { UUID_RE, dbMessage, intOrNull, str } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,10 @@ export async function POST(req: Request) {
   try {
     // devolver/baixar o que está no posto e enviar a um posto também valem para quem edita Postos
     const admin = await requireAlmox(NEEDS_POSTO.includes(kind) ? ['estoque', 'postos'] : 'estoque', 'edit');
+    // trocar o saldo direto é ajuste de inventário: mesma regra da contagem (master do setor)
+    if (kind === 'ajuste' && !canManageSector(admin, 'almoxarifado')) {
+      return fail('Só o master do Almoxarifado pode ajustar o saldo. Registre uma entrada ou saída, ou peça o ajuste a ele.', 403);
+    }
     const { data, error } = await db().rpc('stock_move', {
       p_item: body.item_id,
       p_kind: kind,

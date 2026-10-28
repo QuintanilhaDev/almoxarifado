@@ -108,11 +108,19 @@ export async function DELETE(_req: Request, ctx: Ctx) {
       .maybeSingle();
     if (e1) throw e1;
     if (!item) return fail('Item não encontrado.', 404);
-    if (Number((item as { reserved?: number }).reserved ?? 0) > 0) return fail('Este item tem unidades reservadas para pedidos. Libere as reservas antes de excluir (ou desative o item).', 409);
+    const RESERVED = 'Este item tem unidades reservadas para pedidos. Libere as reservas antes de excluir (ou desative o item).';
+    if (Number((item as { reserved?: number }).reserved ?? 0) > 0) return fail(RESERVED, 409);
     const { data: lines } = await db().from('posto_stock').select('quantity').eq('item_id', id);
     const atPostos = (lines ?? []).reduce((a, l) => a + (l.quantity as number), 0);
-    const { error: e2 } = await db().from('stock_items').delete().eq('id', id);
+    // só apaga se continuar sem reserva (um pedido pode ter reservado entre a leitura e aqui)
+    let del = db().from('stock_items').delete().eq('id', id);
+    if ('reserved' in item) del = del.eq('reserved', 0);
+    const { data: gone, error: e2 } = await del.select('id');
     if (e2) throw e2;
+    if (!gone?.length) {
+      const { data: still } = await db().from('stock_items').select('id').eq('id', id).maybeSingle();
+      return still ? fail(RESERVED, 409) : fail('Item não encontrado.', 404);
+    }
     await db().from('stock_movements').insert({
       item_id: null,
       item_name: item.name + (item.size ? ` · ${item.size}` : ''),

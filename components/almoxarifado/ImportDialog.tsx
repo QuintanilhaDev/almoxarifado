@@ -255,9 +255,14 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
               <FileSpreadsheet size={14} style={{ verticalAlign: '-2px' }} /> Como li {fileName || 'a planilha'}
             </summary>
             <ul>
-              {preview.sheets.map((s) => (
+              {preview.sheets.map((s) =>
+                s.skipped ? (
+                  <li key={s.name}>
+                    Aba <b>{s.name}</b>{s.hidden ? ' (oculta)' : ''}: ignorada ({s.skipped})
+                  </li>
+                ) : (
                 <li key={s.name}>
-                  Aba <b>{s.name}</b>: {s.read} linha{s.read === 1 ? '' : 's'} lida{s.read === 1 ? '' : 's'}
+                  Aba <b>{s.name}</b>{s.hidden ? ' (oculta)' : ''}: {s.read} linha{s.read === 1 ? '' : 's'} lida{s.read === 1 ? '' : 's'}
                   {s.headerRow ? `, cabeçalho na linha ${s.headerRow}` : ', sem cabeçalho'}
                   {s.columns.some((c) => c.field)
                     ? '. Colunas: ' +
@@ -267,7 +272,13 @@ export function ImportDialog({ kind, onClose, onDone }: { kind: Kind; onClose: (
                         .join(', ')
                     : ''}
                 </li>
-              ))}
+                ),
+              )}
+              {preview.merged ? (
+                <li>
+                  {num(preview.merged)} {preview.merged === 1 ? 'registro estava' : 'registros estavam'} em mais de uma aba e {preview.merged === 1 ? 'foi juntado' : 'foram juntados'}.
+                </li>
+              ) : null}
             </ul>
           </details>
 

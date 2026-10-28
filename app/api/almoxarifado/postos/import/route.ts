@@ -41,6 +41,7 @@ export async function POST(req: Request) {
       const preview: ImportPreview = {
         rows: classify(read.rows, (d) => postoKey(d.name), existing).rows,
         sheets: read.sheets,
+        merged: read.merged,
         ignored: read.ignored,
         warnings: read.warnings,
       };

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ChevronDown, PackagePlus, Plus, Search, Send, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Posto, StockItem } from '@/lib/almoxarifado/types';
-import { fold, itemLabel, num } from '@/lib/almoxarifado/stockFormat';
+import { fold, hasDecimals, itemLabel, num, parseIntBR } from '@/lib/almoxarifado/stockFormat';
 import { useToast } from '../core/Toasts';
 import { api } from '../core/api';
 import { CategoryPicker } from './CategoryPicker';
@@ -246,11 +246,14 @@ export function QtyModal({
   kind: initial,
   posto,
   atPosto,
+  canAdjust = false,
   onClose,
   onSaved,
 }: {
   item: { id: string; name: string; size: string | null; quantity?: number };
   kind: QtyKind;
+  /** "Ajuste" troca o saldo direto: só o master do Almoxarifado */
+  canAdjust?: boolean;
   posto?: { id: string; name: string };
   /** quanto o posto tem deste item (devolução/baixa) */
   atPosto?: number;
@@ -266,8 +269,8 @@ export function QtyModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const n = qty.trim() === '' ? null : Number(qty);
-  const valid = n !== null && Number.isInteger(n) && n >= 0 && (kind === 'ajuste' || n >= 1);
+  const n = parseIntBR(qty);
+  const valid = n !== null && n >= 0 && (kind === 'ajuste' || n >= 1);
   const after =
     !valid || n === null
       ? null
@@ -289,6 +292,7 @@ export function QtyModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasDecimals(qty)) return setError('Use um número inteiro, sem casas decimais.');
     if (!valid || n === null) return setError(kind === 'ajuste' ? 'Informe o novo saldo (zero ou mais).' : 'Informe uma quantidade inteira maior que zero.');
     if ((kind === 'saida') && n > balance) return setError(`Saldo insuficiente: há apenas ${num(balance)} no almoxarifado.`);
     if (isPosto && atPosto !== undefined && n > atPosto) return setError(`O posto tem apenas ${num(atPosto)} deste item.`);
@@ -312,7 +316,7 @@ export function QtyModal({
       <form onSubmit={submit} noValidate>
         {!isPosto ? (
           <div className="kind-seg" role="tablist">
-            {(['entrada', 'saida', 'ajuste'] as const).map((k) => (
+            {(canAdjust ? (['entrada', 'saida', 'ajuste'] as const) : (['entrada', 'saida'] as const)).map((k) => (
               <button type="button" key={k} className={kind === k ? 'is-active' : ''} onClick={() => switchKind(k)}>
                 {k === 'entrada' ? 'Entrada' : k === 'saida' ? 'Saída' : 'Ajuste'}
               </button>

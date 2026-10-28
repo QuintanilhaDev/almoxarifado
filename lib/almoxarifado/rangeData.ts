@@ -1,6 +1,6 @@
 import 'server-only';
 import { db } from '../supabaseAdmin';
-import { IN_KINDS, OUT_KINDS } from './metrics';
+import { ADJUST_KINDS, isInMove, isOutMove } from './metrics';
 import type { RangeData } from './range';
 
 const PAGE = 1000;
@@ -19,16 +19,16 @@ async function readAll<T>(build: (from: number, to: number) => PromiseLike<{ dat
   return { rows, truncated: true };
 }
 
-/** Entradas, saídas e solicitações entre dois instantes. Entradas = entrada + devolução · Saídas = saída + envio a posto. */
+/** Entradas, saídas e solicitações entre dois instantes (mesma regra da tela de Métricas: IN_KINDS / OUT_KINDS). */
 export async function loadRange(fromMs: number, toMs: number): Promise<RangeData> {
   const fromIso = new Date(fromMs).toISOString();
   const toIso = new Date(toMs).toISOString();
   const sb = db();
   const [mv, rq] = await Promise.all([
-  readAll<{ kind: string; quantity: number; item_name: string; posto_name: string | null }>((a, b) =>
+  readAll<{ kind: string; quantity: number; item_name: string; posto_name: string | null; before_qty: number | null; after_qty: number | null }>((a, b) =>
     sb
       .from('stock_movements')
-      .select('id, created_at, kind, quantity, item_name, posto_name')
+      .select('id, created_at, kind, quantity, item_name, posto_name, before_qty, after_qty')
       .gte('created_at', fromIso)
       .lte('created_at', toIso)
       .order('created_at', { ascending: true })
@@ -52,10 +52,10 @@ export async function loadRange(fromMs: number, toMs: number): Promise<RangeData
   const postos = new Map<string, { name: string; received: number }>();
   for (const m of mv.rows) {
   const q = Number(m.quantity) || 0;
-  const isIn = IN_KINDS.includes(m.kind);
-  const isOut = OUT_KINDS.includes(m.kind);
+  const isIn = isInMove(m);
+  const isOut = isOutMove(m);
   if (m.kind === 'baixa_posto') totals.consumed += q;
-  if (m.kind === 'ajuste') totals.adjustments++;
+  if (ADJUST_KINDS.includes(m.kind)) totals.adjustments++;
   if (!isIn && !isOut) continue;
   const it = items.get(m.item_name) ?? { name: m.item_name, in: 0, out: 0 };
   if (isIn) {

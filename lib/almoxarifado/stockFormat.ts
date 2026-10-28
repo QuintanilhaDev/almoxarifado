@@ -9,8 +9,26 @@ export const num = (n: number | null | undefined) => int.format(n ?? 0);
 export const itemLabel = (i: { name: string; size: string | null }) => i.name + (i.size ? ` · ${i.size}` : '');
 export const refLabel = (n: number) => String(n).padStart(4, '0');
 
-/** Estoque baixo = tem mínimo definido e o saldo do almoxarifado chegou nele ou abaixo. */
-export const isLow = (i: Pick<StockItem, 'quantity' | 'min_quantity'>) => i.min_quantity > 0 && i.quantity <= i.min_quantity;
+/** Estoque baixo = tem mínimo definido e o disponível (saldo menos o reservado) chegou nele ou abaixo. */
+export const isLow = (i: Pick<StockItem, 'quantity' | 'min_quantity'> & { reserved?: number | null }) =>
+  i.min_quantity > 0 && i.quantity - (Number(i.reserved) || 0) <= i.min_quantity;
+
+/**
+ * Inteiro escrito do jeito brasileiro: "1.000" é mil, "12,00" é 12. Número com casas decimais
+ * de verdade ("2,7") não é arredondado: devolve null, como qualquer texto inválido.
+ */
+export function parseIntBR(v: unknown): number | null {
+  if (v === '' || v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isInteger(v) ? v : null;
+  const s = String(v).replace(/\s+/g, '');
+  const m = /^(-?)(\d{1,3}(?:\.\d{3})+|\d+)(?:,0+)?$/.exec(s);
+  if (!m) return null;
+  const n = Number(m[1] + m[2].replace(/\./g, ''));
+  return Number.isSafeInteger(n) ? n : null;
+}
+
+/** O texto parece número com casas decimais (ex.: "2,7" ou "2.5")? Serve para a mensagem de erro. */
+export const hasDecimals = (v: unknown) => /^\s*-?\d+[.,]\d+\s*$/.test(String(v ?? '')) && parseIntBR(v) === null;
 
 export function compareItems(a: { name: string; size: string | null }, b: { name: string; size: string | null }) {
   return (
