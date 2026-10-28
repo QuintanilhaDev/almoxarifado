@@ -1,4 +1,5 @@
 'use client';
+import { redactSecrets } from './max/moderation';
 /**
  * Registro para a Auditoria, no navegador: telas abertas, alterações feitas (com o resultado)
  * e pedidos à Max. Junta os eventos e manda de pouco em pouco para /api/audit.
@@ -29,8 +30,8 @@ export function auditLog(ev: Ev, now = false) {
 
 /** pedido feito à Max (e o que ela respondeu) */
 export function auditMax(said: string, reply?: string) {
-  const clean = said.replace(/^\s*(ol[áa]\s+|oi\s+|ei\s+)?max[,!.:\s]+/i, '').trim();
-  auditLog({ kind: 'max', action: `Pediu à Max: “${clean.slice(0, 160)}”`, detail: reply ? reply.slice(0, 220) : null });
+  const clean = redactSecrets(said.replace(/^\s*(ol[áa]\s+|oi\s+|ei\s+)?max[,!.:\s]+/i, '').trim());
+  auditLog({ kind: 'max', action: `Pediu à Max: “${clean.slice(0, 160)}”`, detail: reply ? redactSecrets(reply).slice(0, 220) : null });
 }
 
 /* ------------------------------------------------------------------ */

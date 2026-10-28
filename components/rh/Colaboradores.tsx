@@ -99,7 +99,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
 
   const open = openId ? ((list ?? []).find((c) => c.id === openId) ?? null) : null;
   return (
-    <div className="section-scroll">
+    <div className="section-scroll" data-no-tilt>
       <div className="section-pad wide">
         <div className="section-head">
           <div>

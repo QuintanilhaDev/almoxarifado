@@ -143,6 +143,8 @@ export async function POST(req: Request, ctx: Ctx) {
       if (!Array.isArray(b.lines) || !b.lines.length) return fail('Informe o que foi recebido.');
       const lines = (b.lines as Record<string, unknown>[]).map((x) => ({ i: Number(x?.i), item_id: typeof x?.item_id === 'string' && UUID_RE.test(x.item_id) ? x.item_id : null, qty: Number(x?.qty) }));
       if (lines.some((l) => !Number.isInteger(l.i) || !Number.isFinite(l.qty) || l.qty < 0)) return fail('Quantidades inválidas.');
+      // a mesma linha duas vezes passaria pela conferência separada: recusa
+      if (new Set(lines.map((l) => l.i)).size !== lines.length) return fail('Linha da nota repetida no lançamento. Atualize a tela e confira.');
       if (pc) {
         let cur = n;
         // sem conferência registrada: quem confirma está conferindo (entregue = aceito = o que entra)

@@ -2,7 +2,7 @@
 import { CalendarClock, FileSpreadsheet, FileText } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { fold } from '@/lib/almoxarifado/stockFormat';
-import type { FiscalNote } from '@/lib/notas/server';
+import type { DueNote } from '@/lib/notas/server';
 import { brl, dateBR, todayLocal } from '../pedidos/ui';
 import { N_STATUS } from './NoteDrawer';
 
@@ -10,7 +10,7 @@ import { N_STATUS } from './NoteDrawer';
  * Programação de vencimentos: consulta por período, fornecedor, nota e pedido, com totais
  * por mês e por fornecedor e exportação em planilha ou PDF. É previsão de desembolso.
  */
-export function DuesView({ notes, onOpen }: { notes: FiscalNote[]; onOpen: (id: string) => void }) {
+export function DuesView({ notes, onOpen }: { notes: DueNote[]; onOpen: (id: string) => void }) {
   const today = todayLocal();
   const [from, setFrom] = useState(today.slice(0, 8) + '01');
   const [to, setTo] = useState('');

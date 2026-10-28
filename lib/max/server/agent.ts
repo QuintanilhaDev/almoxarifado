@@ -16,6 +16,7 @@ import { currencyAnswer, currencyIn } from './currency';
 import { llmConfigured } from './llm';
 import { isWeatherQuestion, weatherAnswer } from './weather';
 import { gaveUp, nearest, signature } from '../learn';
+import { hasSecret, redactSecrets } from '../moderation';
 import { addNote, learnedFor, logMiss, notesFor, remember } from './memory';
 import { canSeePurchases } from '../../compras/access';
 import { COLS as PURCHASE_COLS, toRequest } from '../../compras/server';
@@ -764,13 +765,17 @@ export async function runAgent(user: HubUser, input: AgentInput): Promise<AgentR
   ];
   /** só aprende pedidos que se explicam sozinhos (sem depender da conversa anterior) */
   const teachable = signature(input.text).length >= 2;
+  // pedido com senha (ou mexendo em usuário) nunca vira exemplo guardado
+  const secret = hasSecret(input.text);
   const learn = (e: { route?: string; tool?: string; args?: Args }) => {
-    if (!teachable) return;
+    if (!teachable || secret) return;
+    if (e.tool && /^usuario/.test(e.tool)) return;
     // nunca guarda dados de usuários/senhas; para alterações fica só o nome da ferramenta
     const safeArgs = e.tool && /^(estoque_consultar|estoque_listar|movimentacoes_consultar|solicitacoes_consultar|postos_consultar)$/.test(e.tool) ? e.args ?? null : null;
     void remember({ phrase: input.text, scope: input.scope, sector, route: e.route ?? null, tool: e.tool ?? null, args: safeArgs, by: user.display_name });
   };
-  const miss = (reason: string, answer?: string) => void logMiss({ phrase: input.text, scope: input.scope, sector, reason, answer, user: user.display_name });
+  const miss = (reason: string, answer?: string) =>
+    void logMiss({ phrase: redactSecrets(input.text), scope: input.scope, sector, reason, answer: answer ? redactSecrets(answer) : answer, user: user.display_name });
 
   // Pedido que não parece alteração vai só com as ferramentas de consulta: o pedido fica bem menor
   // (cabe mais conversa na cota gratuita). Se a IA disser que precisa alterar, recebe todas.

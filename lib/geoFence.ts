@@ -65,8 +65,10 @@ export function judge(lat: number, lng: number, accuracy: number): { status: Geo
   return { status: distance <= c.radius + Math.min(accuracy, 30) ? 'dentro' : 'fora', distance };
 }
 
-export async function signGeo(sub: string, exempt: boolean): Promise<string> {
-  return new SignJWT({ x: exempt ? 1 : 0 })
+export async function signGeo(sub: string, exempt: boolean, username?: string | null): Promise<string> {
+  const claims: Record<string, unknown> = { x: exempt ? 1 : 0 };
+  if (exempt && username) claims.u = String(username).trim().toLowerCase().replace(/^@/, '');
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(sub)
     .setIssuedAt()
@@ -75,11 +77,46 @@ export async function signGeo(sub: string, exempt: boolean): Promise<string> {
     .sign(await secretKey());
 }
 
+/** situação atual da pessoa no banco (cache curto, roda também no middleware) */
+const statusCache = new Map<string, { at: number; v: { username: string; is_master: boolean; active: boolean } | null }>();
+const STATUS_TTL_MS = 60_000;
+
+async function currentStatus(sub: string): Promise<{ username: string; is_master: boolean; active: boolean } | null | undefined> {
+  const hit = statusCache.get(sub);
+  if (hit && Date.now() - hit.at < STATUS_TTL_MS) return hit.v;
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!url || !key || !/^[0-9a-f-]{36}$/i.test(sub)) return undefined;
+  try {
+    const r = await fetch(`${url}/rest/v1/admins?id=eq.${sub}&select=username,is_master,active`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      cache: 'no-store',
+    });
+    if (!r.ok) return undefined;
+    const rows = (await r.json()) as { username?: string; is_master?: boolean; active?: boolean }[];
+    const row = rows[0];
+    const v = row ? { username: String(row.username ?? ''), is_master: Boolean(row.is_master), active: row.active !== false } : null;
+    if (statusCache.size > 2000) statusCache.clear();
+    statusCache.set(sub, { at: Date.now(), v });
+    return v;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function verifyGeo(token: string | undefined | null, sub: string): Promise<boolean> {
   if (!token) return false;
   try {
     const { payload } = await jwtVerify(token, await secretKey(), { algorithms: ['HS256'], audience: 'geo' });
-    return payload.sub === sub;
+    if (payload.sub !== sub) return false;
+    if (payload.x !== 1) return true;
+    // permissão "sem cerca": confere se a pessoa continua sem cerca hoje
+    // (entrou na lista GEO_USERS, deixou de ser master, trocou de usuário…)
+    if (typeof payload.u === 'string' && geoFenced({ username: payload.u })) return false;
+    const now = await currentStatus(sub);
+    if (now === undefined) return typeof payload.u === 'string'; // banco fora do ar: vale só o que dá para conferir
+    if (!now || !now.active) return false;
+    return !geoFenced(now);
   } catch {
     return false;
   }

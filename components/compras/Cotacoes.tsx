@@ -710,6 +710,12 @@ function ProposalSheet({ q, p, config, readOnly, onClose, onSave }: { q: Quote; 
                 <input id="pp-fr" className="input" inputMode="decimal" value={money3.freight} onChange={(e) => setMoney3({ ...money3, freight: e.target.value })} />
               </div>
               <div>
+                <label className="label" htmlFor="pp-ot">
+                  Outros custos (R$)
+                </label>
+                <input id="pp-ot" className="input" inputMode="decimal" value={money3.other} onChange={(e) => setMoney3({ ...money3, other: e.target.value })} />
+              </div>
+              <div>
                 <label className="label" htmlFor="pp-ds">
                   Desconto (R$)
                 </label>

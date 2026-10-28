@@ -86,6 +86,9 @@ export interface FiscalNote {
   updated_at: string;
 }
 
+/** o mínimo de cada nota para a programação de vencimentos */
+export type DueNote = Pick<FiscalNote, 'id' | 'number' | 'series' | 'supplier_name' | 'status' | 'installments' | 'installments_status'>;
+
 /** colunas do recebimento pelo pedido (existem depois do supabase/compras_pedidos.sql) */
 export const NOTE_COLS_PC = NOTE_COLS + ', purchase_order_id, purchase_order_ids, order_refs, attachments, divergences, installments_status';
 let pcCols: { ok: boolean; at: number } | null = null;
@@ -181,7 +184,7 @@ export function matchOrder(lines: NoteLine[], pos: PurchaseOrder[], refs: number
  * e junta as diferenças da conferência física. O que já foi tratado continua tratado
  * (mesma divergência, mesmo valor encontrado). O pedido NUNCA é alterado para bater com a nota.
  */
-export function computeDivergences(note: FiscalNote, orders: PurchaseOrder[] | PurchaseOrder | null, cfg: ComprasConfig, prev: Divergence[] = []): Divergence[] {
+export function computeDivergences(note: FiscalNote, orders: PurchaseOrder[] | PurchaseOrder | null, cfg: ComprasConfig, prev: Divergence[] = [], freightUsed = 0): Divergence[] {
   const pos = !orders ? [] : Array.isArray(orders) ? orders : [orders];
   const at = new Date().toISOString();
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -221,7 +224,8 @@ export function computeDivergences(note: FiscalNote, orders: PurchaseOrder[] | P
       if (invoiced > left) push('quantidade_pedido', i, `${l.description}: faturado ${invoiced}, mas o ${label(po)} só tem ${left} a receber.`, String(left), String(invoiced));
     });
     const freight = Number(note.totals?.freight ?? 0);
-    const poFreight = pos.reduce((t, o) => t + (o.freight || 0), 0);
+    // o que sobra do frete do(s) pedido(s) depois das outras notas (não estornadas) deles
+    const poFreight = Math.max(0, Math.round((pos.reduce((t, o) => t + (o.freight || 0), 0) - freightUsed) * 100) / 100);
     if (freight - poFreight > 0.009) push('frete', null, `Frete de ${brl(freight)} na nota; ${many ? 'os pedidos previam' : 'o pedido previa'} ${brl(poFreight)}.`, brl(poFreight), brl(freight));
     const terms = pos.filter((o) => o.payment?.mode).map((o) => (o.payment.mode === 'parcelado' ? o.payment.installments || 1 : 1));
     if (note.installments.length && terms.length) {

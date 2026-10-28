@@ -90,7 +90,7 @@ export function gestaoPdf(d: Indicators, opts: { by: string; period: string }): 
     { label: 'Atendimento médio', value: d.orders.avgDays === null ? '—' : d.orders.avgDays < 1 ? '< 1 dia' : `${d.orders.avgDays.toLocaleString('pt-BR')} dias`, color: GREEN, sub: plural(d.orders.done, 'concluído', 'concluídos') },
     { label: 'Abaixo do mínimo', value: int(d.stock.below), color: d.stock.below ? AMBER : GREEN, sub: `${int(d.replenish)} para repor` },
     { label: 'Compras em aberto', value: int(d.purchases.open), color: LILAC, sub: d.purchases.late ? plural(d.purchases.late, 'atrasada', 'atrasadas') : 'nenhuma atrasada' },
-    { label: 'Parcelas vencidas', value: brl(d.notes.overdueValue), color: d.notes.overdue ? RED : GREEN, sub: plural(d.notes.overdue, 'parcela', 'parcelas') },
+    { label: 'Vencimentos passados (30 dias)', value: brl(d.notes.overdueValue), color: d.notes.overdue ? RED : GREEN, sub: plural(d.notes.overdue, 'parcela', 'parcelas') },
     { label: 'A vencer em 30 dias', value: brl(d.notes.dueSoonValue), color: AMBER, sub: plural(d.notes.dueSoon, 'parcela', 'parcelas') },
   ];
   const cw = (CW - 3 * 10) / 4;

@@ -377,8 +377,15 @@ export const periodoTxt = (a: Analise) => `${dataBR(a.filtros?.de ?? a.periodo.f
 export const recorteTxt = (a: Analise) => [a.filtros?.posto, a.filtros?.filial, a.filtros?.funcao].filter(Boolean).join('  ·  ');
 export const escalaTxt = (f: FuncAnalisado, curto = false) => (f.escala === '12x36' ? '12x36' : curto ? 'Diária' : `diária${f.jornadaTipica ? ' de ' + hhmm(f.jornadaTipica) : ''}`);
 
-export const pdfName = (a: Analise) => `Relatorio-Ponto-${periodoTxt(a).replace(/\//g, '-').replace(/ /g, '-')}.pdf`;
-export const zipName = (a: Analise) => `Relatório de Ponto ${periodoTxt(a).replace(/\//g, '-')}.zip`;
+/** nome de arquivo seguro: sem barras, aspas, quebras de linha nem caracteres de controle */
+export const safeFileName = (name: string) =>
+  name
+    .replace(/[\u0000-\u001f\u007f"\\/:*?<>|;]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120) || 'relatorio';
+export const pdfName = (a: Analise) => safeFileName(`Relatorio-Ponto-${periodoTxt(a).replace(/\//g, '-').replace(/ /g, '-')}.pdf`);
+export const zipName = (a: Analise) => safeFileName(`Relatório de Ponto ${periodoTxt(a).replace(/\//g, '-')}.zip`);
 export type { Situacao };
 
 /**

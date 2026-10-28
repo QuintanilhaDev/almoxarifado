@@ -19,7 +19,8 @@ const reais = (n: number) => {
   return `${fmt(int)} ${int === 1 ? 'real' : 'reais'}${cents ? ` e ${cents} ${cents === 1 ? 'centavo' : 'centavos'}` : ''}`;
 };
 const itemLabel = (i: { name: string; size: string | null }) => i.name + (i.size ? ` · ${i.size}` : '');
-const isLow = (i: StockItem) => i.min_quantity > 0 && i.quantity <= i.min_quantity;
+// disponível (saldo menos o reservado) no mínimo ou abaixo, como no Estoque
+const isLow = (i: StockItem) => i.min_quantity > 0 && i.quantity - (i.reserved ?? 0) <= i.min_quantity;
 /** quantidade para falar: "zerado" soa melhor do que "com 0" */
 const withQty = (n: number) => (n === 0 ? 'zerado' : `com ${fmt(n)}`);
 /** "do Posto 01" / "do posto Shopping Barra" (sem repetir a palavra posto) */

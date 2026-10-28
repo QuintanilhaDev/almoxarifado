@@ -1,5 +1,5 @@
 import 'server-only';
-import { currentUser } from './auth';
+import { sessionUser } from './sessionUser';
 import { AccessError } from './http';
 import { canManageSector, canOpenSector, hasLevel, type HubUser, type Level } from './permissions';
 import { getSector } from './sectors';
@@ -7,11 +7,11 @@ import { getSector } from './sectors';
 /**
  * Conferências de acesso das rotas do servidor. Todas leem a pessoa no banco a cada
  * chamada (nunca confiam no cookie), então trocar setor, permissão ou desativar alguém
- * vale na hora. Em caso de recusa lançam AccessError, que o serverError() transforma
+ * vale na hora; trocar a senha derruba as sessões antigas. Em caso de recusa lançam AccessError, que o serverError() transforma
  * em 401/403.
  */
 export async function requireUser(): Promise<HubUser> {
-  const user = await currentUser();
+  const user = await sessionUser();
   if (!user) throw new AccessError(401, 'Sessão expirada. Entre novamente.');
   return user;
 }

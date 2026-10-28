@@ -47,6 +47,8 @@ export function GeoGuard() {
         setState('ok');
         return 'exempt' as const;
       }
+      // sem posição ainda: o servidor só confirma que há cerca; segue conferindo
+      if (j.status === 'aguardando') return j.status;
       setDistance(j.distance ?? null);
       setState(j.status === 'dentro' ? 'ok' : j.status === 'fora' ? 'fora' : 'impreciso');
       return j.status;
@@ -94,7 +96,15 @@ export function GeoGuard() {
     }, HEARTBEAT_MS);
     // uma rota recusou por localização: confere de novo na hora
     const onBlocked = () => {
-      if (exempt.current) void send(null);
+      if (exempt.current) {
+        // deixou de ser isento (entrou na cerca): passa a mandar a posição
+        void send(null).then((s) => {
+          if (s === 'aguardando') {
+            exempt.current = false;
+            startWatch();
+          }
+        });
+      }
       else if (last.current) void send(last.current);
       else startWatch();
     };

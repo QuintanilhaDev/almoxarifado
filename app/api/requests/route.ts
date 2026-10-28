@@ -9,12 +9,16 @@ import { answerToText } from '@/lib/format';
 import type { Attachment } from '@/lib/almoxarifado/types';
 import { getConfig } from '@/lib/pedidos/server';
 import { orderFromRequest } from '@/lib/pedidos/fromRequest';
+import { clientKey, rateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
 const PATH_RE = /^([0-9a-f-]{36})\/\d{1,2}-[A-Za-z0-9._-]{1,80}$/;
 
 export async function POST(req: Request) {
+  // formulário público: freio por endereço (robôs enchendo a caixa de entrada)
+  const limited = rateLimit(`requests:ip:${clientKey(req)}`, 15, 10 * 60_000);
+  if (!limited.ok) return fail(`Muitos envios em sequência. Aguarde ${Math.ceil(limited.retryAfterMs / 60_000)} min e tente de novo.`, 429);
   const body = await readJson<{ values?: Record<string, unknown>; attachments?: Attachment[] }>(req);
   if (!body || typeof body.values !== 'object' || body.values === null) return fail('Requisição inválida.');
 
@@ -42,6 +46,7 @@ export async function POST(req: Request) {
 
     const emailField = fields.find((f) => f.system === 'email');
     const email = String(answers.find((a) => a.fieldId === emailField?.id)?.value || '');
+    if (!rateLimit(`requests:email:${email.toLowerCase()}`, 10, 10 * 60_000).ok) return fail('Muitos envios em sequência. Aguarde alguns minutos e tente de novo.', 429);
     if (!(await isAuthorizedEmail(email)))
       return fail('Este e-mail não está autorizado. Peça ao almoxarifado para cadastrá-lo.', 403, {
         errors: { [emailField?.id || 'email']: 'E-mail não autorizado.' },

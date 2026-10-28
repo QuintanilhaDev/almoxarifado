@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from '../supabaseAdmin';
+import { fetchAll } from '../almoxarifado/stockData';
 import { normalize } from '../max/text';
 
 export interface SupplierHint {
@@ -25,14 +26,15 @@ const words = (s: string) => normalize(s).split(/\s+/).filter((w) => w.length > 
  */
 export async function suggestSuppliers(items: { key: string; item_id: string | null; name: string }[]): Promise<Record<string, SupplierHint[]>> {
   const out: Record<string, SupplierHint[]> = {};
-  const { data: sups } = await db().from('suppliers').select('id, name, trade_name, category, brands, homologation, active, lead_days, lead_business').limit(20000);
-  const live = (sups ?? []).filter((s) => s.active !== false && s.homologation !== 'bloqueado');
+  // página por página (o Supabase para em 1000 linhas por consulta)
+  const sups = await fetchAll<Record<string, unknown>>('suppliers', 'id, name, trade_name, category, brands, homologation, active, lead_days, lead_business', { column: 'id' });
+  const live = sups.filter((s) => s.active !== false && s.homologation !== 'bloqueado');
   if (!live.length) return out;
   const ids = items.map((i) => i.item_id).filter(Boolean) as string[];
   const [{ data: prods }, { data: eqs }, { data: pos }] = await Promise.all([
     ids.length ? db().from('supplier_products').select('*').in('item_id', ids) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     ids.length ? db().from('supplier_items').select('supplier_id, item_id').in('item_id', ids) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    db().from('purchase_orders').select('supplier_id, items, created_at, status').neq('status', 'cancelado').order('created_at', { ascending: false }).limit(400),
+    db().from('purchase_orders').select('supplier_id, items, created_at, status').neq('status', 'cancelado').order('created_at', { ascending: false }).limit(1000),
   ]);
   for (const it of items) {
     const hints = new Map<string, SupplierHint>();

@@ -214,7 +214,10 @@ declare
   v_podone  boolean := true;
   v_pos     jsonb := '{}'::jsonb;   -- id do pedido → itens (com o recebido atualizado)
   v_ponum   jsonb := '{}'::jsonb;   -- id do pedido → número
+  v_postat  jsonb := '{}'::jsonb;   -- id do pedido → situação
   v_pou     jsonb := '{}'::jsonb;   -- id do pedido → unidades recebidas agora
+  v_porec   numeric;
+  v_poqty   numeric;
   v_lpo     text;
   v_done1   boolean;
   v_out     jsonb := '[]'::jsonb;
@@ -236,6 +239,7 @@ begin
   loop
     v_pos := v_pos || jsonb_build_object(v_po.id::text, coalesce(v_po.items, '[]'::jsonb));
     v_ponum := v_ponum || jsonb_build_object(v_po.id::text, v_po.number);
+    v_postat := v_postat || jsonb_build_object(v_po.id::text, v_po.status);
   end loop;
   for r in
     select (e->>'i')::int as i, (e->>'item_id')::uuid as item_id, (e->>'qty')::numeric as qty
@@ -270,6 +274,12 @@ begin
     -- pedido desta linha (nota antiga: o pedido principal)
     v_lpo := coalesce(nullif(v_line->>'po_id', ''), v_note.purchase_order_id::text);
     if v_lpo is not null and not (v_pos ? v_lpo) then v_lpo := null; end if;
+    -- pedido cancelado/concluído (ou voltou para aprovação) não recebe mais
+    if v_lpo is not null and coalesce(v_line->>'po_key', '') <> ''
+       and coalesce(v_postat->>v_lpo, '') not in ('aprovado','enviado','confirmado','parcial') then
+      raise exception 'Linha % (%): o PC % está "%" e não recebe mais entradas. Fale com Compras ou tire a linha do pedido.',
+        v_i + 1, v_line->>'description', lpad(v_ponum->>v_lpo, 4, '0'), v_postat->>v_lpo;
+    end if;
     insert into public.stock_movements (item_id, item_name, kind, quantity, before_qty, after_qty, note, by_name, fiscal_note_id)
       values (v_target, v_label, 'entrada', v_qty, v_item.quantity, v_item.quantity + v_qty,
               'NF ' || v_note.number || coalesce('/' || v_note.series, '') || ' — ' || v_note.supplier_name
@@ -291,8 +301,17 @@ begin
       v_poitems := v_pos->v_lpo;
       for v_k in 0 .. jsonb_array_length(v_poitems) - 1 loop
         if v_poitems->v_k->>'key' = v_line->>'po_key' then
-          v_poitems := jsonb_set(v_poitems, array[v_k::text], (v_poitems->v_k) || jsonb_build_object(
-            'received', coalesce((v_poitems->v_k->>'received')::numeric, 0) + v_qty));
+          v_porec := coalesce((v_poitems->v_k->>'received')::numeric, 0) + v_qty;
+          v_poqty := coalesce((v_poitems->v_k->>'qty')::numeric, 0);
+          -- acima do pedido só com a divergência AUTORIZADA (Aprovação de compras)
+          if v_porec > v_poqty and not exists (
+               select 1 from jsonb_array_elements(coalesce(v_note.divergences, '[]'::jsonb)) d
+                where d->>'kind' = 'quantidade_pedido' and d->>'line' = v_i::text
+                  and d->>'status' = 'resolvida' and d->>'decision' = 'autorizada') then
+            raise exception 'Linha % (%): o PC % só tem % a receber deste item. Dê entrada só do saldo ou peça a autorização da divergência.',
+              v_i + 1, v_line->>'description', lpad(v_ponum->>v_lpo, 4, '0'), greatest(0, v_poqty - (v_porec - v_qty));
+          end if;
+          v_poitems := jsonb_set(v_poitems, array[v_k::text], (v_poitems->v_k) || jsonb_build_object('received', v_porec));
         end if;
       end loop;
       v_pos := jsonb_set(v_pos, array[v_lpo], v_poitems);

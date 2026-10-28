@@ -7,6 +7,7 @@ import { readUpload } from '@/lib/almoxarifado/upload';
 import type { ImportPreview, ImportPreviewRow } from '@/lib/almoxarifado/types';
 import { nameKey, supplierEdit, supplierFields } from '@/lib/compras/fornecedores';
 import { missingSuppliers, suppliersSetup } from '@/lib/compras/fornecedoresServer';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -33,8 +34,8 @@ export async function POST(req: Request) {
       return fail('Não encontrei fornecedores nessa planilha. Confira se há uma coluna com o nome (ex.: "Razão social" ou "Fornecedor").', 422, { sheets: read.sheets, warnings: read.warnings });
     }
 
-    const { data: existing, error } = await db().from('suppliers').select('id, name, cnpj').limit(20000);
-    if (error) throw error;
+    // todos (página por página: o Supabase para em 1000 linhas)
+    const existing = await fetchAll<{ id: string; name: string; cnpj: string | null }>('suppliers', 'id, name, cnpj', { column: 'id' });
     const docs = new Set<string>();
     const names = new Set<string>();
     for (const e of (existing ?? []) as { name: string; cnpj: string | null }[]) {

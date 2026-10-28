@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { currentUser } from '@/lib/auth';
+import { sessionUser } from '@/lib/sessionUser';
 import { fail, readJson } from '@/lib/http';
 import { GEO_COOKIE, GEO_EXEMPT_TTL_S, GEO_TTL_S, geoConfig, geoFenced, judge, signGeo, type GeoStatus } from '@/lib/geoFence';
 import { audit } from '@/lib/audit';
@@ -16,12 +16,12 @@ const last = new Map<string, GeoStatus>();
  * Dentro: renova a permissão de 3 minutos. Fora (ou GPS impreciso): tira a permissão.
  */
 export async function POST(req: Request) {
-  const user = await currentUser();
+  const user = await sessionUser();
   if (!user) return fail('Faça login.', 401);
   const cfg = geoConfig();
   if (!geoFenced(user)) {
     const res = NextResponse.json({ status: cfg.on ? 'isento' : 'desligado' });
-    res.cookies.set(GEO_COOKIE, await signGeo(user.id, true), cookieOpts(GEO_EXEMPT_TTL_S));
+    res.cookies.set(GEO_COOKIE, await signGeo(user.id, true, user.username), cookieOpts(GEO_EXEMPT_TTL_S));
     return res;
   }
   const b = await readJson<{ lat?: unknown; lng?: unknown; accuracy?: unknown; reason?: unknown }>(req);
@@ -30,6 +30,11 @@ export async function POST(req: Request) {
   const accuracy = Number(b?.accuracy);
   let status: GeoStatus;
   let distance: number | null = null;
+  // sem coordenadas (o navegador ainda não mandou a posição): resposta neutra,
+  // sem mexer na permissão atual nem registrar bloqueio
+  if (b?.lat == null || b?.lng == null || b.lat === '' || b.lng === '') {
+    return NextResponse.json({ status: 'aguardando', distance: null, accuracy: null, radius: cfg.radius });
+  }
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     status = 'impreciso';
   } else {

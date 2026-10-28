@@ -162,7 +162,7 @@ export function Gestao({ version }: { version: number }) {
                 </b>
               </div>
               <div className="stat">
-                <small>Parcelas vencidas</small>
+                <small>Vencimentos passados (30 dias)</small>
                 <b
                   style={{
                     color: data.notes.overdue ? 'var(--danger)' : undefined,

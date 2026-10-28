@@ -153,14 +153,15 @@ export function proposalDate(p: Proposal, from = todayBahia()): string | null {
 
 /**
  * Recomendação por item (não escolhe sozinha): menor custo efetivo entre as propostas
- * recebidas, válidas, de fornecedor não bloqueado, com o item disponível e aderente.
+ * recebidas, válidas, de fornecedor homologado, com o item disponível e aderente.
  */
 export function recommend(q: Quote, today = todayBahia()): Record<string, { proposal_id: string; unit: number } | null> {
   const out: Record<string, { proposal_id: string; unit: number } | null> = {};
   for (const it of q.items) {
     let best: { proposal_id: string; unit: number } | null = null;
     for (const p of q.proposals) {
-      if (p.status !== 'recebida' || proposalExpired(p, today) || p.homologation === 'bloqueado') continue;
+      // só fornecedor homologado pode ser contratado (o mesmo critério da decisão)
+      if (p.status !== 'recebida' || proposalExpired(p, today) || p.homologation !== 'homologado') continue;
       const l = p.lines.find((x) => x.key === it.key);
       if (!l || l.adherence === 'nao') continue;
       const u = effectiveUnit(p, q.items, it.key);
@@ -300,6 +301,18 @@ export const DEFAULT_CONFIG: ComprasConfig = {
   quote_valid_days: 7,
   price_tolerance: 0.01,
 };
+
+/**
+ * Valor digitado em reais: "1.500,50" e "1500,50" → 1500.5; "1.500" (ponto + 3 dígitos,
+ * sem vírgula) → 1500 (milhar); "2000.50" → 2000.5. Inválido → NaN.
+ */
+export function parseBRL(raw: string): number {
+  const t = raw.trim().replace(/^R\$\s*/i, '').replace(/\s/g, '');
+  if (!t) return NaN;
+  if (t.includes(',')) return /^-?[\d.]*,\d*$/.test(t) ? Number(t.replace(/\./g, '').replace(',', '.')) : NaN;
+  if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(t)) return Number(t.replace(/\./g, ''));
+  return Number(t);
+}
 
 export const brl = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
 export const paymentText = (p: Partial<Payment> | null | undefined) =>

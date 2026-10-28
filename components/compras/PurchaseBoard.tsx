@@ -38,6 +38,7 @@ import '../almoxarifado/estoque.css';
 import './compras.css';
 import '../pedidos/pedidos.css';
 import { ReplenishSheet, useReplenishCount } from './Replenish';
+import { leadText } from '@/lib/compras/prazo';
 import type { DirectDraft } from './PedidosCompra';
 
 export type BoardMode = 'almox' | 'compras';
@@ -358,17 +359,17 @@ function PurchaseDrawer({
 
   const closed = req.status === 'cancelada';
   // fornecedor de contrato que cobre todos os itens: dá para comprar direto, sem cotação
-  const [contract, setContract] = useState<{ id: string; name: string; days: number | null } | null>(null);
+  const [contract, setContract] = useState<{ id: string; name: string; days: number | null; business: boolean } | null>(null);
   useEffect(() => {
     if (mode !== 'compras' || !onDirect || !['nova', 'em_cotacao'].includes(req.status)) return;
     const ids = req.items.map((i) => i.item_id).filter(Boolean) as string[];
     if (ids.length !== req.items.length || !ids.length) return;
     let alive = true;
-    api<{ hints: Record<string, { supplier_id: string; name: string; in_contract: boolean; lead_days: number | null }[]> }>(`/api/compras/sugestoes?items=${ids.join(',')}`)
+    api<{ hints: Record<string, { supplier_id: string; name: string; in_contract: boolean; lead_days: number | null; lead_business?: boolean }[]> }>(`/api/compras/sugestoes?items=${ids.join(',')}`)
       .then((j) => {
         const first = j.hints[ids[0]]?.filter((h) => h.in_contract) ?? [];
         const all = first.find((h) => ids.every((id) => j.hints[id]?.some((x) => x.supplier_id === h.supplier_id && x.in_contract)));
-        if (alive && all) setContract({ id: all.supplier_id, name: all.name, days: all.lead_days });
+        if (alive && all) setContract({ id: all.supplier_id, name: all.name, days: all.lead_days, business: all.lead_business !== false });
       })
       .catch(() => undefined);
     return () => {
@@ -477,7 +478,7 @@ function PurchaseDrawer({
                     })
                   }
                 >
-                  Comprar direto do contrato ({contract.name}{contract.days !== null ? `, ${contract.days} dias úteis` : ''})
+                  Comprar direto do contrato ({contract.name}{contract.days !== null ? `, ${leadText(contract.days, contract.business)}` : ''})
                 </button>
               ) : null}
             </div>

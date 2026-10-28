@@ -7,7 +7,8 @@ Plataforma interna que reúne os setores da empresa em um só lugar, com login �
 | `/` | Todos | **Login global.** Cada pessoa cai direto na ferramenta do seu setor. A Max fica em escuta constante aqui. |
 | `/hub` | Master geral | Painel master: setores, usuários, alocação e permissões |
 | `/setor/almoxarifado` | Equipe do almoxarifado | Solicitações, estoque, postos, métricas, formulário, e-mails |
-| `/setor/rh` · `/setor/operacional` · `/setor/financeiro` · `/setor/comercial` · `/setor/compras` | Equipe de cada setor | Tela padrão, ainda sem funções (com Equipe, Minha conta e a Max) |
+| `/setor/compras` | Equipe de Compras | Solicitações, cotações (mapa comparativo), pedidos de compra com aprovação, fornecedores e painel — veja "Compras completo" abaixo |
+| `/setor/rh` · `/setor/operacional` · `/setor/financeiro` · `/setor/comercial` | Equipe de cada setor | Tela padrão, ainda sem funções (com Equipe, Minha conta e a Max) |
 | `/solicitacao` | Supervisores dos postos | Formulário de pedido ao almoxarifado (sem login, só e-mails autorizados) |
 
 Os endereços antigos `/login` e `/dashboard` continuam funcionando: redirecionam para os novos.

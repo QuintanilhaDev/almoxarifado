@@ -34,6 +34,8 @@ export interface NfeData {
   totals: { products: number; discount: number; freight: number; insurance: number; other: number; ipi: number; taxes: number; total: number };
   installments: { n: string; due: string | null; value: number }[];
   payment: string | null;
+  /** nota sem pagamento (tPag 90 — bonificação, remessa — ou valor a pagar zero): não tem parcelas */
+  no_payment?: boolean;
   /** informações complementares (onde o fornecedor costuma escrever "Pedido 0001 / 0002") */
   info: string | null;
   /** pedido(s) informado(s) na nota inteira (grupo compra/xPed) */
@@ -105,7 +107,12 @@ export function parseNfe(xml: string): NfeData {
   });
   if (!items.length) throw new NfeError('A nota não tem itens.');
   const dups = list<any>(inf.cobr?.dup).map((d, i) => ({ n: txt(d.nDup) ?? String(i + 1).padStart(3, '0'), due: txt(d.dVenc), value: num(d.vDup) }));
-  const pay = list<any>(inf.pag?.detPag)[0];
+  // todas as formas de pagamento (a nota pode ter mais de uma); 90 = sem pagamento
+  const pays = list<any>(inf.pag?.detPag);
+  const pay = pays[0];
+  const paying = pays.filter((d) => String(d.tPag ?? '').padStart(2, '0') !== '90');
+  const paid = round(paying.reduce((t, d) => t + num(d.vPag), 0) - num(inf.pag?.vTroco), 2);
+  const noPayment = !dups.length && ((pays.length > 0 && !paying.length) || num(tot.vNF) <= 0 || (pays.length > 0 && paid <= 0));
   const issue = txt(ide.dhEmi) ?? txt(ide.dEmi);
   return {
     access_key: key,
@@ -125,8 +132,9 @@ export function parseNfe(xml: string): NfeData {
       taxes: num(tot.vTotTrib),
       total: num(tot.vNF),
     },
-    installments: dups.length ? dups : pay ? [{ n: '001', due: issue ? issue.slice(0, 10) : null, value: num(pay.vPag) }] : [],
-    payment: pay ? PAY[String(pay.tPag ?? '').padStart(2, '0')] ?? null : null,
+    installments: dups.length ? dups : !noPayment && paying.length ? [{ n: '001', due: issue ? issue.slice(0, 10) : null, value: paid }] : [],
+    payment: pay ? PAY[String((paying[0] ?? pay).tPag ?? '').padStart(2, '0')] ?? null : null,
+    no_payment: noPayment,
     info: [txt(inf.infAdic?.infCpl), txt(inf.infAdic?.infAdFisco), ...list<any>(inf.infAdic?.obsCont).map((o) => txt(o?.xTexto))].filter(Boolean).join(' | ').slice(0, 4000) || null,
     order_text: txt(inf.compra?.xPed),
   };

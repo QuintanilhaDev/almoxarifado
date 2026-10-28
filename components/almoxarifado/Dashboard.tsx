@@ -284,19 +284,19 @@ function Shell() {
     if (user) loadAll();
   }, [user, perms.requests, perms.emails, perms.stock, perms, loadAll]);
 
+  // O canal ao vivo é público: o aviso só serve para recarregar. Nada do que vem nele
+  // (nome de quem fez, status…) é mostrado na tela; "by" só é comparado com o próprio nome.
   useRealtime(
     (ev, payload) => {
+      const mine = Boolean(userRef.current?.display_name) && payload.by === userRef.current?.display_name;
       if (ev === 'request:new') loadRequests();
       if (ev === 'request:update') {
         loadRequests();
         setDetailVersion((v) => v + 1);
-        const by = String(payload.by || '');
-        if (by && by !== userRef.current?.display_name && payload.status && permsRef.current.requests) {
-          toast({ kind: 'info', title: `${by} atualizou uma solicitação` });
-        }
+        if (payload.by && !mine && payload.status && permsRef.current.requests) toast({ kind: 'info', title: 'Uma solicitação foi atualizada' });
       }
       if (ev === 'emails:update') loadEmails();
-      if (ev === 'form:update') setFormVersion((v) => ({ n: v.n + 1, by: String(payload.by || '') }));
+      if (ev === 'form:update') setFormVersion((v) => ({ n: v.n + 1, by: mine ? userRef.current!.display_name : '' }));
       if (ev === 'admins:update') {
         refresh();
         setAdminsVersion((v) => v + 1);
@@ -306,8 +306,7 @@ function Shell() {
         loadItems();
         loadPostos();
         setStockVersion((v) => v + 1);
-        const by = String(payload.by || '');
-        if (by && by !== userRef.current?.display_name && permsRef.current.stock) toast({ kind: 'info', title: `${by} atualizou o estoque` });
+        if (payload.by && !mine && permsRef.current.stock) toast({ kind: 'info', title: 'O estoque foi atualizado' });
       }
       if (ev === 'purchase:new' || ev === 'purchase:update') {
         loadPurchases();

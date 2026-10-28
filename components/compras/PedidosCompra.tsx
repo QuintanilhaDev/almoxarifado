@@ -215,8 +215,10 @@ function OrderDrawer({
     setBusy(label);
     setError('');
     try {
-      await api(`/api/compras/pedidos/${o.id}`, { method: 'PATCH', json: { ...body, expected: o.status } });
-      toast({ kind: 'success', title: label, text: poLabel(o.number) });
+      // version: o servidor recusa se o pedido mudou depois que a tela carregou (não aprova versão não vista)
+      const j = await api<{ order?: PurchaseOrder }>(`/api/compras/pedidos/${o.id}`, { method: 'PATCH', json: { ...body, expected: o.status, version: o.updated_at } });
+      const title = body.action === 'submit' && j.order?.status === 'aprovado' ? 'Aprovado pela alçada' : label;
+      toast({ kind: 'success', title, text: poLabel(o.number) });
       setAsk(null);
       setText('');
       await reload();
@@ -549,6 +551,12 @@ function EditOrderSheet({ o, onClose, onSave, busy, error }: { o: PurchaseOrder;
             Frete (R$)
           </label>
           <input id="eo-fr" className="input" inputMode="decimal" value={extra.freight} onChange={(e) => setExtra({ ...extra, freight: e.target.value })} />
+        </div>
+        <div>
+          <label className="label" htmlFor="eo-ot">
+            Outros custos (R$)
+          </label>
+          <input id="eo-ot" className="input" inputMode="decimal" value={extra.other} onChange={(e) => setExtra({ ...extra, other: e.target.value })} />
         </div>
         <div>
           <label className="label" htmlFor="eo-ds">

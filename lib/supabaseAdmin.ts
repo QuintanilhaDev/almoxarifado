@@ -28,14 +28,37 @@ export function db(): SupabaseClient {
   return client;
 }
 
+/**
+ * Regras do próprio Storage para o bucket (valem mesmo para quem tem a URL assinada):
+ * fotos/vídeos do formulário dos supervisores e os anexos de Compras/recebimento.
+ */
+export const BUCKET_OPTIONS = {
+  public: false,
+  fileSizeLimit: 50 * 1024 * 1024,
+  allowedMimeTypes: [
+    'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/gif',
+    'video/mp4', 'video/quicktime', 'video/webm', 'video/3gpp', 'video/3gpp2', 'video/x-m4v',
+    'application/pdf', 'application/xml', 'text/xml', 'text/plain',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword', 'application/vnd.ms-excel',
+  ],
+};
+
 let bucketReady = false;
-/** Garante que o bucket privado de anexos exista. */
+/** Garante que o bucket privado de anexos exista (com limite de tamanho e de tipos). */
 export async function ensureBucket() {
   if (bucketReady) return;
   const { data } = await db().storage.getBucket(BUCKET);
   if (!data) {
-    const { error } = await db().storage.createBucket(BUCKET, { public: false });
+    const { error } = await db().storage.createBucket(BUCKET, BUCKET_OPTIONS);
     if (error && !/exist/i.test(error.message)) throw error;
+  } else {
+    // bucket criado antes das regras: aplica agora (se falhar, a conferência das rotas continua valendo)
+    const { error } = await db()
+      .storage.updateBucket(BUCKET, BUCKET_OPTIONS)
+      .catch((e: unknown) => ({ error: e as Error }));
+    if (error) console.error('[storage] regras do bucket', error);
   }
   bucketReady = true;
 }

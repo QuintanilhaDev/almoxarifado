@@ -9,7 +9,7 @@ import { api, ApiError } from '../core/api';
 import { useToast } from '../core/Toasts';
 import { Sheet } from '../almoxarifado/StockModals';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
-import type { FiscalNote, NoteLine } from '@/lib/notas/server';
+import type { DueNote, FiscalNote, NoteLine } from '@/lib/notas/server';
 import { ItemPicker, brl, dateBR, todayLocal, type PickItem } from '../pedidos/ui';
 import { N_STATUS, NoteDrawer, noteTotal } from './NoteDrawer';
 import { ReceiveSheet, InstallmentsEditor } from './ReceiveSheet';
@@ -66,6 +66,7 @@ export function NotasPanel({
 }) {
   const toast = useToast();
   const [notes, setNotes] = useState<FiscalNote[] | null>(null);
+  const [dueNotes, setDueNotes] = useState<DueNote[] | null>(null);
   const [failed, setFailed] = useState('');
   const [view, setView] = useState<'notas' | 'vencimentos' | 'equivalencias'>(mode === 'financeiro' ? 'vencimentos' : 'notas');
   const [filter, setFilter] = useState<'todas' | 'conferir' | 'divergencia' | 'lancadas' | 'estornadas'>('todas');
@@ -92,8 +93,9 @@ export function NotasPanel({
 
   const load = useCallback(async () => {
     try {
-      const j = await api<{ notes: FiscalNote[] }>('/api/almoxarifado/notas');
+      const j = await api<{ notes: FiscalNote[]; dues?: DueNote[] }>('/api/almoxarifado/notas');
       setNotes(j.notes);
+      setDueNotes(j.dues ?? null);
       setFailed('');
     } catch (e) {
       setFailed((e as Error).message);
@@ -128,11 +130,13 @@ export function NotasPanel({
 
   const today = todayLocal();
   const soon = new Date(Date.now() - 3 * 3_600_000 + 30 * 86_400_000).toISOString().slice(0, 10);
+  // vencimentos vêm de todas as notas (o servidor manda à parte; a lista para nas 500 mais recentes)
+  const dueList: DueNote[] = useMemo(() => dueNotes ?? list, [dueNotes, list]);
   const dues = useMemo(() => {
-    const rows = list.filter((n) => n.status !== 'estornada').flatMap((n) => n.installments.map((p) => ({ note: n, ...p })));
+    const rows = dueList.filter((n) => n.status !== 'estornada').flatMap((n) => n.installments.map((p) => ({ note: n, ...p })));
     const sum = (f: (d: string) => boolean) => rows.filter((r) => r.due && f(r.due)).reduce((t, r) => t + Number(r.value || 0), 0);
     return { rows, overdue: sum((d) => d < today), soon: sum((d) => d >= today && d <= soon), later: sum((d) => d > soon) };
-  }, [list, today, soon]);
+  }, [dueList, today, soon]);
 
   const pickFile = async (f: File) => {
     setParsing(true);
@@ -300,7 +304,7 @@ export function NotasPanel({
             )}
           </>
         ) : view === 'vencimentos' ? (
-          <DuesView notes={list} onOpen={(id) => setOpenId(id)} />
+          <DuesView notes={dueList} onOpen={(id) => setOpenId(id)} />
         ) : (
           <Equivalencias items={items ?? []} canEdit={canEdit} />
         )}
@@ -372,6 +376,7 @@ interface ParseResult {
     totals: Record<string, number>;
     installments: { n: string; due: string | null; value: number }[];
     payment: string | null;
+    no_payment?: boolean;
   };
   duplicate: { id: string; number: string; status: string } | null;
   purchases: { id: string; number: number; status: string; supplier: string | null; match: number }[];
@@ -395,9 +400,18 @@ interface RLine {
   text: string;
   via: 'fornecedor' | 'nome' | 'pedido' | null;
   receive: string;
+  /** unidades do estoque por unidade da nota (XML: aprendido do fornecedor; editável) */
+  factor: string;
   /** pedido escolhido à mão para esta linha: undefined = automático; null = fora de pedido */
   po?: { po_id: string; po_key: string } | null;
 }
+
+/** quantidade da nota × fator = unidades do estoque (4 casas, sem lixo de ponto flutuante) */
+const stockUnits = (qty: number, factor: number) => Math.round(qty * factor * 10000) / 10000;
+const factorOf = (l: Pick<RLine, 'factor'>) => {
+  const f = Number(String(l.factor).replace(',', '.'));
+  return f > 0 && f <= 100000 ? f : 1;
+};
 
 /** Conferência antes de gravar: a nota do XML (ou digitada) com os itens já ligados ao estoque. */
 function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult | null; items: PickItem[]; onClose: () => void; onDone: (id: string) => void }) {
@@ -409,8 +423,12 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
   };
   const [lines, setLines] = useState<RLine[]>(() =>
     parsed
-      ? parsed.nfe.items.map((l) => ({ key: ++seq.current, code: l.code, description: l.description, unit: l.unit, qty: String(l.qty), total: String(l.total), unit_cost: l.unit_cost, raw: l, item_id: l.item_id, text: label(l.item_id), via: l.via ?? null, receive: String(l.qty) }))
-      : [{ key: ++seq.current, code: '', description: '', unit: 'UN', qty: '1', total: '', unit_cost: null, item_id: null, text: '', via: null, receive: '1' }],
+      ? parsed.nfe.items.map((l) => {
+          // recebido em unidades do ESTOQUE (o banco espera quantidade da nota × fator)
+          const f = Number(l.factor) > 0 ? Number(l.factor) : 1;
+          return { key: ++seq.current, code: l.code, description: l.description, unit: l.unit, qty: String(l.qty), total: String(l.total), unit_cost: l.unit_cost, raw: l, item_id: l.item_id, text: label(l.item_id), via: l.via ?? null, factor: String(f), receive: String(stockUnits(l.qty, f)) };
+        })
+      : [{ key: ++seq.current, code: '', description: '', unit: 'UN', qty: '1', total: '', unit_cost: null, item_id: null, text: '', via: null, factor: '1', receive: '1' }],
   );
   const [head, setHead] = useState({ supplier: parsed?.nfe.supplier.name ?? '', cnpj: parsed?.nfe.supplier.cnpj ?? '', number: parsed?.nfe.number ?? '', series: parsed?.nfe.series ?? '', issue: parsed?.nfe.issue_date ?? todayLocal() });
   const [inst, setInst] = useState(parsed?.nfe.installments ?? []);
@@ -421,7 +439,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
   const open = useMemo(() => parsed?.open_orders ?? [], [parsed]);
   const plan = useMemo(() => {
     if (!parsed || !open.length) return [] as NoteLine[];
-    const base = lines.map((l, i) => ({ ...(l.raw as NoteLine), item_id: l.item_id, src: i, ...(l.po === undefined ? {} : l.po ? { po_id: l.po.po_id, po_key: l.po.po_key, po_lock: true } : { po_id: null, po_key: null, po_lock: true }) }));
+    const base = lines.map((l, i) => ({ ...(l.raw as NoteLine), item_id: l.item_id, factor: factorOf(l), src: i, ...(l.po === undefined ? {} : l.po ? { po_id: l.po.po_id, po_key: l.po.po_key, po_lock: true } : { po_id: null, po_key: null, po_lock: true }) }));
     return allocate(base, open, parsed.order_refs ?? []);
   }, [parsed, open, lines]);
   const usedPOs = useMemo(() => open.filter((o) => plan.some((l) => l.po_id === o.id)), [open, plan]);
@@ -433,12 +451,20 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
     setError('');
   };
+  /** troca o item: o fator aprendido era do item antigo, volta para 1 */
+  const pick = (l: RLine, item_id: string, text?: string) => {
+    const same = item_id === l.raw?.item_id;
+    const f = same ? (Number(l.raw?.factor) > 0 ? Number(l.raw!.factor) : 1) : 1;
+    set(l.key, { item_id, ...(text !== undefined ? { text } : {}), via: null, po: undefined, factor: String(f), receive: String(stockUnits(Number(l.qty) || 0, f)) });
+  };
 
   const save = async (post: boolean) => {
     setError('');
     if (!parsed && (!head.supplier.trim() || !head.number.trim())) return setError('Informe o fornecedor e o número da nota.');
     const filled = lines.filter((l) => parsed || l.item_id || l.description.trim());
     if (!filled.length) return setError('A nota precisa ter itens.');
+    const badF = filled.find((l) => !Number.isInteger(stockUnits(Number(l.qty) || 0, factorOf(l))));
+    if (parsed && badF) return setError(`${badF.description}: ${badF.qty} × fator ${factorOf(badF)} não dá unidades inteiras do estoque. Ajuste o fator.`);
     if (post) {
       const missing = filled.filter((l) => Number(l.receive) > 0 && !l.item_id);
       if (missing.length) return setError(`Ligue ao estoque antes de dar entrada: ${missing.map((l) => l.description || 'item sem nome').join(', ')}. (Ou deixe 0 em “Recebido agora” para conferir depois.)`);
@@ -452,7 +478,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             cnpj: parsed.nfe.supplier.cnpj,
             company: parsed.nfe.company.name,
             company_cnpj: parsed.nfe.company.cnpj,
-            items: filled.map((l) => ({ ...l.raw, item_id: l.item_id, ...(l.po === undefined ? {} : l.po ? { po_id: l.po.po_id, po_key: l.po.po_key } : { po_none: true }) })),
+            items: filled.map((l) => ({ ...l.raw, item_id: l.item_id, factor: factorOf(l), ...(l.po === undefined ? {} : l.po ? { po_id: l.po.po_id, po_key: l.po.po_key } : { po_none: true }) })),
             purchase_request_id: poId ? null : purchase || null,
             purchase_order_ids: usedPOs.map((o) => o.id),
             order_refs: parsed.order_refs ?? [],
@@ -638,7 +664,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
       <h3 className="sec-title">
         Itens {unlinked ? <span className="pbadge amber">{unlinked} sem item do estoque</span> : <span className="pbadge green">todos ligados</span>}
         {fromOrders.length ? (
-          <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} data-max="nota-confirmar-sugestoes" onClick={() => setLines((ls) => ls.map((l) => (!l.item_id && l.raw?.options?.[0]?.from ? { ...l, item_id: l.raw.options[0].id, text: label(l.raw.options[0].id), via: null, po: undefined } : l)))}>
+          <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} data-max="nota-confirmar-sugestoes" onClick={() => setLines((ls) => ls.map((l) => (!l.item_id && l.raw?.options?.[0]?.from ? { ...l, item_id: l.raw.options[0].id, text: label(l.raw.options[0].id), via: null, po: undefined, factor: '1', receive: String(stockUnits(Number(l.qty) || 0, 1)) } : l)))}>
             <CheckCircle2 size={14} /> Confirmar {fromOrders.length === 1 ? 'a sugestão' : `as ${fromOrders.length} sugestões`} dos pedidos
           </button>
         ) : null}
@@ -678,12 +704,12 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
                 </>
               ) : (
                 <>
-                  <ItemPicker label={`Item do estoque para a linha ${n + 1}`} value={{ item_id: null, text: l.text }} items={items} onPick={(it) => set(l.key, { item_id: it.id, text: `${it.name}${it.size ? ' ' + it.size : ''}`, via: null, po: undefined })} onText={(t) => set(l.key, { text: t })} />
+                  <ItemPicker label={`Item do estoque para a linha ${n + 1}`} value={{ item_id: null, text: l.text }} items={items} onPick={(it) => pick(l, it.id, `${it.name}${it.size ? ' ' + it.size : ''}`)} onText={(t) => set(l.key, { text: t })} />
                   {l.raw?.options?.length ? (
                     <small>
                       Parecidos:{' '}
                       {l.raw.options.slice(0, 3).map((o, k) => (
-                        <button key={o.id} type="button" className="link-btn" onClick={() => set(l.key, { item_id: o.id, via: null, po: undefined })}>
+                        <button key={o.id} type="button" className="link-btn" onClick={() => pick(l, o.id)}>
                           {k ? ', ' : ''}
                           {o.label}
                         </button>
@@ -694,15 +720,34 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
               )}
             </div>
             <div>
+              {parsed ? (
+                <>
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    aria-label={`Fator de conversão, linha ${n + 1}`}
+                    title={`Unidades do estoque em 1 ${l.unit}`}
+                    value={l.factor}
+                    onChange={(e) => {
+                      const t = e.target.value.replace(/[^\d,.]/g, '').slice(0, 8);
+                      const f = Number(t.replace(',', '.'));
+                      set(l.key, { factor: t, ...(f > 0 ? { receive: String(stockUnits(Number(l.qty) || 0, f)) } : {}) });
+                    }}
+                  />
+                  <small>
+                    fator (1 {l.unit} = {num(factorOf(l))} un.)
+                  </small>
+                </>
+              ) : null}
               <input className="input" inputMode="numeric" aria-label={`Recebido agora, linha ${n + 1}`} value={l.receive} onChange={(e) => set(l.key, { receive: e.target.value.replace(/\D/g, '').slice(0, 6) })} />
-              <small>recebido</small>
+              <small>{parsed ? `recebido (un. do estoque, de ${num(stockUnits(Number(l.qty) || 0, factorOf(l)))})` : 'recebido'}</small>
             </div>
           </div>
         ))}
       </div>
       {!parsed ? (
         <>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLines((ls) => [...ls, { key: ++seq.current, code: '', description: '', unit: 'UN', qty: '1', total: '', unit_cost: null, item_id: null, text: '', via: null, receive: '1' }])} style={{ marginBottom: 12 }}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLines((ls) => [...ls, { key: ++seq.current, code: '', description: '', unit: 'UN', qty: '1', total: '', unit_cost: null, item_id: null, text: '', via: null, factor: '1', receive: '1' }])} style={{ marginBottom: 12 }}>
             <Plus size={15} /> Adicionar item
           </button>
           <h3 className="sec-title">Parcelas</h3>
@@ -716,6 +761,8 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
           Parcelas do XML: {parsed.nfe.installments.map((p) => `${p.n} · ${dateBR(p.due)} · ${brl(p.value)}`).join(' | ')}
           {installmentsGap(parsed.nfe.installments, Number(parsed.nfe.totals.total)) === 0 ? ' — conferem com o total.' : ' — a soma não bate com o total: confira depois de registrar.'}
         </p>
+      ) : parsed.nfe.no_payment ? (
+        <p className="help">Nota sem pagamento (bonificação/remessa ou valor zero): não há parcelas a conferir.</p>
       ) : (
         <p className="help">O XML não traz parcelas: registre e informe as parcelas na nota antes da entrada.</p>
       )}

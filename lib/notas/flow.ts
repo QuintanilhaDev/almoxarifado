@@ -29,16 +29,21 @@ export async function ordersOf(note: Pick<FiscalNote, 'purchase_order_id' | 'pur
 /** pedidos em aberto do mesmo fornecedor (pelo CNPJ ou pelo cadastro) */
 export async function openOrdersOf(supplierId: string | null, cnpj: string | null): Promise<PurchaseOrder[]> {
   if (!supplierId && !cnpj) return [];
-  const { data } = await db().from('purchase_orders').select('*').in('status', PO_OPEN).order('number', { ascending: true }).limit(300);
+  // filtra o fornecedor na consulta (sem teto de N pedidos em aberto no geral)
+  const ors = [cnpj ? `cnpj.eq.${cnpj}` : null, supplierId ? `supplier_id.eq.${supplierId}` : null].filter(Boolean).join(',');
+  const { data } = await db().from('purchase_orders').select('*').in('status', PO_OPEN).or(ors).order('number', { ascending: true }).limit(500);
   return (data ?? []).map((r) => toPO(r as Record<string, unknown>)).filter((o) => (cnpj && o.cnpj ? o.cnpj === cnpj : Boolean(supplierId) && o.supplier_id === supplierId));
 }
+
+/** pedido que ainda pode ser ligado à nota: cancelado nunca; concluído só se esta nota já deu entrada nele */
+const linkable = (n: FiscalNote, o: PurchaseOrder) => o.status !== 'cancelado' && (o.status !== 'concluido' || n.items.some((l) => l.po_id === o.id && (l.received ?? 0) > 0));
 
 /**
  * Pedidos candidatos para a nota: os já ligados (ou escolhidos agora) + os em aberto do
  * mesmo fornecedor — a nota pode trazer itens de vários pedidos.
  */
 export async function candidateOrders(n: FiscalNote, chosen?: PurchaseOrder[]): Promise<PurchaseOrder[]> {
-  const linked = chosen ?? (await ordersOf(n));
+  const linked = (chosen ?? (await ordersOf(n))).filter((o) => linkable(n, o));
   const open = n.status === 'lancada' || n.status === 'estornada' ? [] : await openOrdersOf(n.supplier_id, n.cnpj);
   const all = [...linked];
   for (const o of open) if (!all.some((x) => x.id === o.id)) all.push(o);
@@ -70,7 +75,14 @@ export async function recompute(n: FiscalNote, chosen?: PurchaseOrder[] | Purcha
   const keep = pick ? pick.map((o) => o.id) : n.purchase_order_id ? [n.purchase_order_id] : [];
   const ids = usedOrders(items, keep);
   const orders = ids.map((id) => cands.find((o) => o.id === id)).filter(Boolean) as PurchaseOrder[];
-  const divergences = computeDivergences({ ...n, items }, orders, cfg, n.divergences ?? []);
+  // frete já cobrado por outras notas destes pedidos (entrega parcial não cobra o frete todo de novo)
+  const others = new Map<string, number>();
+  for (const o of orders) {
+    const { data } = await db().from('fiscal_notes').select('id, totals, status').contains('purchase_order_ids', [o.id]).neq('status', 'estornada');
+    for (const x of data ?? []) if (x.id !== n.id) others.set(String(x.id), Number((x.totals as { freight?: number } | null)?.freight ?? 0) || 0);
+  }
+  const freightUsed = [...others.values()].reduce((t, v) => t + v, 0);
+  const divergences = computeDivergences({ ...n, items }, orders, cfg, n.divergences ?? [], freightUsed);
   const status = preStatus({ ...n, items, divergences });
   return { items, divergences, status, purchase_order_ids: ids, purchase_order_id: ids[0] ?? null };
 }

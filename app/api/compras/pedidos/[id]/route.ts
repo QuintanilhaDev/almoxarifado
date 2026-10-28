@@ -35,8 +35,29 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 }
 
-/** previsão de chegada pelo prazo (dias úteis ou corridos a partir de hoje) */
-const expectedFrom = (o: PurchaseOrder) => o.delivery.date ?? (o.delivery.days !== null && o.delivery.days !== undefined ? addDays(todayBahia(), o.delivery.days, o.delivery.business) : null);
+/** previsão de chegada pelo prazo (dias úteis ou corridos a partir de `from`, padrão hoje) */
+const expectedFrom = (o: Pick<PurchaseOrder, 'delivery'>, from = todayBahia()) => o.delivery.date ?? (o.delivery.days !== null && o.delivery.days !== undefined ? addDays(from, o.delivery.days, o.delivery.business) : null);
+/** dia (Salvador) de um horário ISO */
+const dayBahia = (isoAt: string) => new Date(Date.parse(isoAt) - 3 * 3_600_000).toISOString().slice(0, 10);
+
+/** fornecedor ainda pode ser contratado? (homologado e ativo) */
+async function supplierBlock(o: PurchaseOrder): Promise<string | null> {
+  if (!o.supplier_id) return null;
+  const { data: s } = await db().from('suppliers').select('name, homologation, active').eq('id', o.supplier_id).maybeSingle();
+  if (!s) return null;
+  if (s.active === false) return `${s.name} está desativado no cadastro de fornecedores. Reative ou troque o fornecedor.`;
+  if (s.homologation !== 'homologado') return `${s.name} ${s.homologation === 'bloqueado' ? 'está bloqueado' : 'ainda não foi homologado'}. Valide o fornecedor (aba Fornecedores) antes de contratar.`;
+  return null;
+}
+
+/** quem mexeu no pedido desde a última aprovação (emitiu, alterou ou mandou para aprovação) */
+function authorsSinceApproval(o: PurchaseOrder): Set<string> {
+  const out = new Set<string>(o.created_by ? [o.created_by] : []);
+  let k = o.history.length - 1;
+  while (k >= 0 && !/^Aprovado/.test(o.history[k].what)) k--;
+  for (const h of o.history.slice(k + 1)) if (/^(Alterado|Enviado para aprovação)/.test(h.what)) out.add(h.by);
+  return out;
+}
 
 /**
  * Ações no pedido de compra:
@@ -70,6 +91,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (o.status === 'cancelado') return fail('Este pedido foi cancelado.', 409);
     if (o.status === 'concluido' && action !== 'attach') return fail('Este pedido já foi concluído.', 409);
     if (typeof b.expected === 'string' && b.expected !== o.status) return fail(`Este pedido acabou de mudar para "${PO_STATUS[o.status].label}". Confira antes de continuar.`, 409, { order: o });
+    // aprovar/recusar só a versão que a pessoa viu
+    if ((action === 'approve' || action === 'reject') && typeof b.version === 'string' && b.version !== o.updated_at) {
+      return fail(`O ${poLabel(o.number)} foi alterado depois que você abriu. Confira a versão nova antes de decidir.`, 409, { order: o });
+    }
 
     const patch: Record<string, unknown> = {};
     const events: string[] = [];
@@ -90,6 +115,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
       if ('delivery' in b) next.delivery = cleanDelivery(b.delivery, cfg.delivery_location);
       if ('notes' in b) next.notes = str(b.notes, 1000);
       if ('expected_date' in b) next.expected_date = dateOrNull(b.expected_date);
+      // prazo mudou (e o fornecedor ainda não confirmou): refaz a previsão, contando do envio
+      const delivChanged = (o.delivery.days ?? null) !== (next.delivery.days ?? null) || o.delivery.date !== next.delivery.date || o.delivery.business !== next.delivery.business;
+      const manualDate = 'expected_date' in b && next.expected_date !== o.expected_date;
+      if (delivChanged && !manualDate && !o.confirmed_at && (o.sent_at || o.expected_date)) next.expected_date = expectedFrom(next, o.sent_at ? dayBahia(o.sent_at) : todayBahia());
       if ('promised_date' in b && o.confirmed_at) next.promised_date = dateOrNull(b.promised_date);
       next.total = poTotal(next);
       Object.assign(patch, { items: next.items, freight: next.freight, other_costs: next.other_costs, discount: next.discount, payment: next.payment, delivery: next.delivery, notes: next.notes, expected_date: next.expected_date, promised_date: next.promised_date, total: next.total });
@@ -109,10 +138,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       } else events.push(`Alterado${reason ? ` (${reason})` : ''}${diff.length ? ': ' + diff.join('; ') : ''}`);
     } else if (action === 'submit') {
       if (o.status !== 'rascunho') return fail('Só rascunho vai para aprovação.', 409);
-      if (o.supplier_id) {
-        const { data: s } = await db().from('suppliers').select('name, homologation').eq('id', o.supplier_id).maybeSingle();
-        if (s && s.homologation !== 'homologado') return fail(`${s.name} ainda não foi homologado. Valide o fornecedor (aba Fornecedores) antes de contratar.`, 409);
-      }
+      const blocked = await supplierBlock(o);
+      if (blocked) return fail(blocked, 409);
       if (!o.items.length) return fail('O pedido precisa ter itens.');
       const total = poTotal(o);
       if (total < cfg.approval_min) {
@@ -125,7 +152,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
       }
     } else if (action === 'approve') {
       if (o.status !== 'aguardando_aprovacao') return fail('Este pedido não está aguardando aprovação.', 409);
-      if (!user.is_master && o.created_by === by) return fail('Quem emitiu o pedido não aprova o próprio pedido. Peça a outra pessoa com a permissão de aprovação.', 409);
+      // quem emitiu ou alterou o pedido não aprova (vale também para o master: README "Quem emitiu não aprova")
+      if (authorsSinceApproval(o).has(by)) return fail('Quem emitiu ou alterou o pedido não aprova a própria versão. Peça a outra pessoa com a permissão de aprovação.', 409);
+      const blocked = await supplierBlock(o);
+      if (blocked) return fail(blocked, 409);
       const note = str(b.note, 300);
       const resumed = o.approval ? resumeStatus(o) : 'aprovado';
       const snapshot = { items: o.items, freight: o.freight, other_costs: o.other_costs, discount: o.discount, payment: o.payment, delivery: o.delivery };
@@ -139,6 +169,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const snap = o.approval?.snapshot;
       if (snap) {
         // recusou a ALTERAÇÃO: o pedido volta a ser exatamente o que tinha sido aprovado
+        // não volta para uma versão que "perde" o que já chegou (linha saiu ou ficou menor que o recebido)
+        const lost = o.items.find((i) => i.received > 0 && (snap.items.find((x) => x.key === i.key)?.qty ?? 0) < i.received);
+        if (lost) return fail(`Não dá para voltar ao aprovado: ${lost.name} já teve ${lost.received} recebido(s) e a versão aprovada não comporta. Ajuste o pedido e aprove a alteração.`, 409);
         const items = snap.items.map((i) => ({ ...i, received: o.items.find((x) => x.key === i.key)?.received ?? 0 }));
         const back: PurchaseOrder = { ...o, ...snap, items };
         Object.assign(patch, { items, freight: snap.freight, other_costs: snap.other_costs, discount: snap.discount, payment: snap.payment, delivery: snap.delivery, total: poTotal(back), status: resumeStatus(back) });
@@ -149,8 +182,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
       }
     } else if (action === 'send') {
       if (o.status !== 'aprovado') return fail(o.status === 'aguardando_aprovacao' ? 'O pedido ainda não foi aprovado.' : 'Este pedido já foi enviado.', 409);
+      const blocked = await supplierBlock(o);
+      if (blocked) return fail(blocked, 409);
       const via = str(b.via, 40) ?? 'e-mail';
-      Object.assign(patch, { status: 'enviado', sent_at: at, sent_by: by, sent_via: via, expected_date: o.expected_date ?? expectedFrom(o) });
+      // a previsão passa a contar a partir de hoje (data fixa combinada continua valendo)
+      Object.assign(patch, { status: 'enviado', sent_at: at, sent_by: by, sent_via: via, expected_date: expectedFrom(o) ?? o.expected_date });
       events.push(`Enviado ao fornecedor por ${via}`);
     } else if (action === 'confirm') {
       if (!['aprovado', 'enviado'].includes(o.status)) return fail('Só pedido aprovado ou enviado recebe a confirmação do fornecedor.', 409);
@@ -161,6 +197,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     } else if (action === 'cancel') {
       const reason = str(b.reason, 300);
       if (!reason) return fail('Diga o motivo do cancelamento.');
+      // nota ligada ainda sem entrada: resolve a nota antes (senão o estoque entraria num pedido cancelado)
+      const [na, nb] = await Promise.all([
+        db().from('fiscal_notes').select('number, status').eq('purchase_order_id', id),
+        db().from('fiscal_notes').select('number, status').contains('purchase_order_ids', [id]),
+      ]);
+      const pending = [...(na.data ?? []), ...(nb.error ? [] : nb.data ?? [])].filter((n) => !['lancada', 'estornada'].includes(String(n.status)));
+      if (pending.length) return fail(`Há nota ligada a este pedido ainda sem entrada completa (NF ${[...new Set(pending.map((n) => n.number))].join(', ')}). Lance, estorne ou desligue a nota antes de cancelar.`, 409);
       const got = o.items.some((i) => i.received > 0);
       if (got) {
         Object.assign(patch, { status: 'concluido', cancel_reason: reason });

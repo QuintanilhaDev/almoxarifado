@@ -5,7 +5,7 @@ import { Paperclip, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../core/api';
 import { useToast } from '../core/Toasts';
-import { PO_STATUS, QUOTE_STATUS, poLate, type Attachment, type ComprasConfig, type POStatus, type PurchaseOrder, type Quote, type QuoteStatus } from '@/lib/compras/pc';
+import { PO_STATUS, QUOTE_STATUS, parseBRL, poLate, type Attachment, type ComprasConfig, type POStatus, type PurchaseOrder, type Quote, type QuoteStatus } from '@/lib/compras/pc';
 import { useRealtime } from '@/lib/realtime';
 
 export function POBadge({ o }: { o: Pick<PurchaseOrder, 'status' | 'promised_date' | 'expected_date'> }) {
@@ -198,7 +198,7 @@ export function SetupNote({ text }: { text: string }) {
 export const parseMoney = (s: string) => {
   const t = s.trim();
   if (!t) return null;
-  const n = Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t);
+  const n = parseBRL(t);
   return Number.isFinite(n) && n >= 0 ? n : null;
 };
 export const moneyIn = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v).replace('.', ','));

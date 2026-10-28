@@ -4,7 +4,7 @@ import { fail } from '../http';
 import { hasLevel, type HubUser } from '../permissions';
 import { notesAccess, financeNotes } from '../pedidos/access';
 import { almoxView, comprasEdit, comprasView } from './access';
-import { DEFAULT_CONFIG, type Attachment, type ComprasConfig, type PurchaseOrder, type Quote } from './pc';
+import { DEFAULT_CONFIG, parseBRL, type Attachment, type ComprasConfig, type PurchaseOrder, type Quote } from './pc';
 
 type U = HubUser | null | undefined;
 
@@ -70,10 +70,15 @@ export async function saveConfig(c: ComprasConfig) {
 
 export const nowIso = () => new Date().toISOString();
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-export const dateOrNull = (v: unknown) => (typeof v === 'string' && DATE_RE.test(v) && Number.isFinite(Date.parse(v)) ? v : null);
+/** "AAAA-MM-DD" que existe de verdade (31/02 não passa: a data tem de voltar igual) */
+export const dateOrNull = (v: unknown) => {
+  if (typeof v !== 'string' || !DATE_RE.test(v)) return null;
+  const t = Date.parse(`${v}T12:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === v ? v : null;
+};
 export const money = (v: unknown, max = 1e9): number | null => {
   if (v === null || v === undefined || (typeof v === 'string' && !v.trim())) return null;
-  const n = typeof v === 'number' ? v : String(v).includes(',') ? Number(String(v).replace(/\./g, '').replace(',', '.')) : Number(v);
+  const n = typeof v === 'number' ? v : parseBRL(String(v));
   return Number.isFinite(n) && n >= 0 && n < max ? Math.round(n * 10000) / 10000 : null;
 };
 export const intOr = (v: unknown, d: number | null = null) => {

@@ -1,4 +1,5 @@
 import { db } from '@/lib/supabaseAdmin';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 import { requireUser } from '@/lib/access';
 import { AccessError, serverError } from '@/lib/http';
 import { financeNotes } from '@/lib/pedidos/access';
@@ -24,9 +25,9 @@ export async function GET(req: Request) {
     const from = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('from') ?? '') ? sp.get('from')! : null;
     const to = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('to') ?? '') ? sp.get('to')! : null;
     const sup = (sp.get('supplier') ?? '').trim().toLowerCase();
-    const { data, error } = await db().from('fiscal_notes').select(await noteCols()).neq('status', 'estornada').limit(5000);
-    if (error) throw error;
-    const notes = (data ?? []).map((r) => toNote(r as unknown as Record<string, unknown>));
+    // todas, em ordem estável e página por página (o Supabase para em 1000 linhas)
+    const data = await fetchAll<Record<string, unknown>>('fiscal_notes', await noteCols(), { column: 'created_at', tiebreak: 'id' }, (q) => q.neq('status', 'estornada'));
+    const notes = data.map((r) => toNote(r as unknown as Record<string, unknown>));
     const poIds = [...new Set(notes.flatMap((n) => noteOrderIds(n)))];
     const poNum = new Map<string, number>();
     if (poIds.length) {

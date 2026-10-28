@@ -6,7 +6,7 @@ import { api } from '../core/api';
 import { useToast } from '../core/Toasts';
 import { Sheet } from '../almoxarifado/StockModals';
 import { num } from '@/lib/almoxarifado/stockFormat';
-import { brl, poLabel, quoteLabel, type ComprasConfig } from '@/lib/compras/pc';
+import { brl, parseBRL, poLabel, quoteLabel, type ComprasConfig } from '@/lib/compras/pc';
 import { DIV_LABEL, type Divergence } from '@/lib/notas/conferencia';
 import { purchaseLabel } from '@/lib/compras/types';
 import { useRealtime } from '@/lib/realtime';
@@ -81,7 +81,7 @@ export function PainelCompras({
             )
           : []),
         ...data.expired.map((e) => ({ k: 'e' + e.quote_id + e.supplier, icon: <Timer size={16} />, text: `Proposta de ${e.supplier} venceu (${quoteLabel(e.quote)}): peça para revalidar`, act: () => go.quote(e.quote_id) })),
-        ...data.late.map((o) => ({ k: 'l' + o.id, icon: <AlertTriangle size={16} />, text: `${poLabel(o.number)} · ${o.supplier}: ${o.days} dia${o.days === 1 ? '' : 's'} úteis de atraso (${num(o.left)} a receber)`, act: () => go.order(o.id), tone: 'red' })),
+        ...data.late.map((o) => ({ k: 'l' + o.id, icon: <AlertTriangle size={16} />, text: `${poLabel(o.number)} · ${o.supplier}: ${o.days} dia${o.days === 1 ? ' útil' : 's úteis'} de atraso (${num(o.left)} a receber)`, act: () => go.order(o.id), tone: 'red' })),
       ]
     : [];
   const newReqs = data?.queue.filter((r) => r.status === 'nova') ?? [];
@@ -361,11 +361,17 @@ function RulesSheet({ config, onClose, onDone }: { config: ComprasConfig; onClos
   const [c, setC] = useState({ ...config, approval_min_text: String(config.approval_min).replace('.', ',') });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const minVal = (() => {
+    if (!c.approval_min_text.trim()) return 0;
+    const n = parseBRL(c.approval_min_text);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+  })();
   const save = async () => {
     setBusy(true);
     setError('');
     try {
-      const j = await api<{ note: string }>('/api/compras/config', { method: 'PUT', json: { ...c, approval_min: c.approval_min_text.replace(/\./g, '').replace(',', '.') || '0' } });
+      if (minVal === null) throw new Error('Valor da alçada inválido. Ex.: 2.000,50');
+      const j = await api<{ note: string }>('/api/compras/config', { method: 'PUT', json: { ...c, approval_min: minVal } });
       toast({ kind: 'success', title: 'Regras salvas', text: j.note });
       onDone();
     } catch (e) {
@@ -381,7 +387,9 @@ function RulesSheet({ config, onClose, onDone }: { config: ComprasConfig; onClos
             Alçada: aprova sozinho abaixo de (R$)
           </label>
           <input id="rc-min" className="input" inputMode="decimal" value={c.approval_min_text} onChange={(e) => setC({ ...c, approval_min_text: e.target.value.replace(/[^\d,.]/g, '') })} />
-          <small className="help">0 = todo pedido passa por aprovação (master geral ou quem tem "Aprovação de compras").</small>
+          <small className="help">
+            {minVal === null ? 'Valor inválido. ' : `Vale ${brl(minVal)}. `}0 = todo pedido passa por aprovação (master geral ou quem tem "Aprovação de compras").
+          </small>
         </div>
         <div>
           <label className="label" htmlFor="rc-days">

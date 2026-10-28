@@ -52,7 +52,7 @@ export async function GET(req: Request) {
             { label: 'Compras em aberto', value: d.purchases.open, fmt: FMT.int },
             { label: 'Compras atrasadas', value: d.purchases.late, fmt: FMT.int, tone: d.purchases.late ? 'bad' : 'plain' },
             { label: 'Notas em conferência', value: d.notes.open, fmt: FMT.int },
-            { label: 'Parcelas vencidas', value: d.notes.overdueValue, fmt: FMT.money, note: `${d.notes.overdue} ${d.notes.overdue === 1 ? 'parcela' : 'parcelas'}`, tone: d.notes.overdue ? 'bad' : 'plain' },
+            { label: 'Vencimentos passados (30 dias)', value: d.notes.overdueValue, fmt: FMT.money, note: `${d.notes.overdue} ${d.notes.overdue === 1 ? 'parcela' : 'parcelas'}`, tone: d.notes.overdue ? 'bad' : 'plain' },
             { label: 'A vencer em 30 dias', value: d.notes.dueSoonValue, fmt: FMT.money, note: `${d.notes.dueSoon} ${d.notes.dueSoon === 1 ? 'parcela' : 'parcelas'}` },
           ],
         },

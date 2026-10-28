@@ -5,6 +5,7 @@ import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { rateLimit } from '@/lib/rateLimit';
 import { SUPPLIER_COLS, SUPPLIER_COLS_PC, nameKey, supplierEdit, supplierFields, supplierView, type Supplier } from '@/lib/compras/fornecedores';
 import { missingSuppliers, suppliersSetup } from '@/lib/compras/fornecedoresServer';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,14 +16,19 @@ export async function GET() {
   try {
     const user = await requireUser();
     if (!supplierView(user)) throw new AccessError(403, 'Você não tem acesso aos fornecedores.');
-    let { data, error } = (await db().from('suppliers').select(SUPPLIER_COLS_PC).order('name').limit(10000)) as { data: Row[] | null; error: { code?: string } | null };
-    // sem o supabase/compras_pedidos.sql: lista sem homologação
-    if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) ({ data, error } = (await db().from('suppliers').select(SUPPLIER_COLS).order('name').limit(10000)) as { data: Row[] | null; error: { code?: string } | null });
-    if (error) throw error;
+    // página por página: o Supabase para em 1000 linhas por consulta
+    let data: Row[];
+    try {
+      data = await fetchAll<Row>('suppliers', SUPPLIER_COLS_PC, { column: 'name', tiebreak: 'id' });
+    } catch (e) {
+      // sem o supabase/compras_pedidos.sql: lista sem homologação
+      if (!['42703', 'PGRST204'].includes((e as { code?: string })?.code ?? '')) throw e;
+      data = await fetchAll<Row>('suppliers', SUPPLIER_COLS, { column: 'name', tiebreak: 'id' });
+    }
     // resumo das notas (sem as estornadas)
     const stats = new Map<string, { n: number; last: string | null; total: number }>();
-    const { data: notes } = await db().from('fiscal_notes').select('supplier_id, issue_date, created_at, totals, status').neq('status', 'estornada').limit(50000);
-    for (const n of (notes ?? []) as { supplier_id: string | null; issue_date: string | null; created_at: string; totals: { total?: number } | null }[]) {
+    const notes = await fetchAll<Row>('fiscal_notes', 'supplier_id, issue_date, created_at, totals, status', { column: 'created_at', tiebreak: 'id' }, (q) => q.neq('status', 'estornada')).catch(() => [] as Row[]);
+    for (const n of notes as unknown as { supplier_id: string | null; issue_date: string | null; created_at: string; totals: { total?: number } | null }[]) {
       if (!n.supplier_id) continue;
       const s = stats.get(n.supplier_id) ?? { n: 0, last: null, total: 0 };
       s.n++;
@@ -52,8 +58,7 @@ export async function POST(req: Request) {
     if (!rateLimit(`forn:${user.id}`, 40, 60_000).ok) return fail('Muitas alterações em sequência. Espere um instante.', 429);
     const now = new Date().toISOString();
 
-    const { data: existing, error: exErr } = await db().from('suppliers').select('id, name, cnpj').limit(20000);
-    if (exErr) throw exErr;
+    const existing = await fetchAll<{ id: string; name: string; cnpj: string | null }>('suppliers', 'id, name, cnpj', { column: 'id' });
     const byDoc = new Map<string, string>();
     const byName = new Map<string, string>();
     for (const e of (existing ?? []) as { id: string; name: string; cnpj: string | null }[]) {

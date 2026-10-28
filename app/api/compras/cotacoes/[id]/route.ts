@@ -27,7 +27,18 @@ type Ctx = { params: Promise<{ id: string }> };
 async function load(id: string): Promise<Quote | null> {
   const { data, error } = await db().from('purchase_quotes').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
-  return data ? toQuote(data as Record<string, unknown>) : null;
+  if (!data) return null;
+  const q = toQuote(data as Record<string, unknown>);
+  // homologação atual do cadastro (a da proposta é de quando foi incluída)
+  const sids = [...new Set(q.proposals.map((p) => p.supplier_id))];
+  if (sids.length) {
+    const { data: ss } = await db().from('suppliers').select('id, homologation').in('id', sids);
+    for (const p of q.proposals) {
+      const h = (ss ?? []).find((s) => s.id === p.supplier_id)?.homologation as Proposal['homologation'] | undefined;
+      if (h) p.homologation = h;
+    }
+  }
+  return q;
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
@@ -56,6 +67,7 @@ function cleanProposal(raw: Record<string, unknown>, q: Quote, base: Proposal | 
     const l = (Array.isArray(raw.lines) ? (raw.lines as Record<string, unknown>[]) : []).find((x) => x?.key === it.key) ?? {};
     const price = money(l.unit_price);
     const first = money(l.first_price);
+    if (price !== null && price <= 0 && l.available !== false) return `Preço de ${it.name} precisa ser maior que zero (ou marque como indisponível).`;
     const qty = l.qty === null || l.qty === undefined || l.qty === '' ? null : intOr(l.qty);
     if (qty !== null && (qty < 1 || qty > 1_000_000)) return `Quantidade inválida em ${it.name}.`;
     lines.push({
@@ -84,7 +96,8 @@ function cleanProposal(raw: Record<string, unknown>, q: Quote, base: Proposal | 
     cnpj: base?.cnpj ?? null,
     homologation: base?.homologation ?? 'pendente',
     status,
-    sent_at: dateOrNull(raw.sent_at) ?? base?.sent_at ?? todayBahia(),
+    // fornecedor incluído sem data de envio fica sem data (não inventa "hoje")
+    sent_at: dateOrNull(raw.sent_at) ?? base?.sent_at ?? (raw.sent_at === null || raw.sent_at === '' ? null : todayBahia()),
     sent_via: str(raw.sent_via, 30) ?? base?.sent_via ?? null,
     returned_at: status === 'aguardando' ? null : dateOrNull(raw.returned_at) ?? base?.returned_at ?? todayBahia(),
     valid_until: dateOrNull(raw.valid_until),
@@ -127,6 +140,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     let patch: Record<string, unknown> = {};
     let what = '';
     let orders: unknown[] = [];
+    // pedidos a criar na decisão (só depois de a cotação ser "tomada" por esta requisição)
+    const drafts: Record<string, unknown>[] = [];
 
     if (action === 'proposal') {
       const raw = (b.proposal ?? {}) as Record<string, unknown>;
@@ -243,10 +258,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
           created_by: by,
           history: [{ at, by, what: `Criado a partir da ${quoteLabel(q.number)}` }],
         };
-        const total = poTotal(draft);
-        const { data: po, error } = await db().from('purchase_orders').insert({ ...draft, total, approved_hash: null }).select('*').single();
-        if (error) throw error;
-        orders.push(toPO(po as Record<string, unknown>));
+        drafts.push({ ...draft, total: poTotal(draft), approved_hash: null });
       }
       patch = { status: 'decidida', decision: { lines: chosen, justification, by, at } };
       what = `Mapa decidido: ${[...bySupplier.keys()].map((pid) => q.proposals.find((x) => x.id === pid)!.supplier_name).join(', ')}${justification ? ` — ${justification}` : ''}`;
@@ -256,9 +268,26 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     patch.updated_at = at;
     patch.history = [...q.history, { at, by, what }].slice(-100);
-    const { data, error } = await db().from('purchase_quotes').update(patch).eq('id', id).eq('updated_at', q.updated_at).select('*').maybeSingle();
+    const { data, error } = await db().from('purchase_quotes').update(patch).eq('id', id).eq('status', 'aberta').eq('updated_at', q.updated_at).select('*').maybeSingle();
     if (error) throw error;
     if (!data) return fail('Outra pessoa alterou esta cotação agora. Confira e tente de novo.', 409);
+    if (drafts.length) {
+      // cotação já marcada como decidida: agora cria os pedidos (retry/duplo clique cai no 409 acima)
+      const made: string[] = [];
+      try {
+        for (const d of drafts) {
+          const { data: po, error: e2 } = await db().from('purchase_orders').insert(d).select('*').single();
+          if (e2) throw e2;
+          made.push(String((po as Record<string, unknown>).id));
+          orders.push(toPO(po as Record<string, unknown>));
+        }
+      } catch (e) {
+        // deu errado no meio: desfaz os pedidos criados e reabre a cotação
+        if (made.length) await db().from('purchase_orders').delete().in('id', made);
+        await db().from('purchase_quotes').update({ status: 'aberta', decision: null, history: q.history, updated_at: nowIso() }).eq('id', id).eq('updated_at', at);
+        throw e;
+      }
+    }
     await broadcast('purchase:update', { by, quote: id });
     return NextResponse.json({ quote: toQuote(data as Record<string, unknown>), orders, labels: (orders as { number: number }[]).map((o) => poLabel(o.number)) });
   } catch (e) {

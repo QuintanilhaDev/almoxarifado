@@ -157,6 +157,18 @@ const NO_RECALL = new Set(['logout', 'stop', 'bye', 'voice-off', 'voice-on', 'sa
 
 const YES_RE = /^(sim|s|isso|isso mesmo|confirm\w*|pode|pode sim|pode fazer|pode confirmar|pode registrar|ok|okay|certo|claro|com certeza|positivo|manda|manda ver|faz|faca|execute|exato|correto|bora|vai|afirmativo|autorizo|autorizado)( sim| pode| confirmar| confirmo| confirmado| por favor| max| isso| faz| manda)*$/;
 const NO_RE = /^(nao|n|cancel\w*|deixa|deixa pra la|esquece|esqueca|negativo|para|pare|melhor nao|errado|nada|desist\w*)\b/;
+/** para exclusões, mudanças em contas de usuário e ajustes de estoque: só "sim", "confirmo" ou o botão */
+const STRICT_YES_RE = /^(sim|confirmo|pode sim|sim confirmo|sim confirmar|sim pode confirmar|sim pode|sim confirmado)( por favor| max)?$/;
+
+/** alteração que pede um "sim" explícito (não vale "ok", "vai", "faz"…) */
+export function isDestructive(a: PendingAction): boolean {
+  if (a.method === 'DELETE') return true;
+  if (/^\/api\/(hub\/users|setor\/[\w-]+\/equipe)(\/|$)/.test(a.path)) return true;
+  if (/^\/api\/almoxarifado\/(inventario|inventory)/.test(a.path)) return true;
+  if (/^\/api\/almoxarifado\/stock\/move$/.test(a.path) && a.body?.kind === 'ajuste') return true;
+  if (/^\/api\/almoxarifado\/stock\/[\w-]+$/.test(a.path) && a.body && 'quantity' in a.body) return true;
+  return false;
+}
 
 /** Executa as alterações confirmadas, chamando as rotas normais do sistema (com as permissões de quem está logado). */
 async function executePending(list: PendingAction[]): Promise<MaxReply> {
@@ -238,7 +250,14 @@ export async function think(command: string, host: MaxHost, opts: ThinkOptions):
     const waiting = mem.pending;
     const answer = normalize(command);
     mem.pending = null;
-    if (YES_RE.test(answer)) return executePending(waiting);
+    if (waiting.some(isDestructive)) {
+      if (STRICT_YES_RE.test(answer)) return executePending(waiting);
+      if (YES_RE.test(answer)) {
+        // "ok", "vai", "faz"… não bastam aqui: continua esperando
+        mem.pending = waiting;
+        return { say: 'Essa alteração é sensível. Para confirmar, diga "sim" ou "confirmo"; para desistir, diga "cancelar".', chips: ['Sim, confirmar', 'Cancelar'] };
+      }
+    } else if (YES_RE.test(answer)) return executePending(waiting);
     if (NO_RE.test(answer)) return { say: 'Tudo bem, não alterei nada.' };
     // mudou de assunto: a alteração é descartada e o novo pedido segue normalmente
   }

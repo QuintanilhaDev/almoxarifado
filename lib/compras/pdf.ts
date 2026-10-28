@@ -18,7 +18,13 @@ const W = 595.28;
 const H = 841.89;
 const M = 40;
 const CW = W - M * 2;
-const dateBR = (d: string | null | undefined) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—');
+/** data (dd/mm/aaaa); horário ISO vira o dia em Salvador (UTC−3), não o de Greenwich */
+const dateBR = (d: string | null | undefined) => {
+  if (!d) return '—';
+  const t = d.length > 10 ? Date.parse(d) : NaN;
+  const day = Number.isFinite(t) ? new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) : d.slice(0, 10);
+  return day.split('-').reverse().join('/');
+};
 const num = (n: number) => n.toLocaleString('pt-BR');
 
 function base(title: string, author: string) {
@@ -98,6 +104,20 @@ function footerAll(ctx: ReturnType<typeof base>, text: string) {
   }
 }
 
+/** marca d'água em todas as páginas (pedido que ainda não vale como compra) */
+function watermark(ctx: ReturnType<typeof base>, text: string) {
+  const { doc, font } = ctx;
+  const range = doc.bufferedPageRange();
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    doc.save();
+    doc.rotate(-35, { origin: [W / 2, H / 2] });
+    font(true).fontSize(64).fillColor('#C0392B').fillOpacity(0.14).text(text, 0, H / 2 - 32, { width: W, align: 'center', lineBreak: false });
+    doc.restore();
+    doc.fillOpacity(1);
+  }
+}
+
 function para(ctx: ReturnType<typeof base>, y: number, title: string, body: string) {
   const { doc, font } = ctx;
   if (y > H - 120) {
@@ -141,6 +161,8 @@ export function poPdf(o: PurchaseOrder, cfg: ComprasConfig, by: string): Promise
     'Condições',
     `Favor confirmar o recebimento deste pedido e a data de entrega. A nota fiscal deve citar o número ${poLabel(o.number)}. Mercadoria divergente do pedido (item, quantidade, especificação ou preço) poderá ser recusada no recebimento.`,
   );
+  if (o.status === 'cancelado') watermark(ctx, 'CANCELADO');
+  else if (o.status === 'rascunho' || o.status === 'aguardando_aprovacao') watermark(ctx, 'NÃO APROVADO');
   footerAll(ctx, `${cfg.company.name} · ${poLabel(o.number)}`);
   ctx.doc.end();
   return ctx.done;

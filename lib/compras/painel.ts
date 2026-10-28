@@ -1,5 +1,5 @@
 import 'server-only';
-import { db } from '../supabaseAdmin';
+import { fetchAll } from '../almoxarifado/stockData';
 import { toRequest } from './server';
 import { toPO, toQuote } from './pcServer';
 import { PO_OPEN, poDue, poLate, poLeft, proposalExpired, type PurchaseOrder } from './pc';
@@ -10,11 +10,16 @@ import type { Divergence } from '../notas/conferencia';
 const noteHas = (n: { purchase_order_id: string | null; purchase_order_ids?: string[] | null }, id: string) => n.purchase_order_id === id || (n.purchase_order_ids ?? []).includes(id);
 type NoteRow = { id: string; supplier_id: string | null; purchase_order_id: string | null; purchase_order_ids?: string[] | null; received_date: string | null; posted_at: string | null; status: string; divergences: unknown; number: string; supplier_name: string; totals: { total?: number } | null; created_at: string };
 
+const NOTE_SEL = 'id, supplier_id, purchase_order_id, purchase_order_ids, received_date, posted_at, status, divergences, number, supplier_name, totals, created_at';
+type Row = Record<string, unknown>;
+
+/** todas as linhas, página por página (o Supabase para em 1000 por consulta) */
 async function allPOs(): Promise<PurchaseOrder[]> {
-  const { data, error } = await db().from('purchase_orders').select('*').order('created_at', { ascending: false }).limit(3000);
-  if (error) throw error;
-  return (data ?? []).map((r) => toPO(r as Record<string, unknown>));
+  return (await fetchAll<Row>('purchase_orders', '*', { column: 'created_at', ascending: false, tiebreak: 'id' })).map((r) => toPO(r));
 }
+const allNotes = () => fetchAll<NoteRow>('fiscal_notes', NOTE_SEL, { column: 'created_at', ascending: false, tiebreak: 'id' }, (q) => q.neq('status', 'estornada'));
+/** mês (AAAA-MM) no horário de Salvador */
+const monthBahia = (iso: string) => new Date(Date.parse(iso) - 3 * 3_600_000).toISOString().slice(0, 7);
 
 /**
  * "Em compra / a receber" por item: soma do que falta receber nos pedidos vigentes
@@ -43,7 +48,7 @@ export async function onOrderByItem(pos?: PurchaseOrder[]) {
 /** Desempenho dos fornecedores: pontualidade, atraso médio (dias úteis) e divergências nas notas. */
 export async function supplierPerformance(only?: string[], pos?: PurchaseOrder[], notes?: NoteRow[]) {
   const list = (pos ?? (await allPOs())).filter((o) => o.supplier_id && (!only || only.includes(o.supplier_id)));
-  const ns = notes ?? (((await db().from('fiscal_notes').select('id, supplier_id, purchase_order_id, purchase_order_ids, received_date, posted_at, status, divergences, number, supplier_name, totals, created_at').neq('status', 'estornada').limit(20000)).data ?? []) as NoteRow[]);
+  const ns = notes ?? (await allNotes());
   const today = todayBahia();
   const out: Record<string, { name: string; orders: number; delivered: number; on_time: number; late_open: number; avg_delay: number | null; divergences: number; spent: number; on_time_pct: number | null }> = {};
   for (const o of list) {
@@ -77,16 +82,15 @@ export async function supplierPerformance(only?: string[], pos?: PurchaseOrder[]
 export async function comprasPainel(opts: { days?: number } = {}) {
   const today = todayBahia();
   const since = new Date(Date.now() - (opts.days ?? 365) * 86_400_000).toISOString();
-  const [pos, { data: qs }, { data: rs }, { data: items }, { data: ns }] = await Promise.all([
+  const [pos, qs, rs, items, notes] = await Promise.all([
     allPOs(),
-    db().from('purchase_quotes').select('*').order('created_at', { ascending: false }).limit(500),
-    db().from('purchase_requests').select('*').order('created_at', { ascending: false }).limit(1000),
-    db().from('stock_items').select('id, name, size, quantity, reserved, min_quantity, categories, active').limit(20000),
-    db().from('fiscal_notes').select('id, supplier_id, purchase_order_id, purchase_order_ids, received_date, posted_at, status, divergences, number, supplier_name, totals, created_at').neq('status', 'estornada').limit(20000),
+    fetchAll<Row>('purchase_quotes', '*', { column: 'created_at', ascending: false, tiebreak: 'id' }),
+    fetchAll<Row>('purchase_requests', '*', { column: 'created_at', ascending: false, tiebreak: 'id' }),
+    fetchAll<Row>('stock_items', 'id, name, size, quantity, reserved, min_quantity, categories, active', { column: 'id' }),
+    allNotes(),
   ]);
-  const quotes = (qs ?? []).map((r) => toQuote(r as Record<string, unknown>));
-  const requests = (rs ?? []).map((r) => toRequest(r as Record<string, unknown>));
-  const notes = (ns ?? []) as NoteRow[];
+  const quotes = qs.map((r) => toQuote(r));
+  const requests = rs.map((r) => toRequest(r));
 
   const openQuotes = quotes.filter((q) => q.status === 'aberta');
   const expired = openQuotes.flatMap((q) => q.proposals.filter((p) => proposalExpired(p, today)).map((p) => ({ quote_id: q.id, quote: q.number, supplier: p.supplier_name, valid_until: p.valid_until })));
@@ -110,13 +114,13 @@ export async function comprasPainel(opts: { days?: number } = {}) {
   // gestão: valor comprado (pedidos aprovados em diante) por mês, fornecedor e categoria
   const bought = pos.filter((o) => !['rascunho', 'aguardando_aprovacao', 'cancelado'].includes(o.status) && (o.approval?.at ?? o.created_at) >= since);
   const cat = new Map<string, string>();
-  for (const it of items ?? []) cat.set(String(it.id), (Array.isArray(it.categories) && it.categories[0]) || 'Sem categoria');
+  for (const it of items) cat.set(String(it.id), (Array.isArray(it.categories) && it.categories[0]) || 'Sem categoria');
   const byMonth: Record<string, number> = {};
   const bySupplier: Record<string, number> = {};
   const byCategory: Record<string, number> = {};
   let negotiated = 0;
   for (const o of bought) {
-    const m = (o.approval?.at ?? o.created_at).slice(0, 7);
+    const m = monthBahia(o.approval?.at ?? o.created_at);
     byMonth[m] = (byMonth[m] ?? 0) + o.total;
     bySupplier[o.supplier_name] = (bySupplier[o.supplier_name] ?? 0) + o.total;
     for (const i of o.items) {
@@ -136,7 +140,7 @@ export async function comprasPainel(opts: { days?: number } = {}) {
     }
   }
   const onOrder = await onOrderByItem(pos);
-  const critical = (items ?? [])
+  const critical = items
     .filter((i) => i.active !== false && Number(i.min_quantity) > 0 && Number(i.quantity) - Number(i.reserved ?? 0) <= Number(i.min_quantity))
     .map((i) => {
       const oo = onOrder[String(i.id)];

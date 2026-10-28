@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from '../../supabaseAdmin';
 import { signatureKey, type Learned } from '../learn';
+import { hasSecret, redactSecrets } from '../moderation';
 
 /**
  * Memória de aprendizado da Max no banco (tabelas do supabase/max_aprendizado.sql).
@@ -85,6 +86,8 @@ const keyOf = (scope: string, sector: string | null, phrase: string) => `${scope
 /** Guarda (ou reforça) um pedido resolvido. */
 export async function remember(e: { phrase: string; scope: string; sector: string | null; route?: string | null; tool?: string | null; args?: Record<string, unknown> | null; by: string }): Promise<void> {
   if (!usable() || !signatureKey(e.phrase)) return;
+  // frase com senha ou ação sobre usuários nunca vira aprendizado
+  if (hasSecret(e.phrase) || (e.tool && /^usuario/.test(e.tool))) return;
   const key = keyOf(e.scope, e.sector, e.phrase);
   try {
     const found = (await allLearned()).find((r) => r.key === key);
@@ -130,7 +133,7 @@ export async function feedback(scope: string, sector: string | null, phrase: str
 export async function logMiss(m: { phrase: string; scope: string; sector: string | null; reason: string; answer?: string | null; user: string }): Promise<void> {
   if (!usable()) return;
   try {
-    const { error } = await db().from('max_misses').insert({ phrase: m.phrase.slice(0, 300), scope: m.scope, sector: m.sector, reason: m.reason, answer: m.answer ? m.answer.slice(0, 300) : null, user_name: m.user });
+    const { error } = await db().from('max_misses').insert({ phrase: redactSecrets(m.phrase).slice(0, 300), scope: m.scope, sector: m.sector, reason: m.reason, answer: m.answer ? redactSecrets(m.answer).slice(0, 300) : null, user_name: m.user });
     if (error) throw error;
     enabled = true;
   } catch (e) {

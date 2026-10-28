@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
-import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
+import { UUID_RE, fetchAll, str } from '@/lib/almoxarifado/stockData';
 import { SUPPLIER_COLS_PC, supplierEdit, supplierView } from '@/lib/compras/fornecedores';
 import { intOr, missingPC, money, nowIso, pcFail, toPO } from '@/lib/compras/pcServer';
 import { supplierPerformance } from '@/lib/compras/painel';
@@ -20,18 +20,24 @@ export async function GET(_req: Request, ctx: Ctx) {
     const { data: s, error } = await db().from('suppliers').select(SUPPLIER_COLS_PC).eq('id', id).maybeSingle();
     if (error) throw error;
     if (!s) return fail('Fornecedor não encontrado.', 404);
-    const [{ data: prods }, { data: eqs }, { data: os }, { data: items }] = await Promise.all([
+    const [{ data: prods }, { data: eqs }, os] = await Promise.all([
       db().from('supplier_products').select('*').eq('supplier_id', id),
       db().from('supplier_items').select('supplier_code, unit, unit_key, description, factor, item_id, validated_by, validated_at').eq('supplier_id', id),
-      db().from('purchase_orders').select('*').eq('supplier_id', id).order('created_at', { ascending: false }).limit(200),
-      db().from('stock_items').select('id, name, size, unit, code').limit(20000),
+      fetchAll<Record<string, unknown>>('purchase_orders', '*', { column: 'created_at', ascending: false, tiebreak: 'id' }, (q) => q.eq('supplier_id', id)),
     ]);
+    // só os itens que aparecem aqui (sem ler o estoque todo, que passa de 1000 linhas)
+    const ids = [...new Set([...(prods ?? []), ...(eqs ?? [])].map((x) => String(x.item_id)).filter((x) => UUID_RE.test(x)))];
+    const items: { id: string; name: string; size: string | null }[] = [];
+    for (let k = 0; k < ids.length; k += 200) {
+      const { data } = await db().from('stock_items').select('id, name, size').in('id', ids.slice(k, k + 200));
+      items.push(...((data ?? []) as typeof items));
+    }
     const label = (iid: string) => {
-      const it = (items ?? []).find((x) => x.id === iid);
+      const it = items.find((x) => x.id === iid);
       return it ? `${it.name}${it.size ? ' · ' + it.size : ''}` : 'item removido';
     };
-    const orders = (os ?? []).map((r) => toPO(r as Record<string, unknown>));
-    const perf = (await supplierPerformance([id]))[id] ?? null;
+    const orders = os.map((r) => toPO(r));
+    const perf = (await supplierPerformance([id], orders))[id] ?? null;
     // histórico de preços por item (pedidos aprovados em diante)
     const prices: { item: string; item_id: string | null; at: string; price: number; order: number }[] = [];
     for (const o of orders.filter((x) => !['rascunho', 'aguardando_aprovacao', 'cancelado'].includes(x.status))) {

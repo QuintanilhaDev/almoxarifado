@@ -16,6 +16,7 @@ import { signatureKey, type Learned } from '@/lib/max/learn';
 const WAIT_MS = 14000;
 const FOLLOW_MS = 8000;
 import { sfx } from '@/lib/max/sfx';
+import { ASKED_SECRET_RE, hasSecret, redactSecrets } from '@/lib/max/moderation';
 import { useMaxBus } from '@/lib/max/bus';
 import type { MaxCard, MaxHost, MaxMemory, MaxReply } from '@/lib/max/types';
 import { MaxOrb, type OrbState } from './MaxOrb';
@@ -265,6 +266,11 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       const command = h.wake === 'strong' ? h.command : shown;
       push({ who: 'you', text: shown });
       setStatus('thinking');
+      // senha nunca vai para a auditoria, o histórico da IA ou a memória (a ação segue normal)
+      const prev = memory.current.last;
+      const secretReply = ASKED_SECRET_RE.test((prev?.say || prev?.text || '').trim());
+      const safe = secretReply ? '***' : redactSecrets(shown);
+      const secret = secretReply || hasSecret(shown);
       let reply: MaxReply;
       try {
         reply = await think(command, runHost(hostRef.current, runs), {
@@ -278,7 +284,7 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
               const k = signatureKey(shown);
               learned.current = learned.current.filter((l) => signatureKey(l.phrase) !== k);
             }
-            tell({ ...e, phrase: shown });
+            if (!secret) tell({ ...e, phrase: shown });
           },
         });
       } catch {
@@ -288,9 +294,9 @@ export function MaxAssistant({ host }: { host: MaxHost }) {
       if (reply.source === 'stop') return close();
       memory.current.last = reply;
       memory.current.lastInput = shown;
-      history.current = [...history.current, { role: 'user' as const, content: shown }, { role: 'assistant' as const, content: reply.say || reply.text || '' }].filter((m) => m.content).slice(-8);
-      if (hostRef.current.scope !== 'login') auditMax(shown, reply.text ?? reply.say);
-      push({ who: 'max', text: reply.text ?? reply.say, card: reply.card, chips: reply.chips, source: reply.source, asked: reply.source === 'bloqueio' || reply.source === 'stop' ? undefined : shown });
+      history.current = [...history.current, { role: 'user' as const, content: safe }, { role: 'assistant' as const, content: redactSecrets(reply.say || reply.text || '') }].filter((m) => m.content).slice(-8);
+      if (hostRef.current.scope !== 'login') auditMax(safe, reply.text ?? reply.say);
+      push({ who: 'max', text: reply.text ?? reply.say, card: reply.card, chips: reply.chips, source: reply.source, asked: reply.source === 'bloqueio' || reply.source === 'stop' || secret ? undefined : shown });
       // trocas de tela pedidas pela Max: ela corre até o botão e soca; o resto espera o soco
       const release = holdBus();
       try {

@@ -75,16 +75,29 @@ export async function loadPO(id: string): Promise<PurchaseOrder | null> {
 /**
  * Mantém as solicitações de compra em dia com os pedidos:
  *  - algum pedido aprovado em diante → "Comprada" (com fornecedor, nº e previsão, que o Almoxarifado vê);
- *  - todos os pedidos concluídos → "Entregue".
+ *  - todos os pedidos concluídos → "Entregue" (e volta para "Comprada" se uma nota for estornada);
+ *  - todos os pedidos cancelados → volta para "Nova" (ou "Em cotação", se há cotação aberta).
  */
 export async function syncRequests(ids: string[], by: string) {
   if (!ids.length) return;
   const { data: rs } = await db().from('purchase_requests').select('*').in('id', ids);
   for (const r of (rs ?? []).map((x) => toRequest(x as Record<string, unknown>))) {
-    if (['cancelada', 'recusada', 'entregue'].includes(r.status)) continue;
+    if (['cancelada', 'recusada'].includes(r.status)) continue;
     const { data: os } = await db().from('purchase_orders').select('*').contains('request_ids', [r.id]);
-    const pos = (os ?? []).map((x) => toPO(x as Record<string, unknown>)).filter((o) => o.status !== 'cancelado');
+    const all = (os ?? []).map((x) => toPO(x as Record<string, unknown>));
+    const pos = all.filter((o) => o.status !== 'cancelado');
     const live = pos.filter((o) => PO_OPEN.includes(o.status) || o.status === 'concluido');
+    if (all.length && !pos.length && r.status === 'comprada') {
+      // todos os pedidos cancelados: a solicitação volta para a fila (ou para a cotação aberta)
+      const { data: qs } = await db().from('purchase_quotes').select('id').eq('status', 'aberta').contains('request_ids', [r.id]).limit(1);
+      const back = qs?.length ? 'em_cotacao' : 'nova';
+      const at = nowIso();
+      await db()
+        .from('purchase_requests')
+        .update({ status: back, supplier: null, order_ref: null, expected_date: null, updated_at: at, history: [...r.history, { at, by, status: back, note: `Pedidos de compra cancelados (${all.map((o) => poLabel(o.number)).join(', ')})` }].slice(-60) })
+        .eq('id', r.id);
+      continue;
+    }
     if (!live.length) continue;
     const done = live.every((o) => o.status === 'concluido');
     const next = done ? 'entregue' : 'comprada';
@@ -95,7 +108,9 @@ export async function syncRequests(ids: string[], by: string) {
     const patch: Record<string, unknown> = { supplier, order_ref: ref, expected_date: dates[dates.length - 1] ?? null, updated_at: at };
     if (r.status !== next) {
       patch.status = next;
-      patch.history = [...r.history, { at, by, status: next, note: done ? `Recebida pelos pedidos ${ref}` : `Pedido de compra ${ref} aprovado` }].slice(-60);
+      // entregue → comprada: uma nota foi estornada e voltou a faltar
+      const note = done ? `Recebida pelos pedidos ${ref}` : r.status === 'entregue' ? `Voltou a ter saldo a receber em ${ref} (nota estornada)` : `Pedido de compra ${ref} aprovado`;
+      patch.history = [...r.history, { at, by, status: next, note }].slice(-60);
     }
     await db().from('purchase_requests').update(patch).eq('id', r.id);
   }

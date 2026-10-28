@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers';
+import { GEO_COOKIE, geoConfig, verifyGeo } from '@/lib/geoFence';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { db } from '@/lib/supabaseAdmin';
@@ -36,6 +38,8 @@ export default async function TermoPage({ params }: Props) {
   if (!UUID_RE.test(id)) notFound();
   const user = await currentUser();
   if (!user) redirect('/');
+  // fora do terreno da empresa (cerca de localização), o termo não abre: os dados não saem do servidor
+  if (geoConfig().on && !(await verifyGeo((await cookies()).get(GEO_COOKIE)?.value, user.id))) redirect('/');
   const full = almoxOrders(user) || rhOrders(user) || colabAccess(user);
   // a Operação vê os termos dos pedidos que ela acompanha (só leitura)
   if (!full && !opOrders(user)) notFound();

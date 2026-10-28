@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/access';
 import { fail, readJson, serverError } from '@/lib/http';
 import { rateLimit } from '@/lib/rateLimit';
-import { getSector } from '@/lib/sectors';
-import { BLOCKED_REPLY, isBlocked } from '@/lib/max/moderation';
+import { BLOCKED_REPLY, isBlocked, redactSecrets } from '@/lib/max/moderation';
 import { runAgent } from '@/lib/max/server/agent';
-import { cleanExamples, cleanText } from '@/lib/max/server/answer';
+import { cleanExamples, cleanHint, cleanText } from '@/lib/max/server/answer';
+import { place } from '@/lib/max/server/place';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -28,11 +28,13 @@ export async function POST(req: Request) {
       ? body.history
           .filter((h): h is { role: string; content: string } => Boolean(h) && typeof (h as { content?: unknown }).content === 'string')
           .slice(-6)
-          .map((h) => ({ role: h.role === 'assistant' ? ('assistant' as const) : ('user' as const), content: cleanText(h.content, 400) }))
+          // senhas de pedidos anteriores não voltam para a IA
+          .map((h) => ({ role: h.role === 'assistant' ? ('assistant' as const) : ('user' as const), content: redactSecrets(cleanText(h.content, 400)) }))
           .filter((h) => h.content && !isBlocked(h.content))
       : [];
-    const sector = getSector(typeof body?.sector === 'string' ? body.sector : null);
-    const ans = await runAgent(user, { text, scope: body?.scope === 'hub' ? 'hub' : 'sector', sector: sector?.slug ?? null, examples: cleanExamples(body?.examples), history, hint: cleanText(body?.hint, 120) || undefined });
+    // tela/setor conferidos com o acesso da pessoa (memória e anotações dependem disso)
+    const { scope, sector } = place(user, body);
+    const ans = await runAgent(user, { text, scope, sector, examples: cleanExamples(body?.examples), history, hint: cleanHint(body?.hint) });
     return NextResponse.json(ans, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);

@@ -51,7 +51,7 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
   /** linhas (chave pedido|linha) que não aparecem no texto do DANFE */
   const [missing, setMissing] = useState<string[]>([]);
   useEffect(() => {
-    api<{ orders: PurchaseOrder[] }>('/api/compras/pedidos')
+    api<{ orders: PurchaseOrder[] }>('/api/compras/pedidos?open=1')
       .then((j) => setOrders(j.orders.filter((o) => PO_OPEN.includes(o.status) && o.items.some((i) => poLeft(i) > 0))))
       .catch(() => setOrders((o) => o ?? []));
   }, []);
@@ -83,9 +83,11 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
   const dropPO = (o: PurchaseOrder) => setPos((l) => l.filter((x) => x.id !== o.id));
 
   const goods = useMemo(() => lines.filter((l) => l.on).reduce((t, l) => t + (Number(l.qty) || 0) * (parseMoney(l.price) ?? 0), 0), [lines]);
-  const freight = pos.reduce((t, o) => t + (o.freight || 0), 0);
-  const discount = pos.reduce((t, o) => t + (o.discount || 0), 0);
-  const otherCosts = pos.reduce((t, o) => t + (o.other_costs || 0), 0);
+  // pedido que já teve entrega: frete/desconto/outros já vieram na primeira nota (não repete)
+  const fresh = pos.filter((o) => !o.items.some((i) => (i.received || 0) > 0) && o.status !== 'parcial');
+  const freight = fresh.reduce((t, o) => t + (o.freight || 0), 0);
+  const discount = fresh.reduce((t, o) => t + (o.discount || 0), 0);
+  const otherCosts = fresh.reduce((t, o) => t + (o.other_costs || 0), 0);
   const computed = Math.round((goods + freight - discount + otherCosts) * 100) / 100;
   const total = parseMoney(head.total) ?? computed;
   // parcelas pela condição do pedido (refeitas quando o total muda, até a pessoa mexer)

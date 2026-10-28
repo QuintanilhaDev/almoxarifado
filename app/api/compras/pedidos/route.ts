@@ -3,19 +3,29 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
-import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
+import { UUID_RE, fetchAll, str } from '@/lib/almoxarifado/stockData';
 import { comprasEdit } from '@/lib/compras/access';
 import { canSeeOrders, cleanAttachments, loadConfig, missingPC, nowIso, pcFail, toPO } from '@/lib/compras/pcServer';
 import { cleanDelivery, cleanItems, cleanPayment } from '@/lib/compras/poServer';
-import { poLabel, poTotal } from '@/lib/compras/pc';
+import { PO_OPEN, poLabel, poTotal } from '@/lib/compras/pc';
 
 export const dynamic = 'force-dynamic';
 
 /** Pedidos de compra (Compras edita; Almoxarifado, Financeiro e quem aprova consultam). */
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await requireUser();
     if (!canSeeOrders(user)) throw new AccessError(403, 'Você não tem acesso aos pedidos de compra.');
+    // ?open=1: só os que ainda recebem (todos, sem o teto dos 500 mais recentes)
+    if (new URL(req.url).searchParams.get('open') === '1') {
+      try {
+        const rows = await fetchAll<Record<string, unknown>>('purchase_orders', '*', { column: 'number', tiebreak: 'id' }, (q) => q.in('status', PO_OPEN));
+        return NextResponse.json({ orders: rows.map((r) => toPO(r)) }, { headers: { 'Cache-Control': 'no-store' } });
+      } catch (e) {
+        if (missingPC(e)) return pcFail();
+        throw e;
+      }
+    }
     const { data, error } = await db().from('purchase_orders').select('*').order('created_at', { ascending: false }).limit(500);
     if (error) {
       if (missingPC(error)) return pcFail();

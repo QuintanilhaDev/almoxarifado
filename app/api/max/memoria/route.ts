@@ -1,24 +1,17 @@
 import { NextResponse } from 'next/server';
 import { requireMaster, requireUser } from '@/lib/access';
 import { fail, readJson, serverError } from '@/lib/http';
-import { canManageSector, canOpenSector, type HubUser } from '@/lib/permissions';
+import { canManageSector } from '@/lib/permissions';
 import { rateLimit } from '@/lib/rateLimit';
 import { getSector } from '@/lib/sectors';
-import { isBlocked } from '@/lib/max/moderation';
+import { hasSecret, isBlocked, redactSecrets } from '@/lib/max/moderation';
+import { place } from '@/lib/max/server/place';
 import { cleanText } from '@/lib/max/server/answer';
 import { addNote, allLearned, allNotes, feedback, forget, learnedFor, logMiss, memoryEnabled, recentMisses, trusted } from '@/lib/max/server/memory';
 
 export const dynamic = 'force-dynamic';
 
 const SETUP = 'O aprendizado da Max ainda não foi ativado no banco. Rode o arquivo supabase/max_aprendizado.sql no SQL Editor do Supabase.';
-
-/** Tela/setor que a pessoa realmente pode usar (nunca confia no que o navegador manda). */
-function place(user: HubUser, body: { scope?: unknown; sector?: unknown } | null) {
-  const scope = body?.scope === 'hub' && user.is_master ? 'hub' : 'sector';
-  const def = getSector(typeof body?.sector === 'string' ? body.sector : null);
-  const sector = scope === 'hub' ? null : def && canOpenSector(user, def.slug) ? def.slug : (user.sector ?? null);
-  return { scope, sector };
-}
 
 /**
  * GET            → comandos que a Max já aprendeu nesta tela (para responder na hora, sem IA).
@@ -60,6 +53,7 @@ export async function POST(req: Request) {
       const text = cleanText(body.text, 240);
       if (text.length < 8) return fail('Diga o que é para eu lembrar.');
       if (isBlocked(text)) return fail('Não posso guardar esse tipo de conteúdo.');
+      if (hasSecret(text)) return fail('Não guardo senhas na minha memória.');
       const def = getSector(typeof body.sector === 'string' ? body.sector : null);
       // anotação geral: só master geral · anotação do setor: master do setor
       if (!def && !user.is_master) return fail('Só um usuário master pode ensinar algo para todos os setores.', 403);
@@ -70,9 +64,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // senha nunca vai para a memória da Max
     const phrase = cleanText(body.phrase, 300);
-    if (!phrase || isBlocked(phrase)) return NextResponse.json({ ok: true });
-    const answer = cleanText(body.answer, 300) || null;
+    if (!phrase || isBlocked(phrase) || hasSecret(phrase)) return NextResponse.json({ ok: true });
+    const answer = redactSecrets(cleanText(body.answer, 300)) || null;
     if (body.type === 'feedback') {
       const good = body.good === true;
       const known = await feedback(scope, sector, phrase, good);

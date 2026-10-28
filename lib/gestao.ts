@@ -1,5 +1,4 @@
 import 'server-only';
-import { db } from './supabaseAdmin';
 import { categoryName } from './catalog';
 import { fetchAll, loadItems } from './almoxarifado/stockData';
 import { replenishment } from './almoxarifado/reposicao';
@@ -30,6 +29,11 @@ export interface Indicators {
   idle: { name: string; size: string | null; quantity: number; value: number | null }[];
   replenish: number;
   notes: { open: number; dueSoon: number; dueSoonValue: number; overdue: number; overdueValue: number };
+}
+
+/** soma dias a uma data AAAA-MM-DD (meio-dia UTC, sem escorregar de dia) */
+function addDays(ymd: string, n: number): string {
+  return new Date(Date.parse(`${ymd}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** Indicadores para a Gestão (Projeto 3, seção 10): tudo calculado na hora, nada digitado à mão. */
@@ -64,11 +68,12 @@ export async function indicators(days: number): Promise<Indicators> {
   }
 
   // ---- compras ----
-  const { data: ps } = await db().from('purchase_requests').select('status, needed_by, expected_date').limit(5000);
+  // paginado (o Supabase devolve no máximo 1000 linhas por consulta) e com erro conferido
+  const ps = await fetchAll<{ status: string; needed_by: string | null; expected_date: string | null }>('purchase_requests', 'id, status, needed_by, expected_date', { column: 'id' });
   const byStatus: Record<string, number> = {};
   let pOpen = 0;
   let pLate = 0;
-  for (const p of ps ?? []) {
+  for (const p of ps) {
     byStatus[p.status as string] = (byStatus[p.status as string] ?? 0) + 1;
     if (['nova', 'em_cotacao', 'comprada'].includes(p.status as string)) {
       pOpen++;
@@ -126,14 +131,23 @@ export async function indicators(days: number): Promise<Indicators> {
   const rep = await replenishment({ days: Math.max(days, 30), defaultLead: cfg.defaultLeadDays, items });
 
   // ---- notas e vencimentos ----
+  // Não há controle de pagamento: "overdue" = parcelas que venceram nos últimos 30 dias
+  // (janela fixa, para o número não só crescer). Datas no dia da Bahia.
   const notes = { open: 0, dueSoon: 0, dueSoonValue: 0, overdue: 0, overdueValue: 0 };
-  const { data: ns } = await db().from('fiscal_notes').select('status, installments').neq('status', 'estornada').limit(5000);
-  const soon = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-  for (const n of ns ?? []) {
+  const ns = await fetchAll<{ status: string; installments: { due: string | null; value: number }[] | null }>(
+    'fiscal_notes',
+    'id, status, installments',
+    { column: 'id' },
+    (q) => q.neq('status', 'estornada'),
+  );
+  const soon = addDays(today, 30);
+  const recent = addDays(today, -30);
+  for (const n of ns) {
     if (n.status === 'aberta' || n.status === 'parcial') notes.open++;
-    for (const p of (n.installments as { due: string | null; value: number }[]) ?? []) {
-      if (!p.due) continue;
+    for (const p of Array.isArray(n.installments) ? n.installments : []) {
+      if (!p?.due) continue;
       if (p.due < today) {
+        if (p.due < recent) continue;
         notes.overdue++;
         notes.overdueValue += Number(p.value) || 0;
       } else if (p.due <= soon) {

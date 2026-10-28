@@ -1,7 +1,7 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 import { db } from './supabaseAdmin';
-import { SESSION_COOKIE, SESSION_DAYS, verifySession } from './session';
+import { SESSION_COOKIE, SESSION_DAYS, passwordFingerprint, verifySession } from './session';
 import { fullPermissions, sanitizePermissions, type HubUser, type HubUserRow } from './permissions';
 import { isSectorSlug } from './sectors';
 
@@ -107,7 +107,13 @@ export async function currentUser(): Promise<HubUser | null> {
   const session = await verifySession(store.get(SESSION_COOKIE)?.value);
   if (!session) return null;
   const user = await loadUser(session.sub);
-  return user && user.active ? user : null;
+  if (!user || !user.active) return null;
+  // trocou a senha: as sessões antigas caem (tokens antigos, sem a impressão "pwf", valem até expirar)
+  if (session.pwf) {
+    const { data } = await db().from('admins').select('password_hash').eq('id', user.id).maybeSingle();
+    if (!data || (await passwordFingerprint((data as { password_hash?: string | null }).password_hash)) !== session.pwf) return null;
+  }
+  return user;
 }
 
 export function sessionCookieOptions() {
