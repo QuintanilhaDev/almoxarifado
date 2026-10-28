@@ -5,6 +5,7 @@ import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
 import { notesAccess } from '@/lib/pedidos/access';
 import { missingPC, pcFail } from '@/lib/compras/pcServer';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +18,12 @@ export async function GET() {
   try {
     const user = await requireUser();
     if (!notesAccess(user)) throw new AccessError(403, 'Sem acesso às equivalências.');
-    const [{ data: eqs, error }, { data: sups }, { data: items }] = await Promise.all([
-      db().from('supplier_items').select('supplier_id, supplier_code, unit_key, unit, description, factor, item_id, validated_by, validated_at, updated_at').limit(20000),
-      db().from('suppliers').select('id, name, trade_name, cnpj').limit(20000),
-      db().from('stock_items').select('id, name, size, code').limit(20000),
+    // em páginas: o banco devolve no máximo 1.000 linhas por consulta
+    const [eqs, sups, items] = await Promise.all([
+      fetchAll<{ supplier_id: string; supplier_code: string; item_id: string | null } & Record<string, unknown>>('supplier_items', 'supplier_id, supplier_code, unit_key, unit, description, factor, item_id, validated_by, validated_at, updated_at', { column: 'supplier_id', tiebreak: 'supplier_code' }),
+      fetchAll<Record<string, unknown>>('suppliers', 'id, name, trade_name, cnpj', { column: 'id' }),
+      fetchAll<Record<string, unknown>>('stock_items', 'id, name, size, code', { column: 'id' }),
     ]);
-    if (error) throw error;
     const sup = new Map((sups ?? []).map((s) => [s.id, s]));
     const it = new Map((items ?? []).map((i) => [i.id, i]));
     const rows = (eqs ?? []).map((e) => {

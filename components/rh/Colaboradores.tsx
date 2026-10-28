@@ -53,6 +53,9 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
   const [failed, setFailed] = useState('');
   const [query, setQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  // a lista toda vem do servidor; a tabela desenha aos poucos (milhares de linhas travariam a tela)
+  const [limite, setLimite] = useState(300);
+  useEffect(() => setLimite(300), [query, showInactive]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [form, setForm] = useState<{ c: Collab | null } | null>(null);
   const [kitForm, setKitForm] = useState<{ k: Kit | null } | null>(null);
@@ -176,6 +179,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
               <span>{list.length ? 'Tente outra busca.' : 'Importe a planilha do RH ou cadastre um por um. Admissões feitas em Pedidos também entram aqui.'}</span>
             </div>
           ) : (
+            <>
             <div className="t-wrap">
               <table className="t-table">
                 <thead>
@@ -188,7 +192,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                   </tr>
                 </thead>
                 <tbody>
-                  {shown.slice(0, 400).map((c) => (
+                  {shown.slice(0, limite).map((c) => (
                     <tr key={c.id} className="click" onClick={() => setOpenId(c.id)}>
                       <td>
                         <b>{c.name}</b>
@@ -210,6 +214,20 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                 </tbody>
               </table>
             </div>
+              {shown.length > limite ? (
+                <div className="list-more">
+                  <span>
+                    Mostrando {num(limite)} de {num(shown.length)}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setLimite((x) => x + 500)}>
+                    Mostrar mais
+                  </button>
+                  <button className="link-btn" onClick={() => setLimite(shown.length)}>
+                    mostrar todos
+                  </button>
+                </div>
+              ) : null}
+            </>
           )
         ) : (
           <>

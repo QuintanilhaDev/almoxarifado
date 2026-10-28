@@ -5,6 +5,7 @@ import { AccessError, fail, serverError } from '@/lib/http';
 import { COLLAB_SCHEMA, SheetError, loadSheets, readSheets } from '@/lib/almoxarifado/sheetReader';
 import { readUpload } from '@/lib/almoxarifado/upload';
 import { colabAccess } from '@/lib/pedidos/access';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 const LABEL: Record<string, string> = {
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
       }
     }
     // quem já está cadastrado (mesma matrícula) é atualizado; quem foi desligado continua desligado
-    const { data: ex } = await db().from('collaborators').select('matricula, active').not('matricula', 'is', null).limit(20000);
+    const ex = await fetchAll<{ matricula: string | null; active: boolean }>('collaborators', 'matricula, active', { column: 'id' }, (q) => q.not('matricula', 'is', null));
     const mat = (v: unknown) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '') || String(v ?? '').trim();
     const existentes = new Map((ex ?? []).map((e) => [mat(e.matricula), e.active !== false]));
     let novos = 0;

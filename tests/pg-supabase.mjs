@@ -371,7 +371,8 @@ async function handle(req, res) {
       const total = rows.length;
       const offset = Number(url.searchParams.get('offset') || 0);
       const limit = url.searchParams.get('limit');
-      rows = rows.slice(offset, limit ? offset + Number(limit) : undefined);
+      // como o Supabase de verdade (max-rows = 1000): nenhuma consulta devolve mais de 1.000 linhas
+      rows = rows.slice(offset, offset + Math.min(limit ? Number(limit) : Infinity, 1000));
       if (prefer.includes('count=exact')) res.setHeader('Content-Range', `${offset}-${offset + rows.length - 1}/${total}`);
       return reply(rows);
     }

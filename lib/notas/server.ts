@@ -8,6 +8,7 @@ import type { Attachment, ComprasConfig, PurchaseOrder } from '../compras/pc';
 import { poLeft } from '../compras/pc';
 import { allocate } from './vinculo';
 import { BLOCKING, type Divergence, type DivKind, type Installment } from './conferencia';
+import { fetchAll } from '../almoxarifado/stockData';
 
 export const NOTE_COLS =
   'id, number, series, access_key, supplier_id, supplier_name, cnpj, company, company_cnpj, issue_date, received_date, status, items, totals, installments, payment, purchase_request_id, note, created_by, posted_at, history, created_at, updated_at';
@@ -254,7 +255,7 @@ export async function ensureSupplier(name: string, cnpj: string | null): Promise
   // mesmo nome (razão social ou fantasia) de um fornecedor já cadastrado em Compras: usa ele, sem duplicar
   const key = nameKey(name);
   if (key) {
-    const { data: all } = await db().from('suppliers').select('id, name, trade_name, cnpj').limit(20000);
+    const all = await fetchAll('suppliers', 'id, name, trade_name, cnpj', { column: 'id' });
     const same = ((all ?? []) as { id: string; name: string; trade_name?: string | null; cnpj: string | null }[]).find(
       (x) => (nameKey(x.name) === key || (x.trade_name ? nameKey(x.trade_name) === key : false)) && (!cnpj || !x.cnpj || x.cnpj === cnpj),
     );

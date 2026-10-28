@@ -21,6 +21,7 @@ import { addNote, learnedFor, logMiss, notesFor, remember } from './memory';
 import { canSeePurchases } from '../../compras/access';
 import { COLS as PURCHASE_COLS, toRequest } from '../../compras/server';
 import { STATUS_LABEL } from '../../compras/types';
+import { fetchAll } from '../../almoxarifado/stockData';
 
 /**
  * A Max como agente: a IA recebe FERRAMENTAS (consultar estoque, movimentar, criar usuário,
@@ -648,8 +649,7 @@ async function snapshot(c: Ctx): Promise<string> {
   if (inAlmox(c) && view(c, 'solicitacoes')) {
     jobs.push(
       (async () => {
-        const { data, error } = await db().from('requests').select('status').limit(5000);
-        if (error) throw error;
+        const data = await fetchAll<{ status: string }>('requests', 'status', { column: 'id' });
         const n = { nova: 0, pendente: 0, resolvida: 0 } as Record<string, number>;
         (data ?? []).forEach((r) => (n[r.status as string] = (n[r.status as string] ?? 0) + 1));
         lines.push(`Solicitações: ${n.nova} novas, ${n.pendente} pendentes, ${n.resolvida} resolvidas.`);

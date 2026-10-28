@@ -1,4 +1,5 @@
 import 'server-only';
+import { fetchAll } from '../almoxarifado/stockData';
 import { db } from '../supabaseAdmin';
 import { normalize } from '../max/text';
 import { loadItems } from '../almoxarifado/stockData';
@@ -28,7 +29,7 @@ export async function orderFromRequest(r: RequestLike, opts: { by: string; byId?
   // posto pelo nome
   let posto: { id: string; name: string } | null = null;
   if (r.posto) {
-    const { data } = await db().from('postos').select('id, name').limit(1000);
+    const data = await fetchAll<{ id: string; name: string }>('postos', 'id, name', { column: 'id' });
     const key = normalize(r.posto);
     posto = ((data ?? []) as { id: string; name: string }[]).find((p) => normalize(p.name) === key) ?? null;
   }

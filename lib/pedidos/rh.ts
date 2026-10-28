@@ -6,6 +6,7 @@ import { lineFor, sizeFieldFor } from './server';
 import { UUID_RE, str } from '../almoxarifado/stockData';
 import type { OrderItem } from './types';
 import { todayBahia } from './types';
+import { fetchAll } from '../almoxarifado/stockData';
 
 export type SizeField = 'camisa' | 'calca' | 'calcado';
 export interface KitItem {
@@ -85,14 +86,14 @@ export interface TradeRow {
 /** Quem está para trocar (Projeto 3, seção 5). */
 export async function tradeRows(opts: { alertDays: number; extraResets: boolean }): Promise<{ rows: TradeRow[]; kits: RoleKit[]; noKit: string[] }> {
   const kits = await loadKits();
-  const { data: cs, error } = await db().from('collaborators').select(COLLAB_COLS).eq('active', true).order('name').limit(5000);
-  if (error) throw error;
+  // em páginas: o banco devolve no máximo 1.000 linhas por consulta
+  const cs = await fetchAll<Collaborator>('collaborators', COLLAB_COLS, { column: 'name', tiebreak: 'id' }, (q) => q.eq('active', true));
   const ids = (cs ?? []).map((c) => c.id as string);
   // últimas entregas de fardamento (categorias 01/02, ou qualquer item com tamanho de roupa/calçado)
   const lastBy = new Map<string, string>();
   if (ids.length) {
     const kinds = opts.extraResets ? ['regular', 'extra'] : ['regular'];
-    const { data: del } = await db().from('deliveries').select('collaborator_id, item_name, cat_code, delivered_at, kind').in('kind', kinds).order('delivered_at', { ascending: false }).limit(20000);
+    const del = await fetchAll<{ collaborator_id: string | null; item_name: string; cat_code: string | null; delivered_at: string; kind: string }>('deliveries', 'collaborator_id, item_name, cat_code, delivered_at, kind', { column: 'delivered_at', ascending: false, tiebreak: 'id' }, (q) => q.in('kind', kinds));
     for (const d of del ?? []) {
       const cid = d.collaborator_id as string | null;
       if (!cid || lastBy.has(cid)) continue;
@@ -102,7 +103,7 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
       if (personal) lastBy.set(cid, Number.isFinite(t) ? new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) : String(d.delivered_at).slice(0, 10));
     }
   }
-  const { data: open } = await db().from('material_orders').select('number, collaborator_id').eq('origin', 'rh_troca').in('stage', ['validacao', 'encaminhado', 'solicitado']).limit(5000);
+  const open = await fetchAll<{ number: number; collaborator_id: string | null }>('material_orders', 'number, collaborator_id', { column: 'number' }, (q) => q.eq('origin', 'rh_troca').in('stage', ['validacao', 'encaminhado', 'solicitado']));
   const openBy = new Map((open ?? []).map((o) => [o.collaborator_id as string, Number(o.number)]));
   const today = todayBahia();
   const dayDiff = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 86_400_000);

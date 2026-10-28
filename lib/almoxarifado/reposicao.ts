@@ -58,8 +58,10 @@ export interface ReplenishResult {
  */
 export async function demandByItem(): Promise<Map<string, number>> {
   const demand = new Map<string, number>();
-  const { data: os, error } = await db().from('material_orders').select('items').eq('stage', 'encaminhado').limit(5000);
-  if (error) {
+  let os: { items: unknown }[];
+  try {
+    os = await fetchAll<{ items: unknown }>('material_orders', 'items', { column: 'id' }, (q) => q.eq('stage', 'encaminhado'));
+  } catch (error) {
     if (missingP3(error)) return demand; // pedidos de material ainda não ativados
     throw error;
   }

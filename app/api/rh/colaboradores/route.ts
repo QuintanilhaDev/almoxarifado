@@ -8,6 +8,7 @@ import { almoxOrders, colabAccess, opOrders, rhOrders } from '@/lib/pedidos/acce
 import { missingP3, p3Fail } from '@/lib/pedidos/server';
 import { collabFields } from '@/lib/pedidos/rh';
 import { collabCols, temDesligamento } from '@/lib/rh/desligamento';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +17,9 @@ export async function GET() {
   try {
     const user = await requireUser();
     if (!colabAccess(user) && !rhOrders(user) && !opOrders(user) && !almoxOrders(user)) throw new AccessError(403, 'Você não tem acesso aos colaboradores.');
-    const { data, error } = await db()
-      .from('collaborators')
-      .select(await collabCols())
-      .order('name')
-      .limit(10000);
-    if (error) throw error;
-    return NextResponse.json({ collaborators: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
+    // em páginas: o banco devolve no máximo 1.000 linhas por consulta
+    const data = await fetchAll('collaborators', await collabCols(), { column: 'name', tiebreak: 'id' });
+    return NextResponse.json({ collaborators: data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     if (missingP3(e)) return p3Fail();
     return serverError(e);
@@ -39,7 +36,7 @@ export async function POST(req: Request) {
     const user = await requireUser();
     if (!colabAccess(user, 'edit')) throw new AccessError(403, 'Só o RH cadastra colaboradores.');
     if (!rateLimit(`colab:${user.id}`, 30, 60_000).ok) return fail('Muitas alterações em sequência. Espere um instante.', 429);
-    const { data: postos } = await db().from('postos').select('id, name').limit(2000);
+    const postos = await fetchAll('postos', 'id, name', { column: 'id' });
     const ps = (postos ?? []) as { id: string; name: string }[];
     // sem o desligamento.sql ainda não existe a coluna do cliente
     const semCliente = !(await temDesligamento());
@@ -52,7 +49,7 @@ export async function POST(req: Request) {
       let unchanged = 0;
       // matrícula sem zeros à esquerda e sem pontuação: "00123" e "123" são a mesma pessoa
       const matKey = (v: unknown) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '') || String(v ?? '').trim();
-      const { data: existing } = await db().from('collaborators').select(await collabCols()).limit(20000);
+      const existing = await fetchAll<Row>('collaborators', await collabCols(), { column: 'id' });
       const byMat = new Map(((existing ?? []) as unknown as Row[]).filter((e) => e.matricula).map((e) => [matKey(e.matricula), e]));
       // linha sem matrícula: acha pelo nome (como o name_key do banco), primeiro entre quem também não tem matrícula
       const nameKey = (v: unknown) => String(v ?? '').trim().toLowerCase();

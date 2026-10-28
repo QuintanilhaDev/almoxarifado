@@ -4,6 +4,7 @@ import { fail } from '../http';
 import { COLLAB_COLS } from '../pedidos/rh';
 import type { ControleFarda } from '../fardamento/types';
 import { DEV_COLS, arquivada, type Desligado, type Devolucao, type ItemEntregue } from './devolucao';
+import { fetchAll } from '../almoxarifado/stockData';
 
 /**
  * Desligamento: o que o colaborador recebeu (para conferir a devolução) e a checagem de que
@@ -63,8 +64,7 @@ export async function itensEntregues(c: { id: string; name: string }): Promise<{
     }
     out.set(key, x);
   };
-  const { data: del, error } = await db().from('deliveries').select('item_name, size, qty, returned_qty, delivered_at, posto_name').eq('collaborator_id', c.id).limit(2000);
-  if (error) throw error;
+  const del = await fetchAll<Record<string, unknown>>('deliveries', 'item_name, size, qty, returned_qty, delivered_at, posto_name', { column: 'delivered_at', tiebreak: 'id' }, (q) => q.eq('collaborator_id', c.id));
   for (const d of del ?? [])
     add('sistema', String(d.item_name), (d.size as string | null) ?? null, Number(d.qty) - Number(d.returned_qty ?? 0), dataBahia(String(d.delivered_at)), (d.posto_name as string | null) ?? null);
 
@@ -134,23 +134,13 @@ export function itemDevolucao(x: Record<string, unknown>, padraoData: string | n
 
 /** desligados com a conferência de devolução de cada um (para a lista e o relatório) */
 export async function desligados(opts: { pendentes?: boolean } = {}): Promise<Desligado[]> {
-  const { data: cs, error } = await db()
-    .from('collaborators')
-    .select('id, name, matricula, role, company, client, posto_name, dismissed_at, dismissal_reason, dismissed_by, active')
-    .eq('active', false)
-    .order('dismissed_at', { ascending: false, nullsFirst: false })
-    .limit(10000);
-  if (error) throw error;
+  // em páginas: o banco devolve no máximo 1.000 linhas por consulta
+  const cs = await fetchAll<Record<string, unknown>>('collaborators', 'id, name, matricula, role, company, client, posto_name, dismissed_at, dismissal_reason, dismissed_by, active', { column: 'id' }, (q) => q.eq('active', false));
+  cs.sort((a, b) => String(b.dismissed_at ?? '').localeCompare(String(a.dismissed_at ?? '')));
   const ids = (cs ?? []).map((c) => c.id as string);
   const por = new Map<string, Devolucao[]>();
   for (let i = 0; i < ids.length; i += 300) {
-    const { data: rs, error: e1 } = await db()
-      .from('collaborator_returns')
-      .select(DEV_COLS)
-      .in('collaborator_id', ids.slice(i, i + 300))
-      .order('created_at')
-      .limit(20000);
-    if (e1) throw e1;
+    const rs = await fetchAll<Record<string, unknown>>('collaborator_returns', DEV_COLS, { column: 'created_at', tiebreak: 'id' }, (q) => q.in('collaborator_id', ids.slice(i, i + 300)));
     for (const r of rs ?? []) {
       const k = r.collaborator_id as string;
       por.set(k, [...(por.get(k) ?? []), r as unknown as Devolucao]);

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
@@ -60,7 +61,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!cur) return fail('Colaborador não encontrado.', 404);
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (Object.keys(b).some((k) => k !== 'active')) {
-      const { data: postos } = await db().from('postos').select('id, name').limit(2000);
+      const postos = await fetchAll<{ id: string; name: string }>('postos', 'id, name', { column: 'id' });
       const atual = { ...(cur as unknown as Record<string, unknown>) };
       // trocou o nome do posto sem escolher outro da lista: o posto antigo não pode "voltar"
       if ('posto_name' in b && !('posto_id' in b)) atual.posto_id = null;

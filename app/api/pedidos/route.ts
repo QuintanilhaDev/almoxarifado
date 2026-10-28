@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
@@ -117,7 +118,7 @@ export async function POST(req: Request) {
       collab.posto_name = (p?.name as string) ?? null;
     } else if (!collab.posto_id && collab.posto_name) {
       // posto digitado: liga ao cadastro quando o nome bate
-      const { data: ps } = await db().from('postos').select('id, name').limit(2000);
+      const ps = await fetchAll<{ id: string; name: string }>('postos', 'id, name', { column: 'id' });
       const key = normalize(collab.posto_name);
       const hit = ((ps ?? []) as { id: string; name: string }[]).find((p) => normalize(p.name) === key);
       if (hit) collab = { ...collab, posto_id: hit.id, posto_name: hit.name };
