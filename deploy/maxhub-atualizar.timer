@@ -1,0 +1,12 @@
+# Publica sozinho cada commit novo na main (confere a cada 5 minutos), como a Vercel fazia.
+# Copiar este arquivo e o maxhub-atualizar.service para /etc/systemd/system/ e ativar:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now maxhub-atualizar.timer
+[Unit]
+Description=Confere se há versão nova do Max Hub
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

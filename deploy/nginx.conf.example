@@ -1,0 +1,78 @@
+# Nginx do servidor próprio: dois endereços, os dois só por HTTPS.
+#   hub.SEU-DOMINIO   → sistema Max Hub (Next.js na porta 3000)
+#   banco.SEU-DOMINIO → API do Supabase auto-hospedado (Kong na porta 8000)
+#
+# Copiar para /etc/nginx/sites-available/maxhub, trocar SEU-DOMINIO, ativar e pedir os certificados:
+#   sudo ln -s /etc/nginx/sites-available/maxhub /etc/nginx/sites-enabled/
+#   sudo certbot --nginx -d hub.SEU-DOMINIO -d banco.SEU-DOMINIO
+#   sudo nginx -t && sudo systemctl reload nginx
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# HTTP só redireciona para HTTPS (e deixa o certbot renovar o certificado)
+server {
+    listen 80;
+    server_name hub.SEU-DOMINIO banco.SEU-DOMINIO;
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+# ---------- sistema ----------
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name hub.SEU-DOMINIO;
+
+    # ssl_certificate / ssl_certificate_key: o certbot preenche
+
+    # planilhas, DANFEs e anexos (o sistema hoje limita a 4 MB; aqui sobra folga)
+    client_max_body_size 25m;
+    # relatórios em PDF e a Max podem levar até ~60 s
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # substitui (não acrescenta) o IP: o limite de tentativas de login e a auditoria
+        # usam o primeiro IP desse cabeçalho, então ele não pode vir do navegador
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}
+
+# ---------- API do Supabase ----------
+# O navegador fala direto com ela para o tempo real e para enviar fotos e vídeos,
+# por isso ela precisa estar na internet. Só as três rotas que o Max Hub usa ficam abertas;
+# o painel (Studio) e o resto ficam bloqueados (acesso só pela rede interna ou VPN).
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name banco.SEU-DOMINIO;
+
+    # vídeos das solicitações sobem direto para o Storage
+    client_max_body_size 200m;
+    proxy_read_timeout 300s;
+
+    location ~ ^/(rest|storage|realtime)/v1/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    location / { return 404; }
+}

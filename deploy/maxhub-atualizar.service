@@ -1,0 +1,7 @@
+[Unit]
+Description=Publica a versão nova do Max Hub, se houver
+
+[Service]
+Type=oneshot
+User=maxhub
+ExecStart=/opt/maxhub/atualizar.sh --se-mudou

@@ -1,0 +1,28 @@
+# Serviço do Max Hub (Next.js). Copiar para /etc/systemd/system/maxhub.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now maxhub
+# Logs: journalctl -u maxhub -f
+[Unit]
+Description=Max Hub (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=maxhub
+Group=maxhub
+WorkingDirectory=/opt/maxhub/current
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+EnvironmentFile=/opt/maxhub/.env.production
+# só escuta no próprio servidor; quem fala com a internet é o Nginx
+ExecStart=/usr/bin/npx next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=5
+# endurecimento básico
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
