@@ -124,6 +124,32 @@ console.log('— PDF (colunas pela posição)');
   ok(JSON.stringify(l.funcionarios[0]?.days[0].punches) === '["08:00","17:00"]', 'célula vazia no PDF: o total (08:00) não vira batida');
 }
 
+console.log('— Folha Ponto do GesOper (versão auditada)');
+{
+  // dois funcionários com PIS zerado, cargo VIGILANTE e colunas Noturnas/Intervalares preenchidas
+  const bloco = (mat: string, nome: string, dias: [string, string][]) => {
+    const rows: string[][] = [
+      ['Folha Ponto', 'Período 21/08/2026 até 20/09/2026'],
+      ['Empregado:', `${mat} - ${nome}`, 'Data Admissão:', '13/03/2026'],
+      ['Cargo:', 'VIGILANTE', 'Tipo Salário:', 'Mensalista'],
+      ['Posto Trabalho:', 'POSTO TESTE (SALVADOR)'],
+      ['CPF:', '000.000.000-00', 'PIS:', '00000000000', 'CTPS:'],
+      ['Data', 'Dia', 'Horário', 'Marcações', 'Trabalhadas', 'Extras', 'Noturnas', 'Intervalares', 'Faltas', 'Afastamentos'],
+      ...dias.map(([d, m]) => (m === 'Folga' ? [d, 'Sex', 'Folga'] : [d, 'Sex', '38', m, '12:00', '07:00', '01:00'])),
+      [nome, 'Chefia'],
+      ['07/10/2026 10:01'],
+    ];
+    const xs = rows.map((r) => (r[0] === 'Data' ? [51, 80, 110, 147, 286, 342, 397, 453, 508, 564] : r.length === 7 ? [51, 80, 110, 151, 286, 397, 453] : r.map((_, i) => 60 + i * 100)));
+    return { rows, xs };
+  };
+  const a = bloco('12012', 'ANA TESTE', [['21/08', '17:52 05:57'], ['22/08', 'Folga']]);
+  const b = bloco('12010', 'BIA TESTE', [['21/08', 'Folga'], ['22/08', '05:45 17:57']]);
+  const l = parseEspelho([{ name: 'pdf', rows: [...a.rows, ...b.rows], xs: [...a.xs, ...b.xs] }]);
+  ok(l.funcionarios.map((f) => `${f.matricula}:${f.name}`).join() === '12012:ANA TESTE,12010:BIA TESTE', 'cada "Empregado: 123 - NOME" é uma pessoa (PIS zerado não junta e cargo VIGILANTE não vira nome): ' + l.funcionarios.map((f) => f.name).join());
+  ok(JSON.stringify(l.funcionarios[0]?.days[0].punches) === '["17:52","05:57"]', 'noturnas e intervalares não viram batida: ' + JSON.stringify(l.funcionarios[0]?.days[0].punches));
+  ok(l.funcionarios[0]?.posto === 'POSTO TESTE (SALVADOR)', '"Posto Trabalho:" é o posto: ' + l.funcionarios[0]?.posto);
+}
+
 // gera o PDF e a planilha de exemplo (para conferir o visual): PONTO_OUT=pasta
 async function gerar() {
   if (!process.env.PONTO_OUT) return;

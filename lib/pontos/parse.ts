@@ -51,9 +51,10 @@ const MARKS: [RegExp, string][] = [
 /** marcas que justificam o dia sem batida */
 export const JUSTIFICA = new Set(['JUSTIFICADA', 'FOLGA', 'FÉRIAS', 'ATESTADO', 'FERIADO', 'ABONO', 'AFASTAMENTO', 'LICENÇA', 'COMPENSAÇÃO', 'SUSPENSÃO', 'TREINAMENTO', 'DESLIGADO', 'ADMISSÃO']);
 
-const LABEL_NAME = /^(?:nome(?: do)?(?: funcionario| colaborador| empregado)?|funcionario|colaborador|empregado|vigilante|servidor|trabalhador)(?:\s*[:\-–]\s*|\s+|$)(.*)$/;
+// "vigilante", "servidor" e "trabalhador" só com dois-pontos: sem isso, "Cargo: VIGILANTE  Tipo Salário: …" virava nome
+const LABEL_NAME = /^(?:(?:nome(?: do)?(?: funcionario| colaborador| empregado)?|funcionario|colaborador|empregado)(?:\s*[:\-–]\s*|\s+|$)|(?:vigilante|servidor|trabalhador)\s*[:\-–]\s*)(.*)$/;
 const LABEL_MAT = /^(?:matricula|matr\.?|mat\.?|chapa|registro|re|cod(?:igo)?(?: do funcionario)?|n[ºo°]? ?func(?:ionario)?|cracha|pis)(?:\s*[:\-–]\s*|\s+|$)(.*)$/;
-const LABEL_POSTO = /^(?:posto(?: de trabalho| de servico)?|local(?: de trabalho)?|lotacao|cliente|centro de custo|departamento|unidade|setor|empresa\/posto)(?:\s*[:\-–]\s*|\s+|$)(.*)$/;
+const LABEL_POSTO = /^(?:posto(?: de trabalho| trabalho| de servico)?|local(?: de trabalho)?|lotacao|cliente|centro de custo|departamento|unidade|setor|empresa\/posto)(?:\s*[:\-–]\s*|\s+|$)(.*)$/;
 const LABEL_CARGO = /^(?:cargo|funcao)(?:\s*[:\-–]\s*|\s+|$)(.*)$/;
 /** dia da semana colado na data ("21/08-Sex", "21/08 sexta-feira", "21/08Sex") */
 const WEEKDAY = '(?:dom(?:ingo)?|seg(?:unda)?|ter(?:[cç]a)?|qua(?:rta)?|qui(?:nta)?|sex(?:ta)?|s[aá]b(?:ado)?)(?:-feira)?\\.?';
@@ -77,7 +78,7 @@ function headerKind(h: string): Col | null {
   if (/^(matricula|matr|mat|chapa|registro|re|codigo|cod|cracha)$/.test(f)) return 'mat';
   if (/^(posto|local|lotacao|cliente|centro de custo|unidade|setor|departamento)( de trabalho)?$/.test(f)) return 'posto';
   if (/^(cargo|funcao)$/.test(f)) return 'cargo';
-  if (/trab|extra|atras|falt|noturn|total|saldo|debit|credit|banco|\bbh\b|abon|adicional|hora[s]? (normais|diurn)|carga|dsr|desconto|observ|justif|ocorr|situac|status|motivo|evento|interval[o]? (prev|total)|h\.? ?ext|h\.? ?not|hn\b|he\b/.test(f)) return 'skip';
+  if (/trab|extra|atras|falt|afast|intervalar|noturn|total|saldo|debit|credit|banco|\bbh\b|abon|adicional|hora[s]? (normais|diurn)|carga|dsr|desconto|observ|justif|ocorr|situac|status|motivo|evento|interval[o]? (prev|total)|h\.? ?ext|h\.? ?not|hn\b|he\b/.test(f)) return 'skip';
   if (/horario|escala|jornada|previst|programad|turno/.test(f)) return 'schedule';
   if (/^(marcacoes|marcacao|batidas|registros|pontos|marcacoes realizadas|horarios registrados)$/.test(f)) return 'multi';
   if (/^(e|s|ent|sai|entrada|saida|entr|said|in|out)\s*\d?$|^\d[ªaº°o]? ?(entrada|saida|ent|sai)$|^(entrada|saida|ent|sai)\.? ?\d[ªaº°o]?$|^(entrada|saida) (inicial|final|almoco|intervalo|refeicao)|^(inicio|fim|retorno|volta|ida) (intervalo|almoco|refeicao|jornada)|^(intervalo|almoco|refeicao)( (inicio|fim|saida|volta|retorno))?$|^(inicio|fim|retorno)$/.test(f)) return 'punch';
@@ -185,6 +186,9 @@ function findInline(text: string, re: RegExp): string | null {
 
 const MAX_DAYS = 400;
 
+/** matrícula/PIS só serve de chave se tiver algum dígito diferente de zero ("00000000000" junta todo mundo) */
+const okMat = (m: string | null | undefined): string | null => (m && /[1-9]/.test(m) ? m : m && !/\d/.test(m) ? m : null);
+
 /** monta os funcionários e os dias a partir das planilhas (ou linhas do PDF) */
 export function parseEspelho(sheets: Sheet[], today = new Date()): Lido {
   const avisos: string[] = [];
@@ -211,7 +215,8 @@ export function parseEspelho(sheets: Sheet[], today = new Date()): Lido {
   const byKey = new Map<string, FuncLido>();
   const order: string[] = [];
   let empNow: { empresa: string | null; cnpj: string | null } = { empresa: null, cnpj: null };
-  const getFunc = (name: string, mat: string | null, posto: string | null, cargo: string | null) => {
+  const getFunc = (name: string, matIn: string | null, posto: string | null, cargo: string | null) => {
+    const mat = okMat(matIn);
     const key = mat ? `m:${mat.replace(/\D/g, '') || mat}` : `n:${fold(name)}`;
     let f = byKey.get(key);
     if (!f) {
@@ -272,7 +277,9 @@ export function parseEspelho(sheets: Sheet[], today = new Date()): Lido {
       // dados do funcionário (bloco do espelho)
       const name = labelled(row, LABEL_NAME) ?? findInline(joined, /(?:funcion[aá]rio|colaborador|empregado|nome)\s*[:\-–]\s*([A-Za-zÀ-ú][A-Za-zÀ-ú.' ]{3,80}?)(?=\s{2,}|\s+(?:matr|chapa|cargo|fun[cç]|posto|admiss|pis|cpf|re\b)|$)/i);
       const mat = labelled(row, LABEL_MAT) ?? findInline(joined, /(?:matr[ií]cula|chapa|re)\s*[:\-–]?\s*(\d[\d.\-/]*)/i);
-      const posto = labelled(row, LABEL_POSTO) ?? findInline(joined, /(?:posto|lota[cç][aã]o|local de trabalho|cliente)\s*[:\-–]\s*(.+?)(?=\s{2,}|\s+(?:matr|chapa|cargo|per[ií]odo|admiss)|$)/i);
+      const postoLido = labelled(row, LABEL_POSTO) ?? findInline(joined, /(?:posto|lota[cç][aã]o|local de trabalho|cliente)\s*[:\-–]\s*(.+?)(?=\s{2,}|\s+(?:matr|chapa|cargo|per[ií]odo|admiss)|$)/i);
+      // "Departamento de Pessoal" (rodapé do espelho) não é posto
+      const posto = postoLido && !/^de pessoal\b|^pessoal\b|^rh\b/i.test(postoLido.trim()) ? postoLido : null;
       const cargo = labelled(row, LABEL_CARGO);
       // célula do dia: só a data (com o dia da semana: "21/08-Sex") ou começando por ela
       const dateCell = NOT_DAY.test(joined)
@@ -289,7 +296,9 @@ export function parseEspelho(sheets: Sheet[], today = new Date()): Lido {
         const nm = cleanName(name);
         if (nm && nm.length >= 3 && /[a-zA-ZÀ-ú]{2}/.test(nm) && !/per[ií]odo|empresa|cnpj/i.test(nm)) {
           pendingName = nm;
-          pendingMat = mat ? mat.replace(/\s.*$/, '') : null;
+          // "Empregado: 103031 - FULANO" (Folha Ponto do GesOper): a matrícula vem antes do nome
+          const lead = name.match(/^\s*(\d{3,})\s*[-–]\s*[A-Za-zÀ-ú]/)?.[1] ?? null;
+          pendingMat = okMat(mat ? mat.replace(/\s.*$/, '') : null) ?? lead;
           pendingPosto = posto ? posto.slice(0, 80) : sheetPosto;
           pendingCargo = cargo ? cargo.slice(0, 60) : null;
           cur = null;
@@ -297,7 +306,7 @@ export function parseEspelho(sheets: Sheet[], today = new Date()): Lido {
         }
       }
       if (dateCell < 0) {
-        if (mat && pendingName && !pendingMat) pendingMat = mat.replace(/\s.*$/, '');
+        if (mat && pendingName && !pendingMat) pendingMat = okMat(mat.replace(/\s.*$/, ''));
         if (posto) {
           if (pendingName) pendingPosto = posto.slice(0, 80);
           else sheetPosto = posto.slice(0, 80);
