@@ -11,6 +11,7 @@ import { fold, num } from '@/lib/almoxarifado/stockFormat';
 import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/types';
 import { ItemPicker, dateBR, type PickItem } from '../pedidos/ui';
 import { DesligarSheet, DevolucaoFicha, DevolucoesView } from './Desligamento';
+import { FichaControle } from './Controle';
 import { arquivada, clienteDe, type Devolucao } from '@/lib/rh/devolucao';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
@@ -39,7 +40,7 @@ export interface Collab {
 }
 interface Kit {
   role: string;
-  items: { name: string; size_from: 'camisa' | 'calca' | 'calcado' | null; qty: number; item_id?: string | null }[];
+  items: { name: string; size_from: 'camisa' | 'calca' | 'calcado' | null; qty: number; item_id?: string | null; period_months?: number | null }[];
   period_months: number;
   updated_by: string | null;
 }
@@ -262,6 +263,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                           <b>
                             {i.qty}
                             {i.size_from ? <small style={{ color: 'var(--muted)', fontWeight: 500 }}> · tam. da {i.size_from === 'calcado' ? 'bota/sapato' : i.size_from}</small> : null}
+                            {i.period_months && i.period_months !== k.period_months ? <small style={{ color: 'var(--muted)', fontWeight: 500 }}> · troca a cada {i.period_months} meses</small> : null}
                           </b>
                         </div>
                       </div>
@@ -609,7 +611,7 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
   const [months, setMonths] = useState(String(k?.period_months ?? 12));
   const [items, setItems] = useState<PickItem[]>([]);
   const [lines, setLines] = useState(() =>
-    (k?.items.length ? k.items : [{ name: '', size_from: null, qty: 1, item_id: null }]).map((i) => ({ key: ++seq.current, name: i.name, size_from: i.size_from, qty: String(i.qty), item_id: i.item_id ?? null })),
+    (k?.items.length ? k.items : [{ name: '', size_from: null, qty: 1, item_id: null, period_months: null }]).map((i) => ({ key: ++seq.current, name: i.name, size_from: i.size_from, qty: String(i.qty), item_id: i.item_id ?? null, period: i.period_months ? String(i.period_months) : '' })),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -641,7 +643,7 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
           role,
           old_role: k?.role,
           period_months: Number(months),
-          items: lines.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), size_from: l.size_from, qty: Number(l.qty) || 0, item_id: l.size_from ? null : l.item_id })),
+          items: lines.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), size_from: l.size_from, qty: Number(l.qty) || 0, item_id: l.size_from ? null : l.item_id, period_months: l.period ? Number(l.period) : null })),
         },
       });
       toast({ kind: 'success', title: `Kit ${role} salvo` });
@@ -679,6 +681,7 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
         </div>
       </div>
       <h3 className="sec-title">Itens do kit</h3>
+      <p className="help" style={{ marginTop: -6 }}>Cada peça entregue tem a própria data. Na última coluna, o prazo de troca da peça em meses (vazio = {months || 12} meses, o prazo do kit).</p>
       <div className="p-lines">
         {lines.map((l, n) => (
           <div className="p-line" key={l.key}>
@@ -712,6 +715,16 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
               value={l.qty}
               onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, qty: e.target.value.replace(/\D/g, '').slice(0, 2) } : x)))}
             />
+            <input
+              className="input p-line-qty"
+              style={{ width: 92 }}
+              aria-label={`Troca do item ${n + 1} (meses)`}
+              title="Troca desta peça a cada quantos meses (vazio = o prazo do kit)"
+              inputMode="numeric"
+              placeholder={`${months || 12} m`}
+              value={l.period}
+              onChange={(e) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, period: e.target.value.replace(/\D/g, '').slice(0, 2) } : x)))}
+            />
             {lines.length > 1 ? (
               <button type="button" className="icon-btn" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} aria-label={`Remover item ${n + 1}`}>
                 <X size={16} />
@@ -722,7 +735,7 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
           </div>
         ))}
       </div>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLines((ls) => [...ls, { key: ++seq.current, name: '', size_from: null, qty: '1', item_id: null }])} style={{ marginBottom: 12 }}>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLines((ls) => [...ls, { key: ++seq.current, name: '', size_from: null, qty: '1', item_id: null, period: '' }])} style={{ marginBottom: 12 }}>
         <Plus size={15} /> Adicionar item
       </button>
       {error ? (
@@ -830,6 +843,7 @@ function CollabDrawer({ c, canEdit, onClose, onEdit, reload, modalOpen }: { c: C
               <b>{c.phone}</b>
             </div>
           ) : null}
+          {c.active ? <FichaControle id={c.id} canEdit={canEdit} version={`${c.updated_at ?? ''}|${n}`} /> : null}
           <div>
             <h3 className="sec-title">O que recebeu</h3>
             {!detail ? (

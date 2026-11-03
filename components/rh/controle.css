@@ -1,0 +1,148 @@
+/* Controle do RH: os seis números, a relação e a ficha */
+.ctl-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.ctl-card {
+  text-align: left;
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 16px 18px 14px;
+  min-width: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ctl-card:hover,
+.ctl-card:focus-visible {
+  border-color: var(--lilac, #a982ff);
+  outline: none;
+}
+.ctl-card small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ctl-card b {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.ctl-card.has b {
+  color: var(--danger);
+}
+.ctl-card span {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.ctl-sem {
+  margin-top: 8px;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--amber);
+}
+.ctl-sem.ok {
+  color: var(--muted);
+}
+.ctl-rel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ctl-rel-head h2 {
+  margin: 0;
+  font-size: 19px;
+  flex: 1;
+  min-width: 200px;
+}
+.ctl-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ctl-faltas {
+  background: var(--onix-2);
+  border: 1px dashed var(--amber);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+.ctl-faltas b {
+  color: var(--amber);
+}
+.ctl-exig {
+  align-items: center;
+}
+.ctl-exig small {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.ctl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.ctl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+}
+.ctl-chip.all {
+  color: var(--muted);
+}
+.ctl-chip button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.ctl-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+  font-size: 13.5px;
+}
+.sec-title small {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  margin-left: 6px;
+}
+.list-more {
+  margin-top: 10px;
+}
+@media (max-width: 900px) {
+  .ctl-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .ctl-grid,
+  .ctl-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

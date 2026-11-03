@@ -53,7 +53,10 @@ export async function PUT(req: Request) {
     if (!Number.isInteger(qty) || qty < 1 || qty > 50) return fail(`Item ${n + 1}: quantidade entre 1 e 50.`);
     const sf = FIELDS.includes(x?.size_from as SizeField) ? (x.size_from as SizeField) : null;
     const item_id = typeof x?.item_id === 'string' && UUID_RE.test(x.item_id) ? x.item_id : null;
-    items.push({ name, qty, size_from: sf, item_id });
+    // prazo de troca da peça (vazio = o prazo do kit)
+    const pm = x?.period_months === null || x?.period_months === undefined || x?.period_months === '' ? null : Number(x.period_months);
+    if (pm !== null && (!Number.isInteger(pm) || pm < 1 || pm > 60)) return fail(`Item ${n + 1}: a troca da peça precisa ser entre 1 e 60 meses.`);
+    items.push({ name, qty, size_from: sf, item_id, ...(pm ? { period_months: pm } : {}) });
   }
   try {
     const user = await requireUser();

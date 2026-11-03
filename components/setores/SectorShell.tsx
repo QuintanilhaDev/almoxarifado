@@ -1,5 +1,5 @@
 'use client';
-import { CalendarClock, ClipboardList, Fingerprint, Hammer, LayoutDashboard, Lock, Receipt, Sparkles, UserRound, Users, UsersRound } from 'lucide-react';
+import { CalendarClock, ClipboardCheck, ClipboardList, Fingerprint, Hammer, LayoutDashboard, Lock, Receipt, Sparkles, UserRound, Users, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -15,11 +15,13 @@ import { PanelSkeleton, usePreload } from '../core/lazy';
 const loadNotas = () => import('../notas/NotasPanel');
 const loadColab = () => import('../rh/Colaboradores');
 const loadTroca = () => import('../rh/TrocaAnual');
+const loadControle = () => import('../rh/Controle');
 const loadPontos = () => import('../pontos/PontosPanel');
 const PontosPanel = dynamic(() => loadPontos().then((m) => m.PontosPanel), { loading: PanelSkeleton });
 const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
 const Colaboradores = dynamic(() => loadColab().then((m) => m.Colaboradores), { loading: PanelSkeleton });
 const TrocaAnual = dynamic(() => loadTroca().then((m) => m.TrocaAnual), { loading: PanelSkeleton });
+const Controle = dynamic(() => loadControle().then((m) => m.Controle), { loading: PanelSkeleton });
 import { chime } from '@/lib/chime';
 import { maxEmit, useMaxBus } from '@/lib/max/bus';
 import { canManageSector, hasLevel } from '@/lib/permissions';
@@ -31,13 +33,14 @@ import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/type
 import type { OrderScope } from '@/lib/pedidos/access';
 import type { MaxHost } from '@/lib/max/types';
 
-type ToolTab = 'pedidos' | 'colaboradores' | 'trocas' | 'notas';
+type ToolTab = 'controle' | 'pedidos' | 'colaboradores' | 'trocas' | 'notas';
 type Tab = ToolTab | 'pontos' | 'inicio' | 'equipe' | 'conta';
-const VALID: Tab[] = ['pedidos', 'colaboradores', 'trocas', 'notas', 'pontos', 'inicio', 'equipe', 'conta'];
+const VALID: Tab[] = ['controle', 'pedidos', 'colaboradores', 'trocas', 'notas', 'pontos', 'inicio', 'equipe', 'conta'];
 
 /** Abas de ferramenta de cada setor (Projeto 3). Cada aba aparece só para quem tem o módulo. */
 const TOOLS: Record<string, { id: ToolTab; label: string; short: string; icon: typeof ClipboardList; module: string; aliases: string[]; also?: string }[]> = {
   rh: [
+    { id: 'controle', label: 'Controle', short: 'Controle', icon: ClipboardCheck, module: 'colaboradores', aliases: ['controle', 'painel', 'indicadores', 'aso', 'asos', 'cursos', 'reciclagem', 'vencimentos', 'kit incompleto', 'pendencias'] },
     { id: 'pedidos', label: 'Pedidos', short: 'Pedidos', icon: ClipboardList, module: 'pedidos', aliases: ['pedidos', 'admissoes', 'admissao', 'pedidos de material', 'kits'] },
     { id: 'colaboradores', label: 'Colaboradores', short: 'Pessoas', icon: Users, module: 'colaboradores', aliases: ['colaboradores', 'funcionarios', 'pessoas', 'cadastro', 'kits por funcao'] },
     { id: 'trocas', label: 'Troca anual', short: 'Trocas', icon: CalendarClock, module: 'pedidos', also: 'colaboradores', aliases: ['troca anual', 'trocas', 'troca de fardamento', 'troca'] },
@@ -60,7 +63,7 @@ export function SectorShell({ slug }: { slug: string }) {
 }
 
 function Shell({ slug }: { slug: string }) {
-  usePreload(slug === 'rh' ? [loadColab, loadTroca] : slug === 'financeiro' ? [loadNotas] : []);
+  usePreload(slug === 'rh' ? [loadControle, loadColab, loadTroca] : slug === 'financeiro' ? [loadNotas] : []);
   const sector = getSector(slug)!;
   const toast = useToast();
   const { user, setUser, refresh, intro, endIntro, logout } = useSession(sectorPath(slug));
@@ -243,6 +246,7 @@ function Shell({ slug }: { slug: string }) {
             {current === 'pedidos' && scope ? (
               <OrdersPanel scope={scope} user={user} data={pedidos.data} failed={pedidos.failed} setup={pedidos.setup} reload={pedidos.reload} canEdit={edit('pedidos')} openId={openOrder} setOpenId={setOpenOrder} />
             ) : null}
+            {current === 'controle' && <Controle canEdit={edit('colaboradores')} version={collabVersion} />}
             {current === 'colaboradores' && <Colaboradores canEdit={edit('colaboradores')} version={collabVersion} />}
             {current === 'trocas' && <TrocaAnual canEdit={edit('pedidos')} isMaster={manager} version={collabVersion} onOpened={() => void reloadOrders()} />}
             {current === 'notas' && <NotasPanel mode="financeiro" canEdit={false} />}

@@ -4,7 +4,7 @@
  * então as funções do banco (movimentações, reservas, entregas, notas fiscais…) são testadas de verdade.
  *
  * Uso: node tests/pg-supabase.mjs [porta]
- *   NOCAT=1 NOMEM=1 NOCOMPRAS=1 NOP3=1 NOFORN=1 NODESL=1  → simula o banco sem o respectivo arquivo .sql
+ *   NOCAT=1 NOMEM=1 NOCOMPRAS=1 NOP3=1 NOFORN=1 NODESL=1 NOCTRL=1  → simula o banco sem o respectivo arquivo .sql
  */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -31,6 +31,7 @@ const sqlFiles = [
   ...(env('NOP3') || env('NODESL') ? [] : ['desligamento.sql']),
   ...(env('NOP3') || env('NOFORN') ? [] : ['fornecedores.sql']),
   ...(env('NOP3') || env('NOFORN') || env('NOCPED') ? [] : ['compras_pedidos.sql']),
+  ...(env('NOP3') || env('NODESL') || env('NOCTRL') ? [] : ['controle_rh.sql']),
 ];
 
 /* ------------------------------------------------------------------ */

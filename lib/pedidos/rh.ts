@@ -7,6 +7,8 @@ import { UUID_RE, str } from '../almoxarifado/stockData';
 import type { OrderItem } from './types';
 import { todayBahia } from './types';
 import { fetchAll } from '../almoxarifado/stockData';
+import { apurarColab, fold as foldC, type EntregaC } from '../rh/controle';
+import type { ControleFarda } from '../fardamento/types';
 
 export type SizeField = 'camisa' | 'calca' | 'calcado';
 export interface KitItem {
@@ -15,6 +17,8 @@ export interface KitItem {
   size_from: SizeField | null;
   qty: number;
   item_id?: string | null;
+  /** de quantos em quantos meses esta peça troca (sem valor = o prazo do kit) */
+  period_months?: number | null;
 }
 export interface RoleKit {
   role: string;
@@ -89,19 +93,29 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
   // em páginas: o banco devolve no máximo 1.000 linhas por consulta
   const cs = await fetchAll<Collaborator>('collaborators', COLLAB_COLS, { column: 'name', tiebreak: 'id' }, (q) => q.eq('active', true));
   const ids = (cs ?? []).map((c) => c.id as string);
-  // últimas entregas de fardamento (categorias 01/02, ou qualquer item com tamanho de roupa/calçado)
-  const lastBy = new Map<string, string>();
+  // entregas de cada colaborador: cada peça tem a própria data e o próprio prazo de troca (item do kit)
+  const entBy = new Map<string, EntregaC[]>();
   if (ids.length) {
     const kinds = opts.extraResets ? ['regular', 'extra'] : ['regular'];
-    const del = await fetchAll<{ collaborator_id: string | null; item_name: string; cat_code: string | null; delivered_at: string; kind: string }>('deliveries', 'collaborator_id, item_name, cat_code, delivered_at, kind', { column: 'delivered_at', ascending: false, tiebreak: 'id' }, (q) => q.in('kind', kinds));
+    const del = await fetchAll<{ collaborator_id: string | null; item_id: string | null; item_name: string; size: string | null; qty: number; returned_qty: number | null; delivered_at: string; kind: string }>('deliveries', 'collaborator_id, item_id, item_name, size, qty, returned_qty, delivered_at, kind', { column: 'delivered_at', ascending: false, tiebreak: 'id' }, (q) => q.in('kind', kinds));
     for (const d of del ?? []) {
       const cid = d.collaborator_id as string | null;
-      if (!cid || lastBy.has(cid)) continue;
-      const personal = d.cat_code === '01' || d.cat_code === '02' || Boolean(sizeFieldFor(String(d.item_name)));
+      const q = Number(d.qty) - Number(d.returned_qty ?? 0);
+      if (!cid || q <= 0) continue;
       // dia em Salvador (UTC-3): entrega às 21h30 não pode cair no dia seguinte
       const t = Date.parse(String(d.delivered_at));
-      if (personal) lastBy.set(cid, Number.isFinite(t) ? new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) : String(d.delivered_at).slice(0, 10));
+      const date = Number.isFinite(t) ? new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) : String(d.delivered_at).slice(0, 10);
+      const list = entBy.get(cid) ?? [];
+      list.push({ collaborator_id: cid, item_id: d.item_id, item_name: d.item_name, size: d.size, qty: q, date, source: 'sistema' });
+      entBy.set(cid, list);
     }
+  }
+  // e as entregas da planilha de controle importada na Gestão (pelo nome do funcionário)
+  const { data: meta } = await db().from('hub_meta').select('value').eq('key', 'fardamento_controle').maybeSingle();
+  const porNome = new Map<string, EntregaC[]>();
+  for (const e of ((meta?.value as ControleFarda | undefined)?.entregas ?? [])) {
+    const k = foldC(e.f);
+    for (const [peca, tam, q] of e.i) porNome.set(k, [...(porNome.get(k) ?? []), { collaborator_id: null, item_name: peca, size: tam, qty: q, date: e.d ?? (e.m ? `${e.m}-01` : null), source: 'planilha' }]);
   }
   const open = await fetchAll<{ number: number; collaborator_id: string | null }>('material_orders', 'number, collaborator_id', { column: 'number' }, (q) => q.eq('origin', 'rh_troca').in('stage', ['validacao', 'encaminhado', 'solicitado']));
   const openBy = new Map((open ?? []).map((o) => [o.collaborator_id as string, Number(o.number)]));
@@ -115,9 +129,12 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
       if (c.role) noKit.add(c.role);
       continue;
     }
-    const last = lastBy.get(c.id) ?? null;
+    // a troca do colaborador é a da peça que vence primeiro (sem peça entregue: admissão + prazo do kit)
+    const pecas = apurarColab({ ...c, sizes: c.sizes ?? {} }, kit, [...(entBy.get(c.id) ?? []), ...(porNome.get(foldC(c.name)) ?? [])], [], [], today).pecas.filter((p) => p.troca_em);
+    const first = pecas.sort((a, b) => String(a.troca_em).localeCompare(String(b.troca_em)))[0] ?? null;
+    const last = first?.entregue_em ?? null;
     const base = last ?? c.admitted_at ?? null;
-    const due = base ? addMonths(base, kit.period_months) : null;
+    const due = first?.troca_em ?? (base ? addMonths(base, kit.period_months) : null);
     const days = due ? dayDiff(due, today) : null;
     rows.push({
       collaborator: { id: c.id, name: c.name, matricula: c.matricula, role: c.role, posto_name: c.posto_name, company: c.company, sizes: c.sizes ?? {} },

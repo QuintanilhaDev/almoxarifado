@@ -716,6 +716,28 @@ Painel master → **Gestão → Fardamento**. Organiza a planilha de controle de
 - A empresa é sugerida pelo nome do arquivo (ex.: `Colaboradores_Max_Servicos.xlsx` → Max Serviços).
 - CPF e data de nascimento não são gravados.
 
+## Controle do RH: fardamento por peça, ASO e cursos
+
+> **Ative no banco antes de usar:** no SQL Editor do Supabase, rode `supabase/controle_rh.sql` (depois do `desligamento.sql`). Ele só cria duas tabelas e duas exigências iniciais; não apaga nada e pode ser rodado mais de uma vez. Sem ele, a tela Controle mostra só o fardamento.
+
+É a primeira aba do RH (**Controle**) e mostra seis números dos colaboradores ativos:
+
+| Número | O que conta |
+| --- | --- |
+| Colaboradores com kit incompleto | quem tem ao menos uma peça do kit da função ainda não entregue |
+| Peças pendentes de entrega | peças do kit que faltam entregar |
+| Peças com troca vencida | peças entregues cujo prazo de troca já passou |
+| Reposições nos próximos 60 dias | peças com troca prevista em até 60 dias |
+| ASOs vencidos ou a vencer em 60 dias | pelo registro mais recente de cada pessoa |
+| Cursos vencidos ou a vencer em 60 dias | cursos, reciclagens e documentos |
+
+- Clicar num número abre a relação de colaboradores e pendências, com filtros por contrato (cliente), posto, função e busca, e o botão **Exportar Excel** (com os mesmos filtros).
+- O que está **sem informação** fica numa aba separada da relação e em cada número: função sem kit, sem função, peça entregue sem data, ASO ou curso sem registro. Ausência de data não conta como regular.
+- **Fardamento por peça:** cada peça entregue tem a própria data (entregas do sistema e da planilha de controle importada na Gestão) e a própria previsão de troca. O prazo fica em cada item do kit da função (Colaboradores › Kits por função, última coluna); vazio usa o prazo do kit. A Troca anual passou a usar a peça que vence primeiro.
+- **ASO, cursos e documentos:** no botão "ASO, cursos e documentos" o RH cadastra cada exigência com tipo, nome, a quem se aplica (funções, clientes, empresas; vazio = todos), validade em meses e antecedência do alerta. Uma exigência nova não precisa de mudança no sistema. Na ficha do colaborador fica o registro de cada realização (data, validade se for diferente, observação), com histórico.
+- **Fardamento por contrato:** separa o que está disponível no estoque central, reservado para um contrato (pedido em aberto), nos postos e já entregue ao colaborador (peça entregue não conta como saldo), e mostra quanto cada contrato ainda precisa receber.
+- Contrato = cliente do colaborador; sem cliente, o posto.
+
 ## Leitura de planilhas (todas as importações)
 
 Vale para estoque, postos, fornecedores, colaboradores, controle de fardamento e espelho de ponto.
