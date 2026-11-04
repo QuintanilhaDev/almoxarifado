@@ -71,5 +71,13 @@ const alfa = ct.find((x) => x.contrato === 'CLIENTE ALFA')!;
 ok(alfa.precisa === 3 && alfa.reservado === 1 && alfa.noPosto === 1 && alfa.falta === 1 && alfa.emUso === 3, `contrato: precisa 3 (1 pendente + 2 vencidas), 1 reservada, 1 no posto, falta 1: ${JSON.stringify(alfa)}`);
 ok(ct.find((x) => x.contrato === 'POSTO BETA')?.semKit === 1, 'sem cliente: o contrato é o posto');
 
+ok(pontuaPeca('Botina c/ biqueira', 'BOTINA 40') > 0 && pontuaPeca('Calça operacional', 'CALÇA SOCIAL 42') === 0, 'botina da planilha casa com a botina c/ biqueira; calça social não é operacional');
+ok(pontuaPeca('Luva pigmentada', 'LUVA PIGMENTADA G') > pontuaPeca('Luva anticorte', 'LUVA PIGMENTADA G'), 'o item mais específico do kit ganha (luva pigmentada)');
+{
+  const av = apurarColab(ana, kit, [...entregas, ent('PROTETOR AURICULAR', 1, '2025-12-01'), ent('PROTETOR AURICULAR', 1, '2026-06-01')], [], [], HOJE, undefined, [{ name: 'Protetor auricular', period_months: 6 }]);
+  const pa = av.pecas.filter((p) => p.avulso);
+  ok(pa.length === 1 && pa[0].entregue_em === '2026-06-01' && pa[0].troca_em === '2026-12-01' && pa[0].status === 'prevista', 'EPI extra: vale a entrega mais recente, com vencimento próprio (6 meses)');
+  ok(linhasDe('reposicoes', [av]).some((l) => l.item === 'Protetor auricular' && /avulso/.test(l.obs)) && !linhasDe('pendentes', [av]).some((l) => l.item === 'Protetor auricular'), 'EPI extra entra nas reposições, nunca como pendente do kit');
+}
 console.log(fails ? `\n${fails} FALHA(S)` : '\nTUDO CERTO');
 process.exit(fails ? 1 : 0);

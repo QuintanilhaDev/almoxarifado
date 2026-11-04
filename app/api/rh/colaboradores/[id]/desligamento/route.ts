@@ -1,3 +1,4 @@
+import { sincronizarLote } from '@/lib/rh/devolucaoEstoque';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
@@ -93,12 +94,14 @@ export async function POST(req: Request, ctx: Ctx) {
     if (error) throw error;
     if (!data) return fail('Este colaborador já está desligado.', 409);
     if (rows.length) {
-      const { error: e1 } = await db().from('collaborator_returns').insert(rows);
+      const { data: ins, error: e1 } = await db().from('collaborator_returns').insert(rows).select('id, collaborator_id, item_name, size, qty_returned, status, returned_at');
       if (e1) {
         // a conferência não entrou: o cadastro volta como estava
         await db().from('collaborators').update({ active: true, dismissed_at: null, dismissal_reason: null, dismissal_notes: null, dismissed_by: null, posto_name: c.posto_name }).eq('id', id);
         throw e1;
       }
+      // o que voltou entra no estoque de devolução Fard/EPI (avaliação do Almoxarifado)
+      for (const it of (ins ?? []) as { id: string; collaborator_id: string; item_name: string; size: string | null; qty_returned: number; status: string; returned_at: string | null }[]) await sincronizarLote(it, c.name, user.display_name);
     }
     // pedidos de material ainda abertos para a pessoa: a tela avisa para cancelar ou concluir
     const { data: abertos } = await db().from('material_orders').select('number, origin, stage').eq('collaborator_id', id).in('stage', ['solicitado', 'validacao', 'encaminhado']).limit(50);

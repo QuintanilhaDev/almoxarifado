@@ -738,6 +738,17 @@ Painel master → **Gestão → Fardamento**. Organiza a planilha de controle de
 - **Fardamento por contrato:** separa o que está disponível no estoque central, reservado para um contrato (pedido em aberto), nos postos e já entregue ao colaborador (peça entregue não conta como saldo), e mostra quanto cada contrato ainda precisa receber.
 - Contrato = cliente do colaborador; sem cliente, o posto.
 
+## Contratos, postos no RH, EPI extra e estoque de devolução
+
+> **Ative no banco antes de usar:** rode `supabase/contratos_e_devolucoes.sql` (depois do `controle_rh.sql`). Ele cria os contratos (um para cada cliente que já está no cadastro de colaboradores), liga posto a contrato e cria o estoque de devolução. Não apaga nada. O arquivo `supabase/kits_gerencia.sql` cadastra os kits por função passados pela gerência e marca o contrato do TRE para a importação ignorar.
+
+- **RH › Contratos:** cadastro dos contratos (cliente, outros nomes do mesmo cliente na planilha, CNPJ, empresa, vigência, ativo) e dos **postos**, que saíram do Almoxarifado. O Almoxarifado continua vendo os postos e movimentando o estoque deles, mas criar, editar, importar e remover posto é só no RH (e para o master geral). A aba "Clientes sem contrato" cria o contrato de um cliente do cadastro com um clique.
+- **Portaria social:** marcada no contrato. O AGENTE DE PORTARIA desse contrato recebe o kit "AGENTE DE PORTARIA SOCIAL"; nos outros, o kit operacional. Vale para o Controle, a Troca anual e a admissão.
+- **Não importar:** o contrato marcado assim fica de fora da importação da planilha de colaboradores (a conferência avisa quantas linhas saíram).
+- **EPI extra (avulso):** em RH › Colaboradores › Kits por função, o RH cadastra os EPIs que podem ser entregues fora do kit, com o vencimento em meses. Cada entrega tem o próprio vencimento; vale a entrega mais recente de cada EPI. Aparecem na ficha e nos números de troca vencida e reposição (nunca como "pendente do kit").
+- **Estoque de devolução Fard/EPI (Almoxarifado › Devoluções):** quando o RH registra que o colaborador devolveu uma peça, ela entra num estoque transitório, aguardando avaliação. O Almoxarifado manda para higienização e depois dá entrada no estoque (escolhendo o item, com movimentação de entrada) ou descarta (com motivo). Pode avaliar parte do lote. Depois de avaliada, a quantidade devolvida não muda mais pelo RH.
+- **Compras:** só quem tem Compras com edição no Almoxarifado (e o master geral) abre solicitação de compra. O setor de Compras recebe e trata, mas não abre.
+
 ## Leitura de planilhas (todas as importações)
 
 Vale para estoque, postos, fornecedores, colaboradores, controle de fardamento e espelho de ponto.

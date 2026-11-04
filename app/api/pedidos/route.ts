@@ -1,3 +1,4 @@
+import { kitDoColab, mapaContratos } from '@/lib/rh/contratosServer';
 import { NextResponse } from 'next/server';
 import { fetchAll } from '@/lib/almoxarifado/stockData';
 import { db } from '@/lib/supabaseAdmin';
@@ -139,7 +140,7 @@ export async function POST(req: Request) {
     // ----- itens -----
     // admissão sem itens: usa o kit da função com os tamanhos do colaborador
     if (type === 'rh_admissao' && (!Array.isArray(b.items) || !b.items.length)) {
-      const kit = kitFor(await loadKits(), collab.role);
+      const kit = kitDoColab(await loadKits(), collab.role, (await mapaContratos()).doColab({ client: (collab as { client?: string | null }).client ?? null, posto_id: (collab as { posto_id?: string | null }).posto_id ?? null }));
       if (!kit) return fail(collab.role ? `A função "${collab.role}" ainda não tem kit cadastrado. Adicione os itens à mão ou cadastre o kit em Colaboradores.` : 'Informe a função para usar o kit, ou adicione os itens.');
       let sizes = cleanSizes(b.sizes);
       if (!Object.keys(sizes).length && collab.id) {

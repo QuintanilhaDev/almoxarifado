@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
-import { requireAlmox } from '@/lib/access';
+import { requirePostoCadastro, requirePostoVer, temContratos } from '@/lib/rh/contratosServer';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { loadPostos, str } from '@/lib/almoxarifado/stockData';
@@ -18,7 +18,7 @@ export const runtime = 'nodejs';
  */
 export async function POST(req: Request) {
   try {
-    const admin = await requireAlmox('postos', 'edit');
+    const admin = await requirePostoCadastro();
     const existing = new Set((await loadPostos()).map((p) => postoKey(p.name)));
 
     if ((req.headers.get('content-type') || '').includes('multipart/form-data')) {

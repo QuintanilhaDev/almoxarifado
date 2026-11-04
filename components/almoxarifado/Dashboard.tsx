@@ -1,5 +1,5 @@
 'use client';
-import { BarChart3, Boxes, Building2, ClipboardList, Eye, Inbox as InboxIcon, ListChecks, Lock, MailCheck, Receipt, ShoppingCart, UserRound, UsersRound } from 'lucide-react';
+import { BarChart3, Boxes, Building2, ClipboardList, Eye, Inbox as InboxIcon, ListChecks, Lock, MailCheck, Receipt, RotateCcw, ShoppingCart, UserRound, UsersRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountSettings } from '../core/AccountSettings';
 import { AppFrame, type FrameTab } from '../core/AppFrame';
@@ -34,6 +34,7 @@ import { PanelSkeleton, usePreload } from '../core/lazy';
 const loadForm = () => import('./FormEditor');
 const loadEmails = () => import('./EmailsManager');
 const loadPostos = () => import('./Postos');
+const loadDevol = () => import('./EstoqueDevolucao');
 const loadMetricas = () => import('./Metricas');
 const loadPurchases = () => import('./ComprasAlmox');
 const loadOrders = () => import('../pedidos/OrdersPanel');
@@ -41,6 +42,7 @@ const loadNotas = () => import('../notas/NotasPanel');
 const FormEditor = dynamic(() => loadForm().then((m) => m.FormEditor), { loading: PanelSkeleton });
 const EmailsManager = dynamic(() => loadEmails().then((m) => m.EmailsManager), { loading: PanelSkeleton });
 const Postos = dynamic(() => loadPostos().then((m) => m.Postos), { loading: PanelSkeleton });
+const EstoqueDevolucao = dynamic(() => loadDevol().then((m) => m.EstoqueDevolucao), { loading: PanelSkeleton });
 const Metricas = dynamic(() => loadMetricas().then((m) => m.Metricas), { loading: PanelSkeleton });
 const ComprasAlmox = dynamic(() => loadPurchases().then((m) => m.ComprasAlmox), { loading: PanelSkeleton });
 const OrdersPanel = dynamic(() => loadOrders().then((m) => m.OrdersPanel), { loading: PanelSkeleton });
@@ -48,13 +50,14 @@ const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loadin
 const PRELOAD = [loadOrders, loadMetricas, loadNotas, loadPostos, loadPurchases, loadForm, loadEmails];
 
 const SLUG = 'almoxarifado';
-type ModuleTab = 'solicitacoes' | 'pedidos' | 'estoque' | 'notas' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'compras';
+type ModuleTab = 'solicitacoes' | 'pedidos' | 'estoque' | 'devolucoes' | 'notas' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'compras';
 export type Tab = ModuleTab | 'equipe' | 'conta' | 'inicio';
 
-const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[] })[] = [
+const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[]; module?: string })[] = [
   { id: 'solicitacoes', label: 'Solicitações', short: 'Solicit.', icon: InboxIcon, aliases: ['solicitacoes', 'pedidos', 'caixa de entrada', 'requisicoes'] },
   { id: 'pedidos', label: 'Pedidos de material', short: 'Pedidos', icon: ClipboardList, aliases: ['pedidos de material', 'pedidos da operacao', 'pedidos do rh', 'admissoes', 'trocas', 'entregas', 'reservas'] },
   { id: 'estoque', label: 'Estoque', short: 'Estoque', icon: Boxes, aliases: ['estoque', 'itens', 'inventario', 'produtos'] },
+  { id: 'devolucoes', label: 'Devoluções', short: 'Devoluções', icon: RotateCcw, module: 'estoque', aliases: ['devolucoes', 'estoque de devolucao', 'devolucao de fardamento', 'higienizacao', 'descarte', 'reaproveitar'] },
   { id: 'notas', label: 'Entradas (NF)', short: 'Entradas', icon: Receipt, aliases: ['entradas', 'notas fiscais', 'nota fiscal', 'notas', 'nf', 'xml', 'recebimento'] },
   { id: 'postos', label: 'Postos', short: 'Postos', icon: Building2, aliases: ['postos'] },
   { id: 'metricas', label: 'Métricas', short: 'Métricas', icon: BarChart3, aliases: ['metricas', 'relatorios', 'graficos'] },
@@ -113,7 +116,7 @@ function Shell() {
   const permsRef = useRef(perms);
   permsRef.current = perms;
 
-  const moduleTabs = useMemo(() => MODULE_TABS.filter((t) => perms.view(t.id)), [perms]);
+  const moduleTabs = useMemo(() => MODULE_TABS.filter((t) => perms.view(t.module ?? t.id)), [perms]);
   const firstTab: Tab = moduleTabs[0]?.id ?? 'inicio';
 
   // aba inicial: a do endereço (#estoque), se a pessoa puder vê-la
@@ -490,7 +493,8 @@ function Shell() {
                 onFocusUsed={() => setNoteFocus(null)}
               />
             )}
-            {current === 'postos' && <Postos postos={postos} items={items} reload={reloadStock} version={stockVersion} failed={stockFailed && postos === null} />}
+            {current === 'devolucoes' && <EstoqueDevolucao items={items ?? []} canEdit={perms.edit('estoque')} version={stockVersion} />}
+            {current === 'postos' && <Postos cadastro={Boolean(user?.is_master)} postos={postos} items={items} reload={reloadStock} version={stockVersion} failed={stockFailed && postos === null} />}
             {current === 'metricas' && <Metricas version={stockVersion + detailVersion} />}
             {current === 'formulario' && <FormEditor version={formVersion} me={user} />}
             {current === 'emails' && <EmailsManager emails={emails} reload={loadEmails} setEmails={setEmails} />}

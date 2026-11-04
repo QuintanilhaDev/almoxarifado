@@ -1,3 +1,4 @@
+import { sincronizarLote } from '@/lib/rh/devolucaoEstoque';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
@@ -35,6 +36,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (r.row.returned_at !== atual.returned_at) mudou.push(`data ${r.row.returned_at ?? '—'}`);
     if ((r.row.notes ?? null) !== (atual.notes ?? null)) mudou.push('observação');
     if (!mudou.length) return NextResponse.json({ item: cur });
+    // o estoque de devolução acompanha a quantidade devolvida (antes de gravar: lote já avaliado não muda)
+    const { data: col } = await db().from('collaborators').select('name').eq('id', atual.collaborator_id).maybeSingle();
+    const bloqueio = await sincronizarLote({ id, collaborator_id: atual.collaborator_id, item_name: atual.item_name, size: atual.size, qty_returned: Number(r.row.qty_returned) || 0, status: String(r.row.status), returned_at: (r.row.returned_at as string | null) ?? null }, (col?.name as string) ?? null, user.display_name);
+    if (bloqueio) return fail(bloqueio, 409);
     const history = [...(Array.isArray(atual.history) ? atual.history : []), { at: new Date().toISOString(), by: user.display_name, what: mudou.join(', ') }].slice(-50);
     const { data, error } = await db()
       .from('collaborator_returns')

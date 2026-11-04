@@ -39,12 +39,15 @@ export function Postos({
   reload,
   version,
   failed,
+  cadastro = false,
 }: {
   postos: Posto[] | null;
   items: StockItem[] | null;
   reload: () => Promise<void>;
   version: number;
   failed?: boolean;
+  /** o cadastro de postos (criar, editar, importar, remover) fica com o RH; aqui só o master geral */
+  cadastro?: boolean;
 }) {
   const toast = useToast();
   const [query, setQuery] = useState('');
@@ -167,20 +170,25 @@ export function Postos({
             <p>O que cada posto tem em estoque.</p>
           </div>
           <div className="head-actions">
-            <button data-max="postos-importar" className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>
-              <FileUp size={18} /> Importar planilha
-            </button>
+            {cadastro ? (
+              <button data-max="postos-importar" className="btn btn-ghost edit-only" onClick={() => setImporting(true)}>
+                <FileUp size={18} /> Importar planilha
+              </button>
+            ) : null}
             <button className="btn btn-ghost" onClick={exportCsv} disabled={!list.length}>
               <Download size={18} /> Exportar
             </button>
             <button className="btn btn-ghost edit-only" onClick={() => setSend({})} disabled={!items || !postos || !list.length}>
               <Send size={17} /> Transferir
             </button>
-            <button data-max="posto-novo" className="btn btn-primary edit-only" onClick={() => setForm({ posto: null })}>
-              <Plus size={18} /> Novo posto
-            </button>
+            {cadastro ? (
+              <button data-max="posto-novo" className="btn btn-primary edit-only" onClick={() => setForm({ posto: null })}>
+                <Plus size={18} /> Novo posto
+              </button>
+            ) : null}
           </div>
         </div>
+        {!cadastro ? <p className="help" style={{ marginTop: -6 }}>O cadastro dos postos (criar, editar, importar e remover) fica no RH, em Recursos Humanos › Contratos. Aqui ficam o estoque de cada posto e as movimentações.</p> : null}
 
         <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
           <div className="stat">
@@ -320,6 +328,7 @@ export function Postos({
             onSend={() => setSend({ posto: openPosto })}
             onEdit={() => setForm({ posto: openPosto })}
             onDelete={() => setDel(openPosto)}
+            cadastro={cadastro}
             onLine={(line, kind) => setQty({ posto: openPosto, line, kind })}
           />
         ) : null}
@@ -383,7 +392,9 @@ function PostoDrawer({
   onEdit,
   onDelete,
   onLine,
+  cadastro,
 }: {
+  cadastro: boolean;
   posto: Posto;
   version: number;
   modalOpen: boolean;
@@ -537,7 +548,7 @@ function PostoDrawer({
             <MovementFeed postoId={posto.id} version={version} />
           </div>
 
-          <div className="drawer-actions edit-only" style={{ marginTop: 'auto' }}>
+          <div className="drawer-actions edit-only" style={{ marginTop: 'auto', display: cadastro ? undefined : 'none' }}>
             <button className="btn btn-ghost btn-sm" onClick={onEdit}>
               <Pencil size={15} /> Editar posto
             </button>

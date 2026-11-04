@@ -1,3 +1,5 @@
+import { clientesBloqueados } from '@/lib/rh/contratosServer';
+import { foldK } from '@/lib/rh/contratos';
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/access';
 import { db } from '@/lib/supabaseAdmin';
@@ -42,6 +44,19 @@ export async function POST(req: Request) {
     const rows: Record<string, string | number | null>[] = read.rows
       .map((r): Record<string, string | number | null> => ({ ...r.data, _abas: [...new Set((r.sources ?? [r.source]).map(abaDe))].join(' + ') }))
       .filter((d) => String(d.name ?? '').trim());
+    // contratos marcados no RH para não importar (ex.: contrato encerrado): essas linhas ficam de fora
+    const bloqueados = await clientesBloqueados();
+    const ignorados = new Map<string, number>();
+    if (bloqueados.size) {
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const c = String(rows[i].client ?? '').trim();
+        if (c && bloqueados.has(foldK(c))) {
+          ignorados.set(c, (ignorados.get(c) ?? 0) + 1);
+          rows.splice(i, 1);
+        }
+      }
+    }
+    if (!rows.length && ignorados.size) return fail(`Todas as linhas são de contrato marcado para não importar (${[...ignorados.keys()].join(', ')}).`, 422);
     if (!rows.length) return fail('Não achei colaboradores na planilha. Ela precisa de uma coluna "Nome" (e, de preferência, Matrícula, Função, Posto e tamanhos).', 422);
     // datas do Excel chegam como número de série
     for (const r of rows) {
@@ -83,7 +98,8 @@ export async function POST(req: Request) {
       .toLowerCase();
     const empresa = /servic/.test(f) ? 'Max Serviços' : /forte/.test(f) ? 'Max Forte' : /confia/.test(f) ? 'Max Confiável' : '';
     const columns = [...new Set(read.sheets.flatMap((s) => s.columns.filter((c) => c.field).map((c) => `${c.header} → ${LABEL[c.field!] ?? c.field}`)))];
-    return NextResponse.json({ rows, abas, juntados: read.merged ?? 0, resumo, empresa, warnings: read.warnings, columns });
+    const contratoIgnorado = [...ignorados.entries()].map(([client, n]) => ({ client, n }));
+    return NextResponse.json({ rows, abas, juntados: read.merged ?? 0, resumo: { ...resumo, contratoIgnorado }, empresa, warnings: [...(contratoIgnorado.length ? [`Ficaram de fora ${contratoIgnorado.reduce((t, x) => t + x.n, 0)} linha(s) de contrato marcado para não importar: ${contratoIgnorado.map((x) => `${x.client} (${x.n})`).join(', ')}.`] : []), ...read.warnings], columns });
   } catch (e) {
     return serverError(e);
   }

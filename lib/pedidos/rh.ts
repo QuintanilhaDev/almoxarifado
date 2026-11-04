@@ -9,6 +9,7 @@ import { todayBahia } from './types';
 import { fetchAll } from '../almoxarifado/stockData';
 import { apurarColab, fold as foldC, type EntregaC } from '../rh/controle';
 import type { ControleFarda } from '../fardamento/types';
+import { kitDoColab, mapaContratos } from '../rh/contratosServer';
 
 export type SizeField = 'camisa' | 'calca' | 'calcado';
 export interface KitItem {
@@ -78,6 +79,8 @@ export function addMonths(date: string, months: number): string {
 export interface TradeRow {
   collaborator: Pick<Collaborator, 'id' | 'name' | 'matricula' | 'role' | 'posto_name' | 'company' | 'sizes'>;
   period_months: number;
+  /** o kit usado (o da função, ou o social num contrato de portaria social) */
+  kit_role?: string;
   /** data-base: última troca regular (ou admissão) */
   base: string | null;
   base_kind: 'troca' | 'admissao' | 'sem_registro';
@@ -117,6 +120,7 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
     const k = foldC(e.f);
     for (const [peca, tam, q] of e.i) porNome.set(k, [...(porNome.get(k) ?? []), { collaborator_id: null, item_name: peca, size: tam, qty: q, date: e.d ?? (e.m ? `${e.m}-01` : null), source: 'planilha' }]);
   }
+  const { doColab } = await mapaContratos();
   const open = await fetchAll<{ number: number; collaborator_id: string | null }>('material_orders', 'number, collaborator_id', { column: 'number' }, (q) => q.eq('origin', 'rh_troca').in('stage', ['validacao', 'encaminhado', 'solicitado']));
   const openBy = new Map((open ?? []).map((o) => [o.collaborator_id as string, Number(o.number)]));
   const today = todayBahia();
@@ -124,13 +128,14 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
   const rows: TradeRow[] = [];
   const noKit = new Set<string>();
   for (const c of (cs ?? []) as Collaborator[]) {
-    const kit = kitFor(kits, c.role);
+    const ct = doColab(c);
+    const kit = kitDoColab(kits, c.role, ct);
     if (!kit) {
       if (c.role) noKit.add(c.role);
       continue;
     }
     // a troca do colaborador é a da peça que vence primeiro (sem peça entregue: admissão + prazo do kit)
-    const pecas = apurarColab({ ...c, sizes: c.sizes ?? {} }, kit, [...(entBy.get(c.id) ?? []), ...(porNome.get(foldC(c.name)) ?? [])], [], [], today).pecas.filter((p) => p.troca_em);
+    const pecas = apurarColab({ ...c, contrato: ct?.name ?? null, sizes: c.sizes ?? {} }, kit, [...(entBy.get(c.id) ?? []), ...(porNome.get(foldC(c.name)) ?? [])], [], [], today).pecas.filter((p) => p.troca_em);
     const first = pecas.sort((a, b) => String(a.troca_em).localeCompare(String(b.troca_em)))[0] ?? null;
     const last = first?.entregue_em ?? null;
     const base = last ?? c.admitted_at ?? null;
@@ -139,6 +144,7 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
     rows.push({
       collaborator: { id: c.id, name: c.name, matricula: c.matricula, role: c.role, posto_name: c.posto_name, company: c.company, sizes: c.sizes ?? {} },
       period_months: kit.period_months,
+      kit_role: kit.role,
       base,
       base_kind: last ? 'troca' : c.admitted_at ? 'admissao' : 'sem_registro',
       due,

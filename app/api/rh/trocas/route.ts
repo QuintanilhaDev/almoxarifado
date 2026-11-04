@@ -1,3 +1,4 @@
+import { kitDoColab, mapaContratos } from '@/lib/rh/contratosServer';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
@@ -23,7 +24,7 @@ export async function GET() {
     const demand = new Map<string, { item_id: string | null; name: string; size: string | null; qty: number; available: number | null; people: number }>();
     for (const r of rows) {
       if ((r.status !== 'vencida' && r.status !== 'proxima') || r.open_order) continue;
-      const kit = kitFor(kits, r.collaborator.role);
+      const kit = kits.find((k) => k.role === r.kit_role) ?? kitFor(kits, r.collaborator.role);
       if (!kit) continue;
       for (const l of kitLines(kit, r.collaborator.sizes ?? {}, stock)) {
         const key = l.item_id ?? `?${lineLabel(l)}`;
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
     const user = await requireUser();
     if (!rhOrders(user, 'edit')) throw new AccessError(403, 'Só o RH/DP abre as trocas.');
     const kits = await loadKits();
+    const { doColab } = await mapaContratos();
     const stock = await loadItems();
     const { data: cs, error } = await db().from('collaborators').select(COLLAB_COLS).in('id', b.collaborator_ids as string[]);
     if (error) throw error;
@@ -68,7 +70,7 @@ export async function POST(req: Request) {
         skipped.push(`${c.name}: já tem a troca ${orderLabel(openBy.get(c.id)!)} em aberto`);
         continue;
       }
-      const kit = kitFor(kits, c.role);
+      const kit = kitDoColab(kits, c.role, doColab(c));
       if (!kit) {
         skipped.push(`${c.name}: a função "${c.role ?? 'sem função'}" não tem kit cadastrado`);
         continue;

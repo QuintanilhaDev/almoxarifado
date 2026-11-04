@@ -32,6 +32,7 @@ const sqlFiles = [
   ...(env('NOP3') || env('NOFORN') ? [] : ['fornecedores.sql']),
   ...(env('NOP3') || env('NOFORN') || env('NOCPED') ? [] : ['compras_pedidos.sql']),
   ...(env('NOP3') || env('NODESL') || env('NOCTRL') ? [] : ['controle_rh.sql']),
+  ...(env('NOP3') || env('NODESL') || env('NOCTRL') || env('NOCONTR') ? [] : ['contratos_e_devolucoes.sql']),
 ];
 
 /* ------------------------------------------------------------------ */

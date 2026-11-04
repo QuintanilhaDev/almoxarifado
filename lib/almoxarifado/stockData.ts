@@ -82,11 +82,12 @@ export async function loadItems(): Promise<StockItem[]> {
 }
 
 export async function loadPostos(): Promise<Posto[]> {
-  const postos = await fetchAll<Omit<Posto, 'items_count' | 'units'>>(
-    'postos',
-    'id, name, code, city, address, supervisor, notes, created_by, created_at',
-    { column: 'name_key', tiebreak: 'id' },
-  );
+  const cols = 'id, name, code, city, address, supervisor, notes, created_by, created_at';
+  // contract_id só existe depois do supabase/contratos_e_devolucoes.sql
+  const postos = await fetchAll<Omit<Posto, 'items_count' | 'units'>>('postos', cols + ', contract_id', { column: 'name_key', tiebreak: 'id' }).catch((e) => {
+    if (['42703', 'PGRST204'].includes((e as { code?: string })?.code ?? '')) return fetchAll<Omit<Posto, 'items_count' | 'units'>>('postos', cols, { column: 'name_key', tiebreak: 'id' });
+    throw e;
+  });
   const lines = await fetchAll<{ posto_id: string; quantity: number }>('posto_stock', 'posto_id, item_id, quantity', {
     column: 'posto_id',
     tiebreak: 'item_id',

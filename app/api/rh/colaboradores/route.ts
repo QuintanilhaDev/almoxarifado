@@ -1,3 +1,5 @@
+import { clientesBloqueados } from '@/lib/rh/contratosServer';
+import { foldK } from '@/lib/rh/contratos';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
@@ -74,7 +76,14 @@ export async function POST(req: Request) {
       const patches: { nome: string; id: string; patch: Row }[] = [];
       const seen = new Map<string, string>();
       const igual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+      const bloqueados = await clientesBloqueados();
+      let ignorados = 0;
       for (const [n, raw] of (b.rows as Row[]).entries()) {
+        // contrato marcado no RH para não importar
+        if (bloqueados.size && bloqueados.has(foldK((raw ?? {}).client ?? (raw ?? {}).cliente))) {
+          ignorados++;
+          continue;
+        }
         const r = collabFields(raw ?? {}, ps);
         const nome = String((raw ?? {}).name ?? (raw ?? {}).nome ?? `linha ${n + 1}`);
         if ('error' in r) {
@@ -136,7 +145,7 @@ export async function POST(req: Request) {
         }
       }
       await broadcast('collab:update', { by: user.display_name });
-      return NextResponse.json({ created, updated, unchanged, errors: errors.slice(0, 50) });
+      return NextResponse.json({ created, updated, unchanged, ignorados, errors: errors.slice(0, 50) });
     }
 
     const r = collabFields(b, ps);

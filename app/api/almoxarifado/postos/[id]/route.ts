@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
-import { requireAlmox } from '@/lib/access';
+import { requirePostoCadastro, requirePostoVer, temContratos } from '@/lib/rh/contratosServer';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { UUID_RE, dbMessage, str } from '@/lib/almoxarifado/stockData';
@@ -14,7 +14,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return fail('Posto não encontrado.', 404);
   try {
-    await requireAlmox('postos', 'view');
+    await requirePostoVer();
     const { data: posto, error: e1 } = await db().from('postos').select('id').eq('id', id).maybeSingle();
     if (e1) throw e1;
     if (!posto) return fail('Posto não encontrado.', 404);
@@ -58,8 +58,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if ('address' in body) patch.address = str(body.address, 200);
   if ('supervisor' in body) patch.supervisor = str(body.supervisor, 120);
   if ('notes' in body) patch.notes = str(body.notes, 400);
+  if ('contract_id' in body) {
+    const c = body.contract_id;
+    if (c !== null && c !== '' && !(typeof c === 'string' && UUID_RE.test(c))) return fail('Contrato inválido.');
+    patch.contract_id = c || null;
+  }
   try {
-    const admin = await requireAlmox('postos', 'edit');
+    const admin = await requirePostoCadastro();
     const { data, error } = await db().from('postos').update(patch).eq('id', id).select('id').maybeSingle();
     if (error) {
       if (error.code === '23505') return fail('Já existe um posto com esse nome.', 409);
@@ -78,7 +83,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return fail('Posto não encontrado.', 404);
   try {
-    const admin = await requireAlmox('postos', 'edit');
+    const admin = await requirePostoCadastro();
     const { data, error } = await db().rpc('remove_posto', { p_posto: id, p_by: admin.display_name });
     if (error) {
       const m = dbMessage(error);

@@ -156,6 +156,8 @@ export interface Posto {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+  /** contrato (cliente) do posto: cadastro do RH */
+  contract_id?: string | null;
   /** quantos itens diferentes e quantas unidades há no posto */
   items_count: number;
   units: number;

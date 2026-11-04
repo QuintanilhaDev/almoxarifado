@@ -31,6 +31,8 @@ export interface ColabC {
   posto_name: string | null;
   company: string | null;
   client?: string | null;
+  /** nome do contrato cadastrado no RH (quando o colaborador está ligado a um) */
+  contrato?: string | null;
   admitted_at: string | null;
   sizes: Partial<Record<SizeField, string>>;
 }
@@ -86,6 +88,8 @@ export interface Peca {
   periodo: number;
   /** a peça precisa de tamanho e o cadastro não tem */
   semTamanho?: boolean;
+  /** EPI extra, fora do kit (vencimento individual) */
+  avulso?: boolean;
 }
 export type StatusExig = 'vencido' | 'a_vencer' | 'em_dia' | 'sem_registro';
 export const STATUS_EXIG: Record<StatusExig, string> = { vencido: 'Vencido', a_vencer: 'A vencer', em_dia: 'Em dia', sem_registro: 'Sem registro' };
@@ -144,15 +148,26 @@ export function addMonths(date: string, months: number): string {
   return t.toISOString().slice(0, 10);
 }
 export const diasEntre = (a: string, b: string) => Math.round((Date.parse(a + 'T12:00:00Z') - Date.parse(b + 'T12:00:00Z')) / 86_400_000);
-export const contratoDe = (c: { client?: string | null; posto_name?: string | null }) => (c.client?.trim() || c.posto_name?.trim() || 'Sem cliente ou posto').toUpperCase();
+export const contratoDe = (c: { contrato?: string | null; client?: string | null; posto_name?: string | null }) => (c.contrato?.trim() || c.client?.trim() || c.posto_name?.trim() || 'Sem cliente ou posto').toUpperCase();
 
-/** a peça entregue corresponde a este item do kit? (todas as palavras do item do kit aparecem no nome entregue) */
+/** variações que não se misturam: camisa MC não é camisa ML, calça social não é operacional */
+const CONFLITOS: [string, string][] = [
+  ['mc', 'ml'],
+  ['social', 'operacional'],
+];
+/**
+ * A peça entregue corresponde a este item do kit? A primeira palavra do item do kit (o tipo da peça)
+ * precisa aparecer no nome entregue; cada outra palavra que bate soma ponto (o item mais específico ganha).
+ * "BOTINA 40" é a "Botina c/ biqueira" do kit; "Camisa ML" não é a "Camisa MC".
+ */
 export function pontuaPeca(kitName: string, entregue: string): number {
   const k = toks(kitName);
   const e = toks(entregue);
   if (!k.length || !e.length) return 0;
-  const ok = k.every((t) => e.some((u) => u === t || (t.length >= 3 && u.length >= 3 && (u.startsWith(t) || t.startsWith(u)))));
-  return ok ? k.length : 0;
+  const bate = (t: string) => e.some((u) => u === t || (t.length >= 3 && u.length >= 3 && (u.startsWith(t) || t.startsWith(u))));
+  if (!bate(k[0])) return 0;
+  for (const [a, b] of CONFLITOS) if ((k.includes(a) && e.includes(b)) || (k.includes(b) && e.includes(a))) return 0;
+  return k.filter(bate).length;
 }
 
 export function seAplica(r: Exigencia, c: Pick<ColabC, 'role' | 'company'> & { client?: string | null }): boolean {
@@ -162,12 +177,20 @@ export function seAplica(r: Exigencia, c: Pick<ColabC, 'role' | 'company'> & { c
 }
 
 /* ------------------------------------------------------------------ um colaborador */
-export function apurarColab(c: ColabC, kit: KitC | null, entregas: EntregaC[], exigs: Exigencia[], registros: RegistroC[], hoje: string, janela = JANELA): ColabControle {
+/** EPI extra (avulso): fora do kit, cada entrega com o próprio vencimento */
+export interface AvulsoC {
+  name: string;
+  period_months: number;
+}
+
+export function apurarColab(c: ColabC, kit: KitC | null, entregas: EntregaC[], exigs: Exigencia[], registros: RegistroC[], hoje: string, janela = JANELA, avulsos: AvulsoC[] = []): ColabControle {
   const faltas: string[] = [];
   if (!c.role) faltas.push('Sem função no cadastro');
   else if (!kit) faltas.push(`Função ${c.role} sem kit cadastrado`);
   if (!c.admitted_at) faltas.push('Sem data de admissão');
   const pecas: Peca[] = [];
+  const foraDoKit: EntregaC[] = [];
+  if (!kit) foraDoKit.push(...entregas.filter((e) => e.qty > 0));
   if (kit) {
     // cada entrega vai para o item do kit mais específico que ela corresponde
     const porItem = new Map<number, EntregaC[]>();
@@ -183,6 +206,7 @@ export function apurarColab(c: ColabC, kit: KitC | null, entregas: EntregaC[], e
         }
       });
       if (best >= 0) porItem.set(best, [...(porItem.get(best) ?? []), e]);
+      else foraDoKit.push(e);
     }
     const semTam = new Set<SizeField>();
     kit.items.forEach((k, i) => {
@@ -205,6 +229,31 @@ export function apurarColab(c: ColabC, kit: KitC | null, entregas: EntregaC[], e
     });
     for (const f of semTam) faltas.push(`Sem tamanho de ${CAMPO_TAMANHO[f]}`);
     if (pecas.some((p) => p.status === 'sem_data')) faltas.push('Peça entregue sem data');
+  }
+  // EPI extra (avulso): vale a entrega mais recente de cada um, com o vencimento dela
+  if (avulsos.length && foraDoKit.length) {
+    const ult = new Map<number, EntregaC>();
+    for (const e of foraDoKit) {
+      let best = -1;
+      let score = 0;
+      avulsos.forEach((a, i) => {
+        const sc = pontuaPeca(a.name, e.item_name);
+        if (sc > score) {
+          score = sc;
+          best = i;
+        }
+      });
+      if (best < 0) continue;
+      const cur = ult.get(best);
+      if (!cur || String(e.date ?? '') > String(cur.date ?? '')) ult.set(best, e);
+    }
+    for (const [i, e] of ult) {
+      const a = avulsos[i];
+      const periodo = a.period_months || 12;
+      const troca = e.date ? addMonths(e.date, periodo) : null;
+      const dias = troca ? diasEntre(troca, hoje) : null;
+      pecas.push({ item: a.name, size: e.size, qty: e.qty, entregue_em: e.date, troca_em: troca, dias, status: dias === null ? 'sem_data' : dias < 0 ? 'vencida' : dias <= janela ? 'prevista' : 'em_dia', origem: e.source, periodo, avulso: true });
+    }
   }
   const exigencias: ExigColab[] = [];
   for (const r of exigs) {
@@ -279,7 +328,7 @@ export function linhasDe(ind: Indicador, cs: ColabControle[], janela = JANELA): 
       for (const p of c.pecas) {
         if (p.status === 'sem_data') out.push({ ...base(c), item: p.item, size: p.size, qty: p.qty, data: null, prazo: null, dias: null, situacao: 'Sem data de entrega', obs: 'Não dá para prever a troca', semInfo: true });
         else if (ind === 'vencidas' ? p.status === 'vencida' : p.dias !== null && p.dias >= 0 && p.dias <= janela)
-          out.push({ ...base(c), item: p.item, size: p.size, qty: p.qty, data: p.entregue_em, prazo: p.troca_em, dias: p.dias, situacao: sitPeca(p), obs: p.origem === 'planilha' ? 'Entrega da planilha de controle' : '', semInfo: false });
+          out.push({ ...base(c), item: p.item, size: p.size, qty: p.qty, data: p.entregue_em, prazo: p.troca_em, dias: p.dias, situacao: sitPeca(p), obs: [p.avulso ? 'EPI extra (avulso)' : '', p.origem === 'planilha' ? 'Entrega da planilha de controle' : ''].filter(Boolean).join(' · '), semInfo: false });
       }
     } else {
       for (const x of c.exigencias) {
@@ -352,7 +401,7 @@ export function porContrato(cs: ColabControle[], colabs: ColabC[], pedidos: Pedi
     x.colaboradores++;
     if (!c.kit) x.semKit++;
     for (const p of c.pecas) {
-      x.pecasKit += p.qty;
+      if (!p.avulso) x.pecasKit += p.qty;
       if (p.status === 'pendente') x.pendentes += p.qty;
       else if (p.status === 'vencida') x.vencidas += p.qty;
       else x.emUso += p.qty;

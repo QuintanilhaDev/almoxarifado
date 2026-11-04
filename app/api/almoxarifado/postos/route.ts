@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
-import { requireAlmox } from '@/lib/access';
+import { requirePostoCadastro, requirePostoVer, temContratos } from '@/lib/rh/contratosServer';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
-import { loadPostos, str } from '@/lib/almoxarifado/stockData';
+import { UUID_RE, loadPostos, str } from '@/lib/almoxarifado/stockData';
 import { postoKey } from '@/lib/almoxarifado/sheetReader';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    await requireAlmox(['postos', 'estoque', 'solicitacoes'], 'view');
+    await requirePostoVer();
     return NextResponse.json({ postos: await loadPostos() }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   const body = await readJson<Record<string, unknown>>(req);
   if (!body) return fail('Dados inválidos.');
   try {
-    const admin = await requireAlmox('postos', 'edit');
+    const admin = await requirePostoCadastro();
 
     if (typeof body.names === 'string') {
       const names = Array.from(
@@ -63,6 +63,7 @@ export async function POST(req: Request) {
         address: str(body.address, 200),
         supervisor: str(body.supervisor, 120),
         notes: str(body.notes, 400),
+        ...(typeof body.contract_id === 'string' && UUID_RE.test(body.contract_id) && (await temContratos()) ? { contract_id: body.contract_id } : {}),
         created_by: admin.display_name,
       })
       .select('id')

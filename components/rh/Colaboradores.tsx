@@ -11,7 +11,7 @@ import { fold, num } from '@/lib/almoxarifado/stockFormat';
 import { ORIGIN_LABEL, orderLabel, type MaterialOrder } from '@/lib/pedidos/types';
 import { ItemPicker, dateBR, type PickItem } from '../pedidos/ui';
 import { DesligarSheet, DevolucaoFicha, DevolucoesView } from './Desligamento';
-import { FichaControle } from './Controle';
+import { AvulsosCard, FichaControle } from './Controle';
 import { arquivada, clienteDe, type Devolucao } from '@/lib/rh/devolucao';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
@@ -277,6 +277,7 @@ export function Colaboradores({ canEdit, version }: { canEdit: boolean; version:
                 ))}
               </div>
             )}
+            <AvulsosCard canEdit={canEdit} />
           </>
         )}
       </div>

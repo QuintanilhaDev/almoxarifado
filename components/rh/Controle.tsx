@@ -584,14 +584,14 @@ export function FichaControle({ id, canEdit, version }: { id: string; canEdit: b
       ) : null}
       <div>
         <h3 className="sec-title">Fardamento por peça {c.kit ? <small>kit {c.kit}</small> : null}</h3>
-        {!c.kit ? (
-          <div className="empty-line">Sem kit cadastrado para a função: não dá para saber o que falta.</div>
-        ) : (
+        {!c.kit ? <div className="empty-line">Sem kit cadastrado para a função: não dá para saber o que falta.</div> : null}
+        {(
           c.pecas.map((p, i) => (
             <div className="kv-row" key={i}>
               <span>
                 {p.qty}× {p.item}
                 {p.size ? ` ${p.size}` : ''}
+                {p.avulso ? <span className="pbadge lilac" style={{ marginLeft: 6 }}>EPI extra</span> : null}
                 <small style={{ display: 'block', color: 'var(--muted)' }}>
                   {p.status === 'pendente' ? (p.semTamanho ? 'falta o tamanho no cadastro' : 'ainda não entregue') : `entregue em ${dateBR(p.entregue_em)}${p.origem === 'planilha' ? ' (planilha)' : ''} · troca a cada ${p.periodo} meses${p.troca_em ? `, em ${dateBR(p.troca_em)}` : ''}`}
                 </small>
@@ -708,6 +708,89 @@ function RegistroSheet({ colabId, ex, hoje, onClose, onSaved }: { colabId: strin
           </button>
         </div>
       </Sheet>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ EPI extra (avulso) */
+/** EPI extras fora do kit: cada entrega com o próprio vencimento (aparece na ficha e nos números de troca). */
+export function AvulsosCard({ canEdit }: { canEdit: boolean }) {
+  const toast = useToast();
+  const [lista, setLista] = useState<{ key: number; name: string; period: string }[] | null>(null);
+  const [edit, setEdit] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    try {
+      const j = await api<{ avulsos: { name: string; period_months: number }[] }>('/api/rh/kits/avulsos');
+      setLista(j.avulsos.map((a, i) => ({ key: i, name: a.name, period: String(a.period_months) })));
+    } catch {
+      setLista([]);
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api('/api/rh/kits/avulsos', { method: 'PUT', json: { items: (lista ?? []).filter((x) => x.name.trim()).map((x) => ({ name: x.name.trim(), period_months: Number(x.period) || 0 })) } });
+      toast({ kind: 'success', title: 'EPI extras salvos' });
+      setEdit(false);
+      await load();
+    } catch (e) {
+      toast({ kind: 'error', title: 'Não foi possível salvar', text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!lista) return null;
+  return (
+    <div className="g-card" style={{ marginTop: 16 }} data-max="epi-avulsos">
+      <h3>EPI extra (avulso)</h3>
+      <p className="help" style={{ marginTop: -4 }}>
+        Itens entregues fora do kit da função. Cada entrega tem o próprio vencimento, contado a partir da data em que foi entregue. Aparecem na ficha do colaborador e nos números de troca vencida e reposição.
+      </p>
+      {!edit ? (
+        <>
+          {lista.length === 0 ? <div className="empty-line">Nenhum EPI extra cadastrado.</div> : null}
+          {lista.map((x) => (
+            <div className="kv-row" key={x.key}>
+              <span>{x.name}</span>
+              <b>vence em {x.period} {x.period === '1' ? 'mês' : 'meses'}</b>
+            </div>
+          ))}
+          {canEdit ? (
+            <div className="drawer-actions" style={{ marginTop: 10 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEdit(true)} data-max="avulsos-editar">
+                {lista.length ? 'Editar' : 'Cadastrar EPI extra'}
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {lista.map((x, i) => (
+            <div key={x.key} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <input className="input" aria-label={`EPI extra ${i + 1}`} placeholder="Ex.: Protetor auricular" value={x.name} onChange={(e) => setLista((l) => l!.map((y) => (y.key === x.key ? { ...y, name: e.target.value } : y)))} />
+              <input className="input" style={{ width: 110 }} aria-label={`Vencimento do item ${i + 1} (meses)`} inputMode="numeric" placeholder="meses" value={x.period} onChange={(e) => setLista((l) => l!.map((y) => (y.key === x.key ? { ...y, period: e.target.value.replace(/\D/g, '').slice(0, 2) } : y)))} />
+              <button className="icon-btn" aria-label={`Tirar ${x.name || 'item'}`} onClick={() => setLista((l) => l!.filter((y) => y.key !== x.key))}>
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <button className="btn btn-ghost btn-sm" onClick={() => setLista((l) => [...(l ?? []), { key: Date.now(), name: '', period: '6' }])}>
+            <Plus size={14} /> Adicionar item
+          </button>
+          <div className="modal-actions">
+            <button className="btn btn-ghost" onClick={() => { setEdit(false); load(); }} disabled={busy}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={save} disabled={busy}>
+              {busy ? <span className="spinner" /> : null} Salvar
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

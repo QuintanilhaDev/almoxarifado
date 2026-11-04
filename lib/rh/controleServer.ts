@@ -2,7 +2,9 @@ import 'server-only';
 import { db } from '../supabaseAdmin';
 import { fail } from '../http';
 import { fetchAll } from '../almoxarifado/stockData';
-import { loadKits, kitFor } from '../pedidos/rh';
+import { loadKits } from '../pedidos/rh';
+import { kitDoColab, mapaContratos } from './contratosServer';
+import { carregarAvulsos } from './avulsos';
 import { todayBahia } from '../pedidos/types';
 import { collabCols } from './desligamento';
 import type { ControleFarda } from '../fardamento/types';
@@ -84,7 +86,12 @@ export async function carregarControle(): Promise<Controle> {
   const regPor = new Map<string, RegistroC[]>();
   for (const r of registros) regPor.set(r.collaborator_id, [...(regPor.get(r.collaborator_id) ?? []), r]);
 
-  const cs = colabs.map((c) => apurarColab({ ...c, sizes: c.sizes ?? {} }, kitFor(kits, c.role), [...(porId.get(c.id) ?? []), ...(porNome.get(fold(c.name)) ?? [])], exigencias, regPor.get(c.id) ?? [], hoje));
+  const { doColab } = await mapaContratos();
+  const avulsos = await carregarAvulsos();
+  const cs = colabs.map((c) => {
+    const ct = doColab(c);
+    return apurarColab({ ...c, contrato: ct?.name ?? null, sizes: c.sizes ?? {} }, kitDoColab(kits, c.role, ct), [...(porId.get(c.id) ?? []), ...(porNome.get(fold(c.name)) ?? [])], exigencias, regPor.get(c.id) ?? [], hoje, undefined, avulsos);
+  });
 
   // reservas dos pedidos em aberto e o que está nos postos (só fardamento)
   const [orders, postoStock, items] = await Promise.all([
@@ -124,7 +131,8 @@ export async function controleDoColab(id: string): Promise<{ colab: ColabControl
     for (const [peca, tam, q] of e.i) ent.push({ collaborator_id: null, nome: e.f, item_name: peca, size: tam, qty: q, date: e.d ?? (e.m ? `${e.m}-01` : null), source: 'planilha' });
   }
   const regs = temEx ? await fetchAll<RegistroC>('collaborator_records', REC_COLS, { column: 'done_at', ascending: false, tiebreak: 'id' }, (q) => q.eq('collaborator_id', id)) : [];
-  const colab = apurarColab({ ...col, sizes: col.sizes ?? {} }, kitFor(kits, col.role), ent, exigencias, regs, todayBahia());
+  const ct = (await mapaContratos()).doColab(col);
+  const colab = apurarColab({ ...col, contrato: ct?.name ?? null, sizes: col.sizes ?? {} }, kitDoColab(kits, col.role, ct), ent, exigencias, regs, todayBahia(), undefined, await carregarAvulsos());
   const nome = new Map(exigencias.map((r) => [r.id, r.name]));
   return { colab, registros: regs.map((r) => ({ ...r, requirement: nome.get(r.requirement_id) ?? 'Exigência removida' })), aplicaveis: exigencias.filter((r) => colab.exigencias.some((x) => x.id === r.id)) };
 }
