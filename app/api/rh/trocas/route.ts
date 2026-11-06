@@ -7,8 +7,9 @@ import { broadcast } from '@/lib/broadcast';
 import { UUID_RE, loadItems, str } from '@/lib/almoxarifado/stockData';
 import { colabAccess, rhOrders } from '@/lib/pedidos/access';
 import { ORDER_COLS, duplicityFlags, event, getConfig, missingP3, p3Fail, toOrder } from '@/lib/pedidos/server';
-import { COLLAB_COLS, kitFor, kitLines, loadKits, tradeRows, type Collaborator } from '@/lib/pedidos/rh';
+import { kitFor, kitLines, loadKits, tradeRows, type Collaborator } from '@/lib/pedidos/rh';
 import { lineLabel, orderLabel } from '@/lib/pedidos/types';
+import { collabCols } from '@/lib/rh/desligamento';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,13 +56,13 @@ export async function POST(req: Request) {
     const kits = await loadKits();
     const { doColab } = await mapaContratos();
     const stock = await loadItems();
-    const { data: cs, error } = await db().from('collaborators').select(COLLAB_COLS).in('id', b.collaborator_ids as string[]);
+    const { data: cs, error } = await db().from('collaborators').select(await collabCols()).in('id', b.collaborator_ids as string[]);
     if (error) throw error;
     const { data: open } = await db().from('material_orders').select('collaborator_id, number').eq('origin', 'rh_troca').in('stage', ['validacao', 'encaminhado', 'solicitado']).in('collaborator_id', b.collaborator_ids as string[]);
     const openBy = new Map((open ?? []).map((o) => [o.collaborator_id as string, Number(o.number)]));
     const created: { id: string; number: number; name: string }[] = [];
     const skipped: string[] = [];
-    for (const c of (cs ?? []) as Collaborator[]) {
+    for (const c of (cs ?? []) as unknown as (Collaborator & { client?: string | null })[]) {
       if (c.active === false) {
         skipped.push(`${c.name}: colaborador desligado, não recebe novos pedidos`);
         continue;

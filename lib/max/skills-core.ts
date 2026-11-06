@@ -404,7 +404,9 @@ export const coreSkills: Skill[] = [
       if ((SECTOR_TABS[target.slug] ?? []).some((t) => t.id !== 'equipe' && t.aliases.some((a) => ` ${q.norm} `.includes(` ${a} `)))) return 0;
       const saysSector = q.any('setor', 'ferramenta', 'painel', 'area', 'departamento');
       if (q.any(...VERB_GO) && saysSector) return 0.94;
-      if (host.scope === 'hub' && q.any(...VERB_GO) && !q.any('usuario', 'usuarios', 'pessoas', 'equipe', 'quem', 'master', 'quantos', 'quantas')) return 0.9;
+      // "abrir o controle de fardamento" é a aba Gestão daqui, não o setor do apelido "fardamento"
+      const hereTab = host.tabs.some((t) => t.aliases.some((a) => a.includes(' ') && ` ${q.norm} `.includes(` ${a} `)));
+      if (host.scope === 'hub' && q.any(...VERB_GO) && !hereTab && !q.any('usuario', 'usuarios', 'pessoas', 'equipe', 'quem', 'master', 'quantos', 'quantas')) return 0.9;
       if (q.any(...VERB_GO) && !host.tabs.some((t) => t.aliases.some((a) => q.any(a)))) return 0.8;
       return 0;
     },

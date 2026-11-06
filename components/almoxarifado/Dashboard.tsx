@@ -396,7 +396,8 @@ function Shell() {
     [user, moduleTabs, perms.manager, current, setTab, can, logout, warp],
   );
 
-  const readOnly = (m: ModuleTab) => !perms.edit(m);
+  // abas que usam a permissão de outro módulo (Devoluções → Estoque)
+  const readOnly = (m: ModuleTab) => !perms.edit(MODULE_TABS.find((t) => t.id === m)?.module ?? m);
   const moduleLabel = MODULE_TABS.find((t) => t.id === current)?.label;
   // Métricas é só leitura para todo mundo: não precisa do aviso
   const showReadOnly = Boolean(user) && moduleLabel !== undefined && current !== 'metricas' && readOnly(current as ModuleTab);

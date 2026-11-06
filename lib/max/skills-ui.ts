@@ -19,6 +19,7 @@ export const SECTOR_TABS: Record<string, { id: string; label: string; aliases: s
     { id: 'solicitacoes', label: 'Solicitações', aliases: ['solicitacoes', 'caixa de entrada', 'requisicoes'] },
     { id: 'pedidos', label: 'Pedidos de material', aliases: ['pedidos de material', 'pedidos da operacao', 'pedidos do rh', 'admissoes', 'entregas', 'reservas'] },
     { id: 'estoque', label: 'Estoque', aliases: ['estoque', 'itens', 'inventario', 'produtos'] },
+    { id: 'devolucoes', label: 'Devoluções', aliases: ['devolucoes', 'estoque de devolucao', 'devolucao de fardamento', 'higienizacao'] },
     { id: 'notas', label: 'Entradas (NF)', aliases: ['entradas', 'notas fiscais', 'nota fiscal', 'notas', 'nf', 'xml', 'recebimento'] },
     { id: 'postos', label: 'Postos', aliases: ['postos'] },
     { id: 'metricas', label: 'Métricas', aliases: ['metricas', 'graficos'] },
@@ -28,8 +29,10 @@ export const SECTOR_TABS: Record<string, { id: string; label: string; aliases: s
     { id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes'] },
   ],
   rh: [
+    { id: 'controle', label: 'Controle', aliases: ['controle do rh', 'aso', 'asos', 'cursos', 'reciclagem', 'kit incompleto'] },
     { id: 'pedidos', label: 'Pedidos', aliases: ['pedidos', 'admissoes', 'admissao', 'pedidos do rh'] },
     { id: 'colaboradores', label: 'Colaboradores', aliases: ['colaboradores', 'funcionarios', 'kits'] },
+    { id: 'contratos', label: 'Contratos', aliases: ['contratos', 'cadastro de contrato'] },
     { id: 'trocas', label: 'Troca anual', aliases: ['troca anual', 'trocas', 'troca de fardamento'] },
     { id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes'] },
   ],

@@ -7,6 +7,7 @@ import { Sheet } from './StockModals';
 import { fold, itemLabel, num } from '@/lib/almoxarifado/stockFormat';
 import type { StockItem } from '@/lib/almoxarifado/types';
 import { dateBR } from '../pedidos/ui';
+import { formatDateTime } from '@/lib/format';
 import '../pedidos/pedidos.css';
 import '../compras/compras.css';
 
@@ -164,7 +165,7 @@ export function EstoqueDevolucao({ items, canEdit, version }: { items: StockItem
                         </td>
                         <td>
                           <span className={`pbadge ${STATUS[l.status].tone}`}>{STATUS[l.status].label}</span>
-                          {l.decided_by ? <small>{`${l.decided_by} · ${dateBR(l.decided_at)}`}</small> : null}
+                          {l.decided_by ? <small>{`${l.decided_by}${l.decided_at ? ` · ${formatDateTime(l.decided_at)}` : ''}`}</small> : null}
                         </td>
                         <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                           {canEdit && (l.status === 'aguardando' || l.status === 'higienizacao') ? (

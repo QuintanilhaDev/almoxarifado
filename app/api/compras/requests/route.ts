@@ -4,10 +4,10 @@ import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { rateLimit } from '@/lib/rateLimit';
-import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
+import { UUID_RE, fetchAll, str } from '@/lib/almoxarifado/stockData';
 import { almoxEdit, canSeePurchases } from '@/lib/compras/access';
 import { COLS, missingTable, setupFail, toRequest } from '@/lib/compras/server';
-import { LIMITS, type PurchaseItem } from '@/lib/compras/types';
+import { LIMITS, OPEN_STATUSES, type PurchaseItem } from '@/lib/compras/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,14 @@ export async function GET() {
       if (missingTable(error)) return setupFail();
       throw error;
     }
-    return NextResponse.json({ requests: (data ?? []).map((r) => toRequest(r as Record<string, unknown>)) }, { headers: { 'Cache-Control': 'no-store' } });
+    // as 500 mais recentes + todas as ainda em aberto (a fila de Compras não pode perder uma antiga)
+    const rows = (data ?? []) as Record<string, unknown>[];
+    if (rows.length >= 500) {
+      const seen = new Set(rows.map((r) => String(r.id)));
+      const open = await fetchAll<Record<string, unknown>>('purchase_requests', COLS, { column: 'created_at', ascending: false, tiebreak: 'id' }, (q) => q.in('status', OPEN_STATUSES));
+      for (const r of open) if (!seen.has(String(r.id))) rows.push(r);
+    }
+    return NextResponse.json({ requests: rows.map((r) => toRequest(r)) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);
   }

@@ -32,7 +32,8 @@ export async function GET() {
       if (!n.supplier_id) continue;
       const s = stats.get(n.supplier_id) ?? { n: 0, last: null, total: 0 };
       s.n++;
-      const d = n.issue_date ?? n.created_at?.slice(0, 10) ?? null;
+      // sem data de emissão: o dia (em Salvador) em que a nota foi registrada
+      const d = n.issue_date ?? (n.created_at ? new Date(Date.parse(n.created_at) - 3 * 3_600_000).toISOString().slice(0, 10) : null);
       if (d && (!s.last || d > s.last)) s.last = d;
       s.total += Number(n.totals?.total ?? 0) || 0;
       stats.set(n.supplier_id, s);

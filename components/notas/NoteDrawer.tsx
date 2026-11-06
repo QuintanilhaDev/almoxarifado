@@ -10,6 +10,7 @@ import { num } from '@/lib/almoxarifado/stockFormat';
 import type { FiscalNote } from '@/lib/notas/server';
 import { DIV_LABEL, installmentsGap, openBlocking, type Divergence, type Installment } from '@/lib/notas/conferencia';
 import { poLabel, type PurchaseOrder } from '@/lib/compras/pc';
+import { purchaseLabel } from '@/lib/compras/types';
 import { LinePO } from './LinePO';
 import { ItemPicker, brl, dateBR, type PickItem } from '../pedidos/ui';
 import { Attachments, Drawer, DrawerTop } from '../compras/pcui';
@@ -176,7 +177,7 @@ export function NoteDrawer({
     }
     const r = await call<{ note: FiscalNote; purchase: { number: number } | null; order: { number: number; status: string } | null; waiting: Waiting[] }>(`/api/almoxarifado/notas/${n.id}/post`, { lines }, 'post');
     if (r) {
-      toast({ kind: 'success', title: r.note.status === 'lancada' ? 'Entrada confirmada' : 'Entrada parcial confirmada', text: r.order ? `${poLabel(r.order.number)} ${r.order.status === 'concluido' ? 'concluído' : 'com entrega parcial'}` : r.purchase ? `Compra nº ${r.purchase.number} marcada como entregue` : undefined });
+      toast({ kind: 'success', title: r.note.status === 'lancada' ? 'Entrada confirmada' : 'Entrada parcial confirmada', text: r.order ? `${poLabel(r.order.number)} ${r.order.status === 'concluido' ? 'concluído' : 'com entrega parcial'}` : r.purchase ? `Solicitação de compra ${purchaseLabel(r.purchase.number)} marcada como entregue` : undefined });
       setWaiting(r.waiting);
     }
     await reload();

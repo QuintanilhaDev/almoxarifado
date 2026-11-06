@@ -3,7 +3,7 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
-import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
+import { UUID_RE, fetchAll, str } from '@/lib/almoxarifado/stockData';
 import { comprasEdit } from '@/lib/compras/access';
 import { canSeeOrders, dateOrNull, missingPC, nowIso, pcFail, toQuote } from '@/lib/compras/pcServer';
 import { toRequest } from '@/lib/compras/server';
@@ -22,7 +22,14 @@ export async function GET() {
       if (missingPC(error)) return pcFail();
       throw error;
     }
-    return NextResponse.json({ quotes: (data ?? []).map((r) => toQuote(r as Record<string, unknown>)) }, { headers: { 'Cache-Control': 'no-store' } });
+    // as 300 mais recentes + todas as ainda abertas
+    const rows = (data ?? []) as Record<string, unknown>[];
+    if (rows.length >= 300) {
+      const seen = new Set(rows.map((r) => String(r.id)));
+      const open = await fetchAll<Record<string, unknown>>('purchase_quotes', '*', { column: 'created_at', ascending: false, tiebreak: 'id' }, (q) => q.eq('status', 'aberta'));
+      for (const r of open) if (!seen.has(String(r.id))) rows.push(r);
+    }
+    return NextResponse.json({ quotes: rows.map((r) => toQuote(r)) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);
   }

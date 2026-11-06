@@ -4,18 +4,16 @@ import { requireAlmox } from '@/lib/access';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { EMAIL_RE, normalizeEmail } from '@/lib/format';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     await requireAlmox(['emails', 'solicitacoes'], 'view');
-    const { data, error } = await db()
-      .from('authorized_emails')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return NextResponse.json({ emails: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
+    // todos (o Supabase devolve no máximo 1000 por consulta)
+    const data = await fetchAll<Record<string, unknown>>('authorized_emails', '*', { column: 'created_at', ascending: false, tiebreak: 'id' });
+    return NextResponse.json({ emails: data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);
   }

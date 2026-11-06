@@ -83,6 +83,24 @@ export async function PATCH(req: Request) {
       .maybeSingle();
     if (e2) throw e2;
     if (!upd) return fail('O lote mudou enquanto você avaliava. Atualize a página.', 409);
+    // o resto do lote continua esperando avaliação (separado antes da entrada: se falhar, nada mudou no estoque)
+    let restoId: string | null = null;
+    const desfaz = async () => {
+      await db().from('return_stock').update({ status: lote.status, qty: lote.qty, stock_item_id: null, decided_by: null, decided_at: null, notes: lote.notes, history: lote.history }).eq('id', id);
+      if (restoId) await db().from('return_stock').delete().eq('id', restoId);
+    };
+    if (qty < lote.qty) {
+      const { data: resto, error: e4 } = await db()
+        .from('return_stock')
+        .insert({ return_id: lote.return_id, collaborator_id: lote.collaborator_id, collaborator_name: lote.collaborator_name, item_name: lote.item_name, size: lote.size, qty: lote.qty - qty, received_at: lote.received_at, status: lote.status, notes: lote.notes, created_by: admin.display_name, history: [{ at: now, by: admin.display_name, what: `Separado do lote (${lote.qty - qty} de ${lote.qty})` }] })
+        .select('id')
+        .single();
+      if (e4) {
+        await desfaz();
+        throw e4;
+      }
+      restoId = (resto as { id: string }).id;
+    }
     if (acao === 'reaproveitar') {
       const { error: e3 } = await db().rpc('stock_move', {
         p_item: item!.id,
@@ -94,18 +112,11 @@ export async function PATCH(req: Request) {
       });
       if (e3) {
         // a entrada não aconteceu: o lote volta como estava
-        await db().from('return_stock').update({ status: lote.status, qty: lote.qty, stock_item_id: null, decided_by: null, decided_at: null, history: lote.history }).eq('id', id);
+        await desfaz();
         const m = dbMessage(e3);
         if (m) return fail(m, 400);
         throw e3;
       }
-    }
-    // o resto do lote continua esperando avaliação
-    if (qty < lote.qty) {
-      const { error: e4 } = await db()
-        .from('return_stock')
-        .insert({ return_id: lote.return_id, collaborator_id: lote.collaborator_id, collaborator_name: lote.collaborator_name, item_name: lote.item_name, size: lote.size, qty: lote.qty - qty, received_at: lote.received_at, status: lote.status, created_by: admin.display_name, history: [{ at: now, by: admin.display_name, what: `Separado do lote (${lote.qty - qty} de ${lote.qty})` }] });
-      if (e4) throw e4;
     }
     await broadcast('stock:update', { by: admin.display_name });
     return NextResponse.json({ ok: true });

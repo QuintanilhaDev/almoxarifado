@@ -158,7 +158,8 @@ function Painel({ dados, enviando, trocar, children }: { dados: ControleFarda; e
   const r = useMemo(() => resumir(todas, f), [todas, f]);
   const [metrica, setMetrica] = useState<Metrica>('pecas');
   const [pecaGrade, setPecaGrade] = useState('');
-  const gradePeca = pecaGrade || f.peca || r.pecas.find((p) => p.grupo !== 'Acessórios')?.peca || r.pecas[0]?.peca || '';
+  // a peça escolhida antes pode não ter saído no período/filtro novo: volta para a padrão
+  const gradePeca = (pecaGrade && r.pecas.some((p) => p.peca === pecaGrade) ? pecaGrade : '') || f.peca || r.pecas.find((p) => p.grupo !== 'Acessórios')?.peca || r.pecas[0]?.peca || '';
   const tamanhos = useMemo(() => (gradePeca ? grade(todas, f, gradePeca) : []), [todas, f, gradePeca]);
   const mesesTodos = useMemo(() => mesesEntre(op.primeiro, op.ultimo), [op]);
   const filtrosAtivos = [f.empresa, f.funcao, f.posto, f.solicitante, f.peca].filter(Boolean).length;
@@ -176,6 +177,7 @@ function Painel({ dados, enviando, trocar, children }: { dados: ControleFarda; e
           {new Date(dados.importadoEm).toLocaleString('pt-BR', {
             dateStyle: 'short',
             timeStyle: 'short',
+            timeZone: 'America/Bahia',
           })}{' '}
           por {dados.por}
         </span>
@@ -323,7 +325,7 @@ function Painel({ dados, enviando, trocar, children }: { dados: ControleFarda; e
                 <div className="select-wrap fd-sel-sm">
                   <select className="select" value={gradePeca} onChange={(e) => setPecaGrade(e.target.value)} aria-label="Peça da grade de tamanhos">
                     {r.pecas
-                      .filter((p) => p.grupo !== 'Acessórios' || p.qtd >= 20)
+                      .filter((p) => p.peca === gradePeca || p.grupo !== 'Acessórios' || p.qtd >= 20)
                       .map((p) => (
                         <option key={p.peca} value={p.peca}>
                           {p.peca}

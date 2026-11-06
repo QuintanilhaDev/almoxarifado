@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
-import { requirePostoCadastro, requirePostoVer, temContratos } from '@/lib/rh/contratosServer';
+import { contratosFail, requirePostoCadastro, requirePostoVer, temContratos } from '@/lib/rh/contratosServer';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { UUID_RE, dbMessage, str } from '@/lib/almoxarifado/stockData';
@@ -65,6 +65,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   try {
     const admin = await requirePostoCadastro();
+    // sem o supabase/contratos_e_devolucoes.sql a coluna contract_id não existe
+    if ('contract_id' in patch && !(await temContratos())) {
+      if (patch.contract_id) return contratosFail();
+      delete patch.contract_id;
+    }
     const { data, error } = await db().from('postos').update(patch).eq('id', id).select('id').maybeSingle();
     if (error) {
       if (error.code === '23505') return fail('Já existe um posto com esse nome.', 409);

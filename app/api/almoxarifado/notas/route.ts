@@ -31,11 +31,16 @@ export async function GET() {
   try {
     const user = await requireUser();
     if (!financeNotes(user)) throw new AccessError(403, 'Você não tem acesso às notas fiscais.');
-    const { data, error } = await db().from('fiscal_notes').select(await noteCols()).order('created_at', { ascending: false }).limit(500);
+    const cols = await noteCols();
+    const { data: recent, error } = await db().from('fiscal_notes').select(cols).order('created_at', { ascending: false }).limit(500);
     if (error) {
       if (missingP3(error)) return p3Fail();
       throw error;
     }
+    // as notas ainda em aberto entram sempre, mesmo as mais antigas que as 500 mais recentes
+    const open = await fetchAll<Record<string, unknown>>('fiscal_notes', cols, { column: 'created_at', ascending: false, tiebreak: 'id' }, (q) => q.in('status', ['aberta', 'conferencia', 'divergencia', 'parcial']));
+    const seen = new Set(((recent ?? []) as unknown as Record<string, unknown>[]).map((r) => r.id));
+    const data = [...((recent ?? []) as unknown as Record<string, unknown>[]), ...open.filter((r) => !seen.has(r.id))];
     // vencimentos de TODAS as notas (a lista acima para nas 500 mais recentes): só o necessário
     const pc = await hasPC();
     const dues = (

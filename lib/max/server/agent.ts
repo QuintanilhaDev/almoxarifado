@@ -308,9 +308,8 @@ const TOOLS: Tool[] = [
         const r = one.data as { protocol: number; collaborator: string | null; posto: string | null; email: string | null; status: string; handled_by: string | null; created_at: string; answers: { label?: string; value?: unknown }[] | null };
         return { data: { numero: r.protocol, colaborador: r.collaborator, posto: r.posto, email: r.email, status: r.status, atendida_por: r.handled_by, criada_em: r.created_at, respostas: (r.answers ?? []).slice(0, 20).map((x) => ({ campo: x.label, valor: String(typeof x.value === 'string' ? x.value : JSON.stringify(x.value ?? '')).slice(0, 300) })) } };
       }
-      const { data, error } = await db().from('requests').select('protocol, collaborator, posto, status, handled_by, created_at').order('created_at', { ascending: false }).limit(1000);
-      if (error) throw error;
-      const rows = (data ?? []) as { protocol: number; collaborator: string | null; posto: string | null; status: string; handled_by: string | null; created_at: string }[];
+      // todas (o Supabase devolve no máximo 1000 por consulta: a contagem por status ficava errada)
+      const rows = await fetchAll<{ protocol: number; collaborator: string | null; posto: string | null; status: string; handled_by: string | null; created_at: string }>('requests', 'protocol, collaborator, posto, status, handled_by, created_at', { column: 'created_at', ascending: false, tiebreak: 'id' });
       const count = { nova: 0, pendente: 0, resolvida: 0 } as Record<string, number>;
       rows.forEach((r) => (count[r.status] = (count[r.status] ?? 0) + 1));
       const busca = normalize(str(a.busca));
@@ -594,9 +593,10 @@ const TOOLS: Tool[] = [
     params: { numero: { type: 'number' }, status: { type: 'string', enum: ['nova', 'em_cotacao', 'comprada', 'entregue', 'recusada', 'cancelada'] } },
     when: (c) => canSeePurchases(c.user),
     run: async (a) => {
-      const { data, error } = await db().from('purchase_requests').select(PURCHASE_COLS).order('created_at', { ascending: false }).limit(300);
-      if (error) throw new ToolError('As solicitações de compra ainda não foram ativadas no banco (falta o supabase/compras.sql). Avise a pessoa.');
-      const rows = (data ?? []).map((r) => toRequest(r as Record<string, unknown>));
+      // todas (a contagem por andamento não pode parar nas mais recentes)
+      const data = await fetchAll<Record<string, unknown>>('purchase_requests', PURCHASE_COLS, { column: 'created_at', ascending: false, tiebreak: 'id' }).catch(() => null);
+      if (!data) throw new ToolError('As solicitações de compra ainda não foram ativadas no banco (falta o supabase/compras.sql). Avise a pessoa.');
+      const rows = data.map((r) => toRequest(r));
       const num = int(a.numero);
       if (Number.isFinite(num) && num > 0) {
         const r = rows.find((x) => x.number === num);

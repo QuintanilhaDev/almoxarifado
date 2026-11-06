@@ -250,7 +250,7 @@ export function QtyModal({
   onClose,
   onSaved,
 }: {
-  item: { id: string; name: string; size: string | null; quantity?: number };
+  item: { id: string; name: string; size: string | null; quantity?: number; reserved?: number };
   kind: QtyKind;
   /** "Ajuste" troca o saldo direto: só o master do Almoxarifado */
   canAdjust?: boolean;
@@ -264,6 +264,8 @@ export function QtyModal({
   const [kind, setKind] = useState<QtyKind>(initial);
   const isPosto = kind === 'devolucao' || kind === 'baixa_posto';
   const balance = item.quantity ?? 0;
+  // o reservado para pedidos de material não pode sair do almoxarifado
+  const free = Math.max(0, balance - (item.reserved ?? 0));
   const [qty, setQty] = useState(initial === 'ajuste' ? String(balance) : '');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -294,7 +296,7 @@ export function QtyModal({
     e.preventDefault();
     if (hasDecimals(qty)) return setError('Use um número inteiro, sem casas decimais.');
     if (!valid || n === null) return setError(kind === 'ajuste' ? 'Informe o novo saldo (zero ou mais).' : 'Informe uma quantidade inteira maior que zero.');
-    if ((kind === 'saida') && n > balance) return setError(`Saldo insuficiente: há apenas ${num(balance)} no almoxarifado.`);
+    if ((kind === 'saida') && n > free) return setError(free < balance ? `Saldo insuficiente: há ${num(free)} disponíveis (${num(balance - free)} reservados para pedidos).` : `Saldo insuficiente: há apenas ${num(balance)} no almoxarifado.`);
     if (isPosto && atPosto !== undefined && n > atPosto) return setError(`O posto tem apenas ${num(atPosto)} deste item.`);
     setBusy(true);
     try {
@@ -399,6 +401,8 @@ interface Line {
   item_id: string;
   qty: string;
 }
+/** o que pode sair do almoxarifado (saldo menos o reservado para pedidos) */
+const avail = (i: StockItem) => Math.max(0, i.quantity - (i.reserved ?? 0));
 
 export function SendModal({
   postos,
@@ -431,7 +435,7 @@ export function SendModal({
   const options = useMemo(() => {
     const t = fold(q.trim());
     return items
-      .filter((i) => i.quantity > 0 && !taken.has(i.id) && (!t || fold(itemLabel(i)).includes(t)))
+      .filter((i) => avail(i) > 0 && !taken.has(i.id) && (!t || fold(itemLabel(i)).includes(t)))
       .slice(0, 40);
   }, [items, taken, q]);
 
@@ -460,7 +464,7 @@ export function SendModal({
       const n = Number(l.qty);
       if (!it) return setError('Um dos itens não existe mais. Remova-o da lista.');
       if (!Number.isInteger(n) || n < 1) return setError(`Informe a quantidade de "${itemLabel(it)}".`);
-      if (n > it.quantity) return setError(`"${itemLabel(it)}": há apenas ${num(it.quantity)} no almoxarifado.`);
+      if (n > avail(it)) return setError(`"${itemLabel(it)}": há apenas ${num(avail(it))} disponíve${avail(it) === 1 ? 'l' : 'is'} no almoxarifado${it.reserved ? ' (o resto está reservado para pedidos)' : ''}.`);
       payload.push({ item_id: l.item_id, quantity: n });
     }
     setBusy(true);
@@ -539,7 +543,7 @@ export function SendModal({
                 options.map((i) => (
                   <button type="button" key={i.id} onClick={() => add(i.id)}>
                     <span>{itemLabel(i)}</span>
-                    <small>{num(i.quantity)} disp.</small>
+                    <small>{num(avail(i))} disp.</small>
                   </button>
                 ))
               ) : (
@@ -564,7 +568,7 @@ export function SendModal({
                 >
                   <div style={{ minWidth: 0 }}>
                     <b>{it ? itemLabel(it) : 'Item removido'}</b>
-                    <small>{it ? `${num(it.quantity)} disponíve${it.quantity === 1 ? 'l' : 'is'}` : ''}</small>
+                    <small>{it ? `${num(avail(it))} disponíve${avail(it) === 1 ? 'l' : 'is'}` : ''}</small>
                   </div>
                   <input
                     className="input"

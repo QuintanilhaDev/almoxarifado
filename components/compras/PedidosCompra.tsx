@@ -7,7 +7,7 @@ import { useToast } from '../core/Toasts';
 import { Sheet } from '../almoxarifado/StockModals';
 import { formatDateTime, timeAgo } from '@/lib/format';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
-import { PO_OPEN, PO_STATUS, brl, paymentText, poDue, poGoods, poLabel, poLate, poLeft, poTotal, type Attachment, type ComprasConfig, type POItem, type PurchaseOrder } from '@/lib/compras/pc';
+import { PO_OPEN, PO_STATUS, authorsSinceApproval, brl, paymentText, poDue, poGoods, poLabel, poLate, poLeft, poTotal, type Attachment, type ComprasConfig, type POItem, type PurchaseOrder } from '@/lib/compras/pc';
 import { leadText, todayBahia } from '@/lib/compras/prazo';
 import { formatDoc } from '@/lib/compras/fornecedores';
 import { Attachments, Drawer, DrawerTop, POBadge, moneyIn, parseMoney } from './pcui';
@@ -217,7 +217,15 @@ function OrderDrawer({
     try {
       // version: o servidor recusa se o pedido mudou depois que a tela carregou (não aprova versão não vista)
       const j = await api<{ order?: PurchaseOrder }>(`/api/compras/pedidos/${o.id}`, { method: 'PATCH', json: { ...body, expected: o.status, version: o.updated_at } });
-      const title = body.action === 'submit' && j.order?.status === 'aprovado' ? 'Aprovado pela alçada' : label;
+      // edição só volta para aprovação se mudou item, preço, custos ou pagamento (prazo e observação não)
+      const title =
+        body.action === 'submit' && j.order?.status === 'aprovado'
+          ? 'Aprovado pela alçada'
+          : body.action === 'edit'
+            ? j.order?.status === 'aguardando_aprovacao' && o.status !== 'aguardando_aprovacao'
+              ? 'Alteração enviada para aprovação'
+              : 'Pedido salvo'
+            : label;
       toast({ kind: 'success', title, text: poLabel(o.number) });
       setAsk(null);
       setText('');
@@ -270,7 +278,11 @@ function OrderDrawer({
             <span>
               <b>Aguardando aprovação.</b> {o.approval ? 'O pedido foi alterado depois de aprovado; a alteração precisa de nova autorização.' : `Emitido por ${o.created_by ?? '—'}.`}
             </span>
-            {canApprove ? (
+            {canApprove && authorsSinceApproval(o).has(me) ? (
+              <span className="help" style={{ margin: 0 }}>
+                Você emitiu ou alterou este pedido: outra pessoa com permissão de aprovação precisa aprovar.
+              </span>
+            ) : canApprove ? (
               <span className="pc-approve-act">
                 <button className="btn btn-primary btn-sm" disabled={Boolean(busy)} onClick={() => act({ action: 'approve' }, 'Pedido aprovado')}>
                   {busy === 'Pedido aprovado' ? <span className="spinner" /> : <ThumbsUp size={14} />} Aprovar
@@ -435,7 +447,7 @@ function OrderDrawer({
         </div>
       </div>
       <AnimatePresence>
-        {editing ? <EditOrderSheet key="ed" o={o} onClose={() => setEditing(false)} onSave={async (b) => (await act({ action: 'edit', ...b }, o.approval && PO_OPEN.includes(o.status) ? 'Alteração enviada para aprovação' : 'Pedido salvo')) && setEditing(false)} busy={Boolean(busy)} error={error} /> : null}
+        {editing ? <EditOrderSheet key="ed" o={o} onClose={() => setEditing(false)} onSave={async (b) => (await act({ action: 'edit', ...b }, 'Pedido salvo')) && setEditing(false)} busy={Boolean(busy)} error={error} /> : null}
         {ask ? (
           <Sheet
             key="ask"

@@ -8,6 +8,9 @@ import { brl, poLabel } from '@/lib/compras/pc';
 import { leadText } from '@/lib/compras/prazo';
 import { ItemPicker, dateBR, type PickItem } from '../pedidos/ui';
 
+/** dia em Salvador (UTC−3) de um horário ISO: o fim da noite não vira o dia seguinte */
+const dayBahia = (iso: string | null | undefined) => (iso ? new Date(Date.parse(iso) - 3 * 3_600_000).toISOString().slice(0, 10) : null);
+
 interface Product {
   item_id: string;
   label: string;
@@ -84,7 +87,7 @@ export function SupplierProfile({ id, canEdit, onChanged }: { id: string; canEdi
           {p.supplier.homologated_by ? (
             <small>
               {' '}
-              por {p.supplier.homologated_by} em {dateBR(p.supplier.homologated_at ?? null)}
+              por {p.supplier.homologated_by} em {dateBR(dayBahia(p.supplier.homologated_at))}
               {p.supplier.homologation_note ? ` — ${p.supplier.homologation_note}` : ''}
             </small>
           ) : h === 'pendente' ? (
@@ -265,7 +268,7 @@ export function SupplierProfile({ id, canEdit, onChanged }: { id: string; canEdi
                 {p.prices.slice(0, 15).map((x, i) => (
                   <tr key={i}>
                     <td>{x.item}</td>
-                    <td>{dateBR(x.at)}</td>
+                    <td>{dateBR(dayBahia(x.at))}</td>
                     <td>{poLabel(x.order)}</td>
                     <td style={{ textAlign: 'right' }}>{brl(x.price)}</td>
                   </tr>

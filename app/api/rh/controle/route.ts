@@ -5,6 +5,7 @@ import { colabAccess } from '@/lib/pedidos/access';
 import { missingP3, p3Fail } from '@/lib/pedidos/server';
 import { INDICADORES, fold, linhasDe, type Indicador } from '@/lib/rh/controle';
 import { carregarControle } from '@/lib/rh/controleServer';
+import { carregarContratos } from '@/lib/rh/contratosServer';
 import { controleXlsx } from '@/lib/rh/controleXlsx';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +30,9 @@ export async function GET(req: Request) {
     const c = await carregarControle();
     if (!ind) {
       const funcoes = [...new Set(c.colabs.map((x) => x.role).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-      const clientes = [...new Set(c.colabs.map((x) => x.client).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      // clientes do cadastro e os contratos do RH (a exigência por cliente vale para os dois)
+      const contratosRh = (await carregarContratos()).map((x) => x.name);
+      const clientes = [...new Set([...contratosRh, ...(c.colabs.map((x) => x.client).filter(Boolean) as string[])])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
       const empresas = [...new Set(c.colabs.map((x) => x.company).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
       return NextResponse.json(
         { hoje: c.hoje, resumo: c.resumo, contratos: c.contratos, estoque: c.estoque, exigencias: c.exigencias, temExigencias: c.temExigencias, semPlanilha: c.semPlanilha, colaboradores: c.colabs.length, funcoes, clientes, empresas },

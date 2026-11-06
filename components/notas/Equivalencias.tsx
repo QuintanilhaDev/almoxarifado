@@ -124,7 +124,7 @@ export function Equivalencias({ items, canEdit }: { items: PickItem[]; canEdit: 
                   <td>{e.item}</td>
                   <td>
                     {e.validated_by ?? '—'}
-                    {e.validated_at ? <small style={{ display: 'block' }}>{dateBR(e.validated_at)}</small> : null}
+                    {e.validated_at ? <small style={{ display: 'block' }}>{dateBR(new Date(Date.parse(e.validated_at) - 3 * 3_600_000).toISOString())}</small> : null}
                   </td>
                   {canEdit ? (
                     <td>

@@ -17,7 +17,7 @@ import './compras.css';
 import '../pedidos/pedidos.css';
 
 const UFS = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
-const STATUS_NOTE: Record<string, string> = { aberta: 'Conferindo', parcial: 'Parcial', lancada: 'Lançada', estornada: 'Estornada' };
+const STATUS_NOTE: Record<string, string> = { aberta: 'Conferindo', conferencia: 'Em conferência', divergencia: 'Com divergência', parcial: 'Parcial', lancada: 'Lançada', estornada: 'Estornada' };
 const waLink = (phone: string) => {
   const d = phone.replace(/\D/g, '');
   return d.length >= 10 ? `https://wa.me/${d.length <= 11 ? '55' + d : d}` : null;

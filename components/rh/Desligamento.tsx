@@ -8,6 +8,8 @@ import { fold, num } from '@/lib/almoxarifado/stockFormat';
 import { MOTIVOS, ORIGEM, STATUS_DEV, STATUS_LIST, clienteDe, type Desligado, type Devolucao, type ItemEntregue, type StatusDevolucao } from '@/lib/rh/devolucao';
 import './desligamento.css';
 
+/** hoje em Salvador (UTC-3) */
+const hojeBahia = () => new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
 const dataBR = (d: string | null | undefined) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—');
 const BADGE: Record<StatusDevolucao, string> = { pendente: 'amber', devolvido: 'green', nao_devolvido: 'red' };
 type Escolha = StatusDevolucao | 'fora';
@@ -99,8 +101,9 @@ export function DesligarSheet({ c, onClose, onDone }: { c: { id: string; name: s
             qty_delivered: l.qty_delivered,
             last_delivered_at: l.last,
             status: l.status,
-            qty_returned: l.qty_returned ? Number(l.qty_returned) : l.status === 'devolvido' ? l.qty_delivered || 1 : 0,
-            returned_at: l.returned_at || (l.status === 'devolvido' ? date : null),
+            // "não devolvido" esconde a quantidade: um valor digitado antes não vale
+            qty_returned: l.status === 'nao_devolvido' ? 0 : l.qty_returned ? Number(l.qty_returned) : l.status === 'devolvido' ? l.qty_delivered || 1 : 0,
+            returned_at: l.status === 'nao_devolvido' ? null : l.returned_at || (l.status === 'devolvido' ? date : null),
             notes: l.notes.trim() || null,
           })),
         },
@@ -186,8 +189,8 @@ export function DesligarSheet({ c, onClose, onDone }: { c: { id: string; name: s
       )}
       {linhas?.length ? (
         <p className="help dl-resumo">
-          {conta.total} item(ns) na conferência: <b className="t-green">{conta.dev} devolvido(s)</b> · <b className="t-amber">{conta.pend} pendente(s)</b> · <b className="t-red">{conta.nao} não devolvido(s)</b>. A
-          devolução só fica registrada: o estoque não muda (avaliação e higienização são feitas depois, no controle de estoque).
+          {conta.total} item(ns) na conferência: <b className="t-green">{conta.dev} devolvido(s)</b> · <b className="t-amber">{conta.pend} pendente(s)</b> · <b className="t-red">{conta.nao} não devolvido(s)</b>. O que
+          voltou entra no estoque de devolução Fard/EPI e aguarda a avaliação do Almoxarifado (higienização e entrada no estoque, ou descarte).
         </p>
       ) : null}
       {erro ? (
@@ -649,7 +652,7 @@ export function DevolucoesView({ version, onOpen }: { version: number; onOpen: (
                     </td>
                     <td>
                       {dataBR(d.dismissed_at)}
-                      <small>{d.dismissed_at ? `há ${Math.max(0, Math.round((Date.now() - Date.parse(d.dismissed_at)) / 86_400_000))} dias` : ''}</small>
+                      <small>{d.dismissed_at ? `há ${Math.max(0, Math.round((Date.parse(hojeBahia()) - Date.parse(d.dismissed_at.slice(0, 10))) / 86_400_000))} dias` : ''}</small>
                     </td>
                     <td>
                       {pend.length ? (

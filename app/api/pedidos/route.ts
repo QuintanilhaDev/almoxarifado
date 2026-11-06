@@ -24,15 +24,20 @@ export async function GET(req: Request) {
     if (!['almox', 'operacao', 'rh'].includes(scope)) return fail('Painel inválido.');
     if (!scopeAllowed(user, scope)) throw new AccessError(403, 'Você não tem acesso a este painel de pedidos.');
     const origins = originsOf(scope);
-    let q = db().from('material_orders').select(ORDER_COLS).order('created_at', { ascending: false }).limit(600);
-    if (scope === 'operacao') q = q.in('origin', ['operacao', 'rh_troca']); // a Operação também valida as trocas anuais
-    else if (origins) q = q.in('origin', origins);
-    const { data, error } = await q;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const byOrigin = (q: any) => (scope === 'operacao' ? q.in('origin', ['operacao', 'rh_troca']) : origins ? q.in('origin', origins) : q); // a Operação também valida as trocas anuais
+    const { data, error } = await byOrigin(db().from('material_orders').select(ORDER_COLS)).order('created_at', { ascending: false }).limit(600);
     if (error) {
       if (missingP3(error)) return p3Fail();
       throw error;
     }
-    let orders = (data ?? []).map((r) => toOrder(r as Record<string, unknown>));
+    // os em aberto entram sempre, mesmo os mais antigos que os 600 mais recentes
+    const abertos = await fetchAll<Record<string, unknown>>('material_orders', ORDER_COLS, { column: 'created_at', ascending: false, tiebreak: 'id' }, (q) =>
+      byOrigin(q.in('stage', ['solicitado', 'validacao', 'encaminhado'])),
+    );
+    const rows = new Map<string, Record<string, unknown>>();
+    for (const r of [...((data ?? []) as Record<string, unknown>[]), ...abertos]) rows.set(r.id as string, r);
+    let orders = [...rows.values()].map((r) => toOrder(r)).sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
     if (scope === 'operacao') orders = orders.filter((o) => o.origin === 'operacao' || o.stage === 'validacao' || o.validated_by);
     // compras ligadas (status) e disponível agora de cada item
     const pIds = [...new Set(orders.flatMap((o) => o.items.map((l) => l.purchase_id).filter(Boolean) as string[]))];

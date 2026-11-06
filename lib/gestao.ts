@@ -143,7 +143,8 @@ export async function indicators(days: number): Promise<Indicators> {
   const soon = addDays(today, 30);
   const recent = addDays(today, -30);
   for (const n of ns) {
-    if (n.status === 'aberta' || n.status === 'parcial') notes.open++;
+    // ainda sem entrada completa: recebida, em conferência, com divergência ou parcial
+    if (n.status === 'aberta' || n.status === 'conferencia' || n.status === 'divergencia' || n.status === 'parcial') notes.open++;
     for (const p of Array.isArray(n.installments) ? n.installments : []) {
       if (!p?.due) continue;
       if (p.due < today) {

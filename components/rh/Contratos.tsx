@@ -211,7 +211,7 @@ export function Contratos({ version }: { version: number }) {
           </>
         )}
       </div>
-      {editC && data ? <ContratoSheet c={editC === 'novo' ? null : editC} painel={data} canEdit={canEdit} onClose={() => setEditC(null)} onSaved={(p) => { setData((d) => ({ ...p, canEdit: d?.canEdit ?? false })); setEditC(null); }} /> : null}
+      {editC && data ? <ContratoSheet c={editC === 'novo' ? null : editC} painel={data} canEdit={canEdit} onClose={() => { setEditC(null); void load(); }} onSaved={(p) => { setData((d) => ({ ...p, canEdit: d?.canEdit ?? false })); setEditC(null); }} /> : null}
       {editP && data ? <PostoSheet p={editP === 'novo' ? null : editP} contratos={data.contratos} onClose={() => setEditP(null)} onSaved={async () => { setEditP(null); await load(); }} /> : null}
       {importing ? <ImportDialog kind="postos" onClose={() => setImporting(false)} onDone={load} /> : null}
     </div>

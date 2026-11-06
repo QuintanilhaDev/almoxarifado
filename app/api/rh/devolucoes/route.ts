@@ -9,6 +9,7 @@ import { missingP3, p3Fail } from '@/lib/pedidos/server';
 import { todayBahia } from '@/lib/pedidos/types';
 import { deslFail, desligados, itemDevolucao, temDesligamento } from '@/lib/rh/desligamento';
 import { DEV_COLS } from '@/lib/rh/devolucao';
+import { sincronizarLote } from '@/lib/rh/devolucaoEstoque';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
     const user = await requireUser();
     if (!colabAccess(user, 'edit')) throw new AccessError(403, 'Só o RH registra devoluções.');
     if (!(await temDesligamento())) return deslFail();
-    const { data: c } = await db().from('collaborators').select('id, active, dismissed_at').eq('id', b.collaborator_id).maybeSingle();
+    const { data: c } = await db().from('collaborators').select('id, name, active, dismissed_at').eq('id', b.collaborator_id).maybeSingle();
     if (!c) return fail('Colaborador não encontrado.', 404);
     if (c.active) return fail('A conferência da devolução é feita no desligamento. Este colaborador está ativo.', 409);
     const r = itemDevolucao({ ...b, source: 'manual' }, todayBahia());
@@ -46,6 +47,9 @@ export async function POST(req: Request) {
       .select(DEV_COLS)
       .single();
     if (error) throw error;
+    // devolvido já na inclusão: entra no estoque de devolução Fard/EPI (avaliação do Almoxarifado)
+    const it = data as unknown as { id: string; item_name: string; size: string | null; qty_returned: number; status: string; returned_at: string | null };
+    await sincronizarLote({ ...it, collaborator_id: c.id as string }, (c.name as string) ?? null, user.display_name);
     await broadcast('collab:update', { by: user.display_name });
     return NextResponse.json({ item: data });
   } catch (e) {

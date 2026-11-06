@@ -669,13 +669,13 @@ function ItemDrawer({
           ) : null}
 
           <div className="drawer-actions edit-only">
-            <button className="btn btn-primary btn-sm" onClick={onSend} disabled={item.quantity < 1}>
+            <button className="btn btn-primary btn-sm" onClick={onSend} disabled={item.quantity - item.reserved < 1}>
               <Send size={15} /> Enviar a posto
             </button>
             <button className="btn btn-ghost btn-sm" onClick={() => onQty('entrada')}>
               <ArrowDownToLine size={15} /> Entrada
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => onQty('saida')} disabled={item.quantity < 1}>
+            <button className="btn btn-ghost btn-sm" onClick={() => onQty('saida')} disabled={item.quantity - item.reserved < 1}>
               <ArrowUpFromLine size={15} /> Saída
             </button>
             {canAdjust ? (

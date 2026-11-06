@@ -30,7 +30,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if ('order_ref' in body) info.order_ref = str(body.order_ref, 60);
   if ('expected_date' in body) {
     const d = typeof body.expected_date === 'string' ? body.expected_date : '';
-    if (d && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(Date.parse(d)))) return fail('Data de previsão inválida.');
+    // 31/02 passa no Date.parse: confere se o dia existe de verdade
+    if (d && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(Date.parse(d)) || new Date(d + 'T12:00:00Z').toISOString().slice(0, 10) !== d)) return fail('Data de previsão inválida.');
     info.expected_date = d || null;
   }
   const hasInfo = Object.keys(info).length > 0;

@@ -655,7 +655,7 @@ function KitForm({ k, onClose, onSaved }: { k: Kit | null; onClose: () => void; 
     }
   };
   const remove = async () => {
-    if (!k) return;
+    if (!k || !window.confirm(`Excluir o kit da função ${k.role}? Quem tem essa função fica sem kit no controle e na troca anual.`)) return;
     setBusy(true);
     try {
       await api(`/api/rh/kits?role=${encodeURIComponent(k.role)}`, { method: 'DELETE' });

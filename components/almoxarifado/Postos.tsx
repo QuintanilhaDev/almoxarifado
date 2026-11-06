@@ -158,7 +158,8 @@ export function Postos({
   }, [postos, openId]);
 
   const showFormBanner = !dismissed && postos && formOptions !== null;
-  const bannerFromForm = showFormBanner && list.length === 0 && formOptions!.length > 0;
+  // trazer do formulário cria postos: é cadastro (fica com o RH quando não há cadastro aqui)
+  const bannerFromForm = cadastro && showFormBanner && list.length === 0 && formOptions!.length > 0;
   const bannerToForm = showFormBanner && list.length > 0 && formDiff && (formDiff.missingInForm > 0 || formDiff.extraInForm > 0);
 
   return (
@@ -255,7 +256,7 @@ export function Postos({
               <Building2 size={24} />
             </span>
             <strong>{list.length === 0 ? 'Nenhum posto cadastrado' : 'Nada encontrado'}</strong>
-            <span>{list.length === 0 ? 'Adicione um posto ou importe a lista por planilha.' : 'Tente outro termo.'}</span>
+            <span>{list.length === 0 ? (cadastro ? 'Adicione um posto ou importe a lista por planilha.' : 'Os postos são cadastrados no RH, em Recursos Humanos › Contratos.') : 'Tente outro termo.'}</span>
           </div>
         ) : (
           <div className="posto-grid">

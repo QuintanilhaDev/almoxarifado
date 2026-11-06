@@ -51,7 +51,10 @@ export async function POST(req: Request, ctx: Ctx) {
     if (e0) throw e0;
     if (!r) return fail('Exigência não encontrada.', 404);
     const { error } = await db().from('collaborator_records').insert({ collaborator_id: id, requirement_id: req_id, done_at: done, expires_at: exp, notes: String(b.notes ?? '').trim().slice(0, 300) || null, created_by: user.display_name });
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23503') return fail('Colaborador não encontrado.', 404);
+      throw error;
+    }
     await broadcast('collab:update', { by: user.display_name });
     const out = await controleDoColab(id);
     return NextResponse.json({ ...out, temExigencias: true, hoje: todayBahia() });

@@ -31,7 +31,14 @@ export async function GET(req: Request) {
       if (missingPC(error)) return pcFail();
       throw error;
     }
-    return NextResponse.json({ orders: (data ?? []).map((r) => toPO(r as Record<string, unknown>)) }, { headers: { 'Cache-Control': 'no-store' } });
+    // os 500 mais recentes + todos os ainda em andamento (rascunho, aprovação, a receber)
+    const rows = (data ?? []) as Record<string, unknown>[];
+    if (rows.length >= 500) {
+      const seen = new Set(rows.map((r) => String(r.id)));
+      const live = await fetchAll<Record<string, unknown>>('purchase_orders', '*', { column: 'created_at', ascending: false, tiebreak: 'id' }, (q) => q.not('status', 'in', '(concluido,cancelado)'));
+      for (const r of live) if (!seen.has(String(r.id))) rows.push(r);
+    }
+    return NextResponse.json({ orders: rows.map((r) => toPO(r)) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);
   }

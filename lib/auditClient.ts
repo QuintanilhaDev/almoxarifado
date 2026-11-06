@@ -111,7 +111,8 @@ const RULES: { re: RegExp; m?: string; say: (b: B, mt: RegExpMatchArray, method:
   { re: /^\/api\/hub\/users$/, say: () => 'Criou um usuário' },
   { re: /^\/api\/setor\/[\w-]+\/equipe/, say: () => 'Mudou permissões da equipe' },
   { re: /^\/api\/account/, say: (b) => ('new_password' in b || 'password' in b ? 'Trocou a própria senha' : 'Alterou a própria conta') },
-  { re: /^\/api\/max\/memoria/, say: () => 'Ensinou algo à Max' },
+  // 👍/👎 e "não entendi" também passam por aqui: só a anotação é "ensinar"
+  { re: /^\/api\/max\/memoria/, say: (b, _m, me) => (me === 'DELETE' ? 'Apagou um registro da memória da Max' : b.type === 'nota' ? 'Ensinou algo à Max' : b.type === 'feedback' ? (b.good === true ? 'Avaliou bem uma resposta da Max' : 'Avaliou mal uma resposta da Max') : 'Pedido que a Max não atendeu') },
   { re: /^\/api\/pontos\/analisar$/, say: () => 'Analisou um espelho de ponto' },
   { re: /^\/api\/pontos\/relatorio$/, say: () => 'Baixou o relatório de ponto' },
 ];

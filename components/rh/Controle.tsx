@@ -6,7 +6,7 @@ import { useToast } from '../core/Toasts';
 import { Sheet } from '../almoxarifado/StockModals';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
 import { dateBR } from '../pedidos/ui';
-import { INDICADORES, JANELA, STATUS_EXIG, STATUS_PECA, TIPO_EXIG, type ColabControle, type Contrato, type Exigencia, type Indicador, type Linha, type NumeroInd, type RegistroC, type TipoExig } from '@/lib/rh/controle';
+import { INDICADORES, JANELA, fold as foldRel, STATUS_EXIG, STATUS_PECA, TIPO_EXIG, type ColabControle, type Contrato, type Exigencia, type Indicador, type Linha, type NumeroInd, type RegistroC, type TipoExig } from '@/lib/rh/controle';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
 import '../pedidos/pedidos.css';
@@ -137,8 +137,9 @@ function Relacao({ ind, painel, onBack }: { ind: Indicador; painel: Painel; onBa
   useEffect(() => setLimite(300), [aba, contrato, posto, funcao, q]);
   const filtra = useCallback(
     (ls: Linha[]) => {
-      const t = fold(q.trim());
-      return ls.filter((l) => (!contrato || l.contrato === contrato) && (!posto || (l.posto_name ?? '') === posto) && (!funcao || (l.role ?? '') === funcao) && (!t || fold(`${l.name} ${l.matricula ?? ''} ${l.item} ${l.contrato} ${l.posto_name ?? ''}`).includes(t)));
+      // a mesma normalização da exportação (o Excel sai com as mesmas linhas da tela)
+      const t = foldRel(q);
+      return ls.filter((l) => (!contrato || l.contrato === contrato) && (!posto || (l.posto_name ?? '') === posto) && (!funcao || (l.role ?? '') === funcao) && (!t || foldRel(`${l.name} ${l.matricula ?? ''} ${l.item} ${l.contrato} ${l.posto_name ?? ''}`).includes(t)));
     },
     [contrato, posto, funcao, q],
   );

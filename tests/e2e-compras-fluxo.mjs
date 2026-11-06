@@ -149,9 +149,14 @@ try {
   await toast(carlos, /Enviado para aprovação/);
   await carlos.waitForSelector('.drawer .p-title:has-text("Aguardando aprovação")', { timeout: 10000 });
   ok(true, 'aguardando aprovação');
-  ok((await carlos.locator('.drawer button:has-text("Aprovar")').count()) === 1, 'Carlos vê o botão, mas o sistema não deixa aprovar o próprio pedido');
-  await carlos.click('.drawer button:has-text("Aprovar")');
-  await carlos.waitForSelector('.drawer .sx-error:has-text("próprio")');
+  ok((await carlos.locator('.drawer button:has-text("Aprovar")').count()) === 0 && (await carlos.locator('.drawer .pc-approve:has-text("outra pessoa")').count()) === 1, 'Carlos não vê o botão de aprovar o próprio pedido (a tela explica)');
+  const recusa = await carlos.evaluate(async () => {
+    const list = await (await fetch('/api/compras/pedidos')).json();
+    const o = (list.orders ?? []).find((x) => x.number === 1);
+    const r = await fetch(`/api/compras/pedidos/${o.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }) });
+    return { status: r.status, body: await r.json() };
+  });
+  ok(recusa.status === 409 && /próprio/.test(recusa.body.error ?? ''), 'e o servidor também não deixa aprovar pela API');
 
   /* ------------------------------------------------ aprovação */
   console.log('\n[2] Aprovação (master geral)');

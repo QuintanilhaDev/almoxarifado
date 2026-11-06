@@ -38,12 +38,13 @@ export async function PUT(req: Request) {
       delivery_location: str(b.delivery_location, 160) ?? cur.delivery_location,
       quote_valid_days: Number.isInteger(days) && days >= 1 && days <= 90 ? days : cur.quote_valid_days,
       price_tolerance: tol ?? cur.price_tolerance,
+      // campo enviado vazio apaga; campo não enviado fica como estava
       company: {
-        name: str(c.name, 120) ?? cur.company.name,
-        cnpj: str(c.cnpj, 20) ?? cur.company.cnpj,
-        address: str(c.address, 200) ?? cur.company.address,
-        phone: str(c.phone, 40) ?? cur.company.phone,
-        email: str(c.email, 120) ?? cur.company.email,
+        name: 'name' in c ? str(c.name, 120) ?? cur.company.name : cur.company.name,
+        cnpj: 'cnpj' in c ? str(c.cnpj, 20) ?? '' : cur.company.cnpj,
+        address: 'address' in c ? str(c.address, 200) ?? '' : cur.company.address,
+        phone: 'phone' in c ? str(c.phone, 40) ?? '' : cur.company.phone,
+        email: 'email' in c ? str(c.email, 120) ?? '' : cur.company.email,
       },
     };
     await saveConfig(next);

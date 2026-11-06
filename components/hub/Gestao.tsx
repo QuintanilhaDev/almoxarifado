@@ -5,6 +5,7 @@ import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Download, FileText
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../core/api';
 import { num } from '@/lib/almoxarifado/stockFormat';
+import { formatDateTime } from '@/lib/format';
 import type { Indicators } from '@/lib/gestao';
 import type { Painel } from '../compras/PainelCompras';
 import { brl, dateBR } from '../pedidos/ui';
@@ -351,7 +352,7 @@ export function Gestao({ version }: { version: number }) {
             </div>
             <ComprasGestao version={version} />
             <p className="help" style={{ marginTop: 12 }}>
-              Atualizado {new Date(data.at).toLocaleString('pt-BR')}.
+              Atualizado {formatDateTime(data.at)}.
             </p>
           </>
         )}

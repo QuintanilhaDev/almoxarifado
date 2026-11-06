@@ -6,6 +6,7 @@ import { browserSupabase } from '@/lib/realtime';
 import { getSector } from '@/lib/sectors';
 import { AUDIT_EVENT, type AuditEvent, type AuditKind } from '@/lib/auditTypes';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
+import { TZ } from '@/lib/format';
 import './hub.css';
 
 const KIND: Record<AuditKind, { label: string; icon: typeof LogIn }> = {
@@ -20,12 +21,11 @@ const FILTERS: ('tudo' | AuditKind)[] = ['tudo', 'acao', 'acesso', 'tela', 'max'
 const POLL_MS = 4000;
 const KEEP = 1500;
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-const day = (iso: string) => {
-  const d = new Date(iso);
-  const today = new Date();
-  return d.toDateString() === today.toDateString() ? 'Hoje' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-};
+// horário de Salvador (o aparelho do master pode estar em outro fuso)
+const time = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: TZ });
+/** dia (AAAA-MM-DD) em Salvador */
+const dayKey = (d: Date | string) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d));
+const day = (iso: string) => (dayKey(iso) === dayKey(new Date()) ? 'Hoje' : new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ }));
 const initials = (n: string) =>
   n
     .split(/\s+/)
@@ -126,13 +126,13 @@ export function Auditoria() {
 
   const stats = useMemo(() => {
     const now = Date.now();
-    const today = new Date().toDateString();
+    const today = dayKey(new Date());
     const active = new Set(events.filter((e) => now - Date.parse(e.at) < 10 * 60_000 && e.user.id).map((e) => e.user.id));
     return {
       active: active.size,
-      today: events.filter((e) => new Date(e.at).toDateString() === today && e.kind === 'acao').length,
-      errors: events.filter((e) => !e.ok && new Date(e.at).toDateString() === today).length,
-      blocked: events.filter((e) => e.kind === 'local' && !e.ok && new Date(e.at).toDateString() === today).length,
+      today: events.filter((e) => dayKey(e.at) === today && e.kind === 'acao').length,
+      errors: events.filter((e) => !e.ok && dayKey(e.at) === today).length,
+      blocked: events.filter((e) => e.kind === 'local' && !e.ok && dayKey(e.at) === today).length,
     };
   }, [events]);
 
@@ -253,7 +253,7 @@ export function Auditoria() {
                     exit={{ opacity: 0, transition: { duration: 0.12 } }}
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   >
-                    <span className="au-time" title={new Date(e.at).toLocaleString('pt-BR')}>
+                    <span className="au-time" title={new Date(e.at).toLocaleString('pt-BR', { timeZone: TZ })}>
                       <b>{time(e.at)}</b>
                       <small>{day(e.at)}</small>
                     </span>

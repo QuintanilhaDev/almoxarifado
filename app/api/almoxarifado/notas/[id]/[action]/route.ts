@@ -3,7 +3,7 @@ import { db } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/access';
 import { AccessError, fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
-import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
+import { UUID_RE, fetchAll, str } from '@/lib/almoxarifado/stockData';
 import { notesAccess } from '@/lib/pedidos/access';
 import { ORDER_COLS, dbRule, missingP3, p3Fail, toOrder } from '@/lib/pedidos/server';
 import { hasPC, noteCols, noteOrderIds, toNote, type FiscalNote, type NoteLine } from '@/lib/notas/server';
@@ -206,8 +206,8 @@ export async function POST(req: Request, ctx: Ctx) {
       const po = pos[0] ?? null;
       // pedidos de material que esperavam estes itens (para reservar agora)
       const received = new Set(note.items.filter((l) => l.item_id && l.received > 0).map((l) => l.item_id));
-      const { data: os } = await db().from('material_orders').select(ORDER_COLS).eq('stage', 'encaminhado').limit(300);
-      const waiting = (os ?? [])
+      const os = await fetchAll<Record<string, unknown>>('material_orders', ORDER_COLS, { column: 'created_at', tiebreak: 'id' }, (q) => q.eq('stage', 'encaminhado'));
+      const waiting = os
         .map((r) => toOrder(r as Record<string, unknown>))
         .map((o) => ({ id: o.id, number: o.number, label: orderLabel(o.number), who: o.collaborator_name ?? o.posto_name, lines: o.items.map((l, i) => ({ i, l })).filter(({ l }) => l.item_id && received.has(l.item_id) && l.qty - l.delivered - l.reserved > 0).map(({ i, l }) => ({ i, name: l.name, size: l.size, missing: l.qty - l.delivered - l.reserved })) }))
         .filter((o) => o.lines.length);

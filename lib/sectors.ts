@@ -54,12 +54,12 @@ export const SECTORS: SectorDef[] = [
     slug: 'rh',
     name: 'Recursos Humanos',
     short: 'RH',
-    description: 'Admissões, colaboradores, kits de fardamento e troca anual.',
+    description: 'Admissões, colaboradores, controle de ASO e cursos, contratos, kits de fardamento e troca anual.',
     ready: true,
     aliases: ['recursos humanos', 'rh', 'pessoal', 'departamento pessoal', 'dp', 'rh dp'],
     modules: [
       { id: 'pedidos', label: 'Pedidos (admissões e trocas)', hint: 'Pedir kits de admissão e trocas de fardamento ao Almoxarifado' },
-      { id: 'colaboradores', label: 'Colaboradores', hint: 'Cadastrar colaboradores, tamanhos e kits por função' },
+      { id: 'colaboradores', label: 'Colaboradores, Controle e Contratos', hint: 'Cadastrar colaboradores, tamanhos e kits por função, ASO e cursos (Controle) e os contratos e postos' },
     ],
   },
   {
@@ -86,7 +86,8 @@ export const SECTORS: SectorDef[] = [
     short: 'Comercial',
     description: 'Propostas, contratos, clientes e oportunidades.',
     ready: false,
-    aliases: ['comercial', 'vendas', 'contratos'],
+    // "contratos" é a aba Contratos do RH (com o apelido aqui, "abrir contratos" caía no Comercial vazio)
+    aliases: ['comercial', 'vendas'],
     modules: [],
   },
   {

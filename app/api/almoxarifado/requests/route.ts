@@ -1,20 +1,16 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/supabaseAdmin';
 import { requireAlmox } from '@/lib/access';
 import { serverError } from '@/lib/http';
+import { fetchAll } from '@/lib/almoxarifado/stockData';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     await requireAlmox('solicitacoes', 'view');
-    const { data, error } = await db()
-      .from('requests')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1000);
-    if (error) throw error;
-    return NextResponse.json({ requests: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
+    // todas (o Supabase devolve no máximo 1000 por consulta: lê página por página)
+    const data = await fetchAll<Record<string, unknown>>('requests', '*', { column: 'created_at', ascending: false, tiebreak: 'id' });
+    return NextResponse.json({ requests: data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return serverError(e);
   }

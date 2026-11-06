@@ -10,6 +10,7 @@ import { fetchAll } from '../almoxarifado/stockData';
 import { apurarColab, fold as foldC, type EntregaC } from '../rh/controle';
 import type { ControleFarda } from '../fardamento/types';
 import { kitDoColab, mapaContratos } from '../rh/contratosServer';
+import { collabCols } from '../rh/desligamento';
 
 export type SizeField = 'camisa' | 'calca' | 'calcado';
 export interface KitItem {
@@ -94,7 +95,8 @@ export interface TradeRow {
 export async function tradeRows(opts: { alertDays: number; extraResets: boolean }): Promise<{ rows: TradeRow[]; kits: RoleKit[]; noKit: string[] }> {
   const kits = await loadKits();
   // em páginas: o banco devolve no máximo 1.000 linhas por consulta
-  const cs = await fetchAll<Collaborator>('collaborators', COLLAB_COLS, { column: 'name', tiebreak: 'id' }, (q) => q.eq('active', true));
+  // com o cliente (desligamento.sql): o contrato do colaborador vem do cliente ou, sem ele, do posto
+  const cs = await fetchAll<Collaborator & { client?: string | null }>('collaborators', await collabCols(), { column: 'name', tiebreak: 'id' }, (q) => q.eq('active', true));
   const ids = (cs ?? []).map((c) => c.id as string);
   // entregas de cada colaborador: cada peça tem a própria data e o próprio prazo de troca (item do kit)
   const entBy = new Map<string, EntregaC[]>();
@@ -127,7 +129,7 @@ export async function tradeRows(opts: { alertDays: number; extraResets: boolean 
   const dayDiff = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 86_400_000);
   const rows: TradeRow[] = [];
   const noKit = new Set<string>();
-  for (const c of (cs ?? []) as Collaborator[]) {
+  for (const c of cs ?? []) {
     const ct = doColab(c);
     const kit = kitDoColab(kits, c.role, ct);
     if (!kit) {

@@ -21,6 +21,7 @@ import { poLabel, type PurchaseOrder } from '@/lib/compras/pc';
 import { allocate } from '@/lib/notas/vinculo';
 import { Link2 } from 'lucide-react';
 import { LinePO } from './LinePO';
+import { STATUS_LABEL, purchaseLabel, type PurchaseStatus } from '@/lib/compras/types';
 import '../almoxarifado/estoque.css';
 import '../compras/compras.css';
 import '../pedidos/pedidos.css';
@@ -520,7 +521,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             }
             throw e;
           }
-          toast({ kind: 'success', title: r.note.status === 'lancada' ? `NF ${j.note.number} lançada no estoque` : `NF ${j.note.number}: entrada parcial lançada`, text: [r.purchase ? `Compra nº ${r.purchase.number} marcada como entregue` : '', r.waiting.length ? `${r.waiting.length} pedido(s) esperavam estes itens` : ''].filter(Boolean).join(' · ') || undefined }, 10000);
+          toast({ kind: 'success', title: r.note.status === 'lancada' ? `NF ${j.note.number} lançada no estoque` : `NF ${j.note.number}: entrada parcial lançada`, text: [r.purchase ? `Solicitação de compra ${purchaseLabel(r.purchase.number)} marcada como entregue` : '', r.waiting.length ? `${r.waiting.length} pedido(s) esperavam estes itens` : ''].filter(Boolean).join(' · ') || undefined }, 10000);
           if (r.waiting.length) sessionStorage.setItem(`waiting:${j.note.id}`, JSON.stringify(r.waiting));
         }
       } else toast({ kind: 'success', title: `NF ${j.note.number} registrada` });
@@ -652,7 +653,7 @@ function ReviewSheet({ parsed, items, onClose, onDone }: { parsed: ParseResult |
             <option value="">Nenhuma</option>
             {parsed.purchases.map((p) => (
               <option key={p.id} value={p.id}>
-                Compra nº {p.number} · {p.status}
+                Solicitação {purchaseLabel(p.number)} · {STATUS_LABEL[p.status as PurchaseStatus] ?? p.status}
                 {p.supplier ? ` · ${p.supplier}` : ''} · {Math.round(p.match * 100)}% dos itens
               </option>
             ))}

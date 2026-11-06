@@ -170,10 +170,12 @@ export function pontuaPeca(kitName: string, entregue: string): number {
   return k.filter(bate).length;
 }
 
-export function seAplica(r: Exigencia, c: Pick<ColabC, 'role' | 'company'> & { client?: string | null }): boolean {
+export function seAplica(r: Exigencia, c: Pick<ColabC, 'role' | 'company'> & { client?: string | null; contrato?: string | null }): boolean {
   if (!r.active) return false;
   const has = (lista: string[], v: string | null | undefined) => !lista.length || lista.some((x) => fold(x) === fold(v));
-  return has(r.roles, c.role) && has(r.clients, c.client) && has(r.companies, c.company);
+  // cliente: o do cadastro ou o contrato do RH (achado por outro nome do cliente ou pelo posto)
+  const cliente = has(r.clients, c.client) || (Boolean(c.contrato) && has(r.clients, c.contrato));
+  return has(r.roles, c.role) && cliente && has(r.companies, c.company);
 }
 
 /* ------------------------------------------------------------------ um colaborador */
@@ -401,7 +403,9 @@ export function porContrato(cs: ColabControle[], colabs: ColabC[], pedidos: Pedi
     x.colaboradores++;
     if (!c.kit) x.semKit++;
     for (const p of c.pecas) {
-      if (!p.avulso) x.pecasKit += p.qty;
+      // EPI extra (avulso) não é peça do kit do contrato: fica só na ficha e nos números de troca
+      if (p.avulso) continue;
+      x.pecasKit += p.qty;
       if (p.status === 'pendente') x.pendentes += p.qty;
       else if (p.status === 'vencida') x.vencidas += p.qty;
       else x.emUso += p.qty;

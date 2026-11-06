@@ -178,7 +178,9 @@ export function ReplyComposer({
         continue;
       }
       const total = sums.get(e.itemId) ?? 0;
-      if (total > it.quantity) perLine.set(e.okey, `Saldo insuficiente: há ${num(it.quantity)} no almoxarifado e a baixa pede ${num(total)}.`);
+      // o reservado para pedidos de material não pode sair
+      const free = Math.max(0, it.quantity - (it.reserved ?? 0));
+      if (total > free) perLine.set(e.okey, free < it.quantity ? `Saldo insuficiente: há ${num(free)} disponíveis no almoxarifado (${num(it.quantity - free)} reservados para pedidos) e a baixa pede ${num(total)}.` : `Saldo insuficiente: há ${num(it.quantity)} no almoxarifado e a baixa pede ${num(total)}.`);
     }
     const chosen = effective.filter((e) => e.selected && e.itemId);
     const units = [...sums.values()].reduce((a, b) => a + b, 0);

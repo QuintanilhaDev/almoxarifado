@@ -167,7 +167,8 @@ export function gestaoPdf(d: Indicators, opts: { by: string; period: string }): 
       ['Código', 'Item', 'Disponível', 'Mínimo'],
       d.below.slice(0, 25).map((b) => [b.code ?? '—', `${b.name}${b.size ? ' ' + b.size : ''}`, int(b.quantity - b.reserved), int(b.min)]),
       [0.18, 0.5, 0.16, 0.16],
-      (row) => (Number(String(row[2]).replace(/\D/g, '')) <= 0 ? RED : AMBER),
+      // "-3" (reservado maior que o saldo) também é zerado/negativo: o sinal não pode sumir
+      (row) => (Number(String(row[2]).replace(/[^\d-]/g, '')) <= 0 ? RED : AMBER),
     );
   }
   if (d.orders.lateList.length) {

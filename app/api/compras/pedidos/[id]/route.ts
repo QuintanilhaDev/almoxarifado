@@ -7,7 +7,7 @@ import { UUID_RE, str } from '@/lib/almoxarifado/stockData';
 import { comprasEdit } from '@/lib/compras/access';
 import { canApprove, canSeeOrders, cleanAttachments, dateOrNull, loadConfig, missingPC, nowIso, pcFail, toPO } from '@/lib/compras/pcServer';
 import { cleanDelivery, cleanItems, cleanPayment, loadPO, resumeStatus, syncRequests } from '@/lib/compras/poServer';
-import { PO_OPEN, PO_STATUS, approvalHash, brl, poLabel, poTotal, type PurchaseOrder } from '@/lib/compras/pc';
+import { PO_OPEN, PO_STATUS, approvalHash, authorsSinceApproval, brl, poLabel, poTotal, type PurchaseOrder } from '@/lib/compras/pc';
 import { addDays, todayBahia } from '@/lib/compras/prazo';
 
 export const dynamic = 'force-dynamic';
@@ -50,14 +50,6 @@ async function supplierBlock(o: PurchaseOrder): Promise<string | null> {
   return null;
 }
 
-/** quem mexeu no pedido desde a última aprovação (emitiu, alterou ou mandou para aprovação) */
-function authorsSinceApproval(o: PurchaseOrder): Set<string> {
-  const out = new Set<string>(o.created_by ? [o.created_by] : []);
-  let k = o.history.length - 1;
-  while (k >= 0 && !/^Aprovado/.test(o.history[k].what)) k--;
-  for (const h of o.history.slice(k + 1)) if (/^(Alterado|Enviado para aprovação)/.test(h.what)) out.add(h.by);
-  return out;
-}
 
 /**
  * Ações no pedido de compra:
@@ -225,7 +217,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (error) throw error;
     if (!data) return fail(`Outra pessoa alterou o ${label} agora. Confira e tente de novo.`, 409);
     const order = toPO(data as Record<string, unknown>);
-    if (['approve', 'cancel', 'send', 'confirm', 'submit'].includes(action) || patch.status) await syncRequests(order.request_ids, by);
+    // edit também: a previsão/data confirmada que o Almoxarifado vê na solicitação acompanha o pedido
+    if (['approve', 'reject', 'cancel', 'send', 'confirm', 'submit', 'edit'].includes(action) || patch.status) await syncRequests(order.request_ids, by);
     await broadcast('purchase:update', { by, order: id, status: order.status });
     return NextResponse.json({ order });
   } catch (e) {

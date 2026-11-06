@@ -317,3 +317,12 @@ export function parseBRL(raw: string): number {
 export const brl = (v: number | null | undefined) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
 export const paymentText = (p: Partial<Payment> | null | undefined) =>
   !p || !p.mode ? '—' : p.mode === 'avista' ? 'À vista' + (p.days ? ` (${p.days})` : '') : `${p.installments || 1}x${p.days ? ` (${p.days})` : ''}`;
+
+/** quem mexeu no pedido desde a última aprovação (emitiu, alterou ou mandou para aprovação) */
+export function authorsSinceApproval(o: PurchaseOrder): Set<string> {
+  const out = new Set<string>(o.created_by ? [o.created_by] : []);
+  let k = o.history.length - 1;
+  while (k >= 0 && !/^Aprovado/.test(o.history[k].what)) k--;
+  for (const h of o.history.slice(k + 1)) if (/^(Alterado|Enviado para aprovação)/.test(h.what)) out.add(h.by);
+  return out;
+}

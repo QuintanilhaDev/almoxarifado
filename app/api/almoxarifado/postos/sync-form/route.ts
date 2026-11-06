@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabaseAdmin';
 import { requireAlmox } from '@/lib/access';
+import { requirePostoCadastro } from '@/lib/rh/contratosServer';
 import { fail, readJson, serverError } from '@/lib/http';
 import { broadcast } from '@/lib/broadcast';
 import { getFormFields } from '@/lib/almoxarifado/formConfig';
@@ -18,7 +19,8 @@ export async function POST(req: Request) {
   const mode = body?.mode;
   if (mode !== 'to-form' && mode !== 'from-form') return fail('Ação inválida.');
   try {
-    const admin = await requireAlmox('postos', 'edit');
+    // trazer do formulário cadastra postos: o cadastro de postos fica com o RH
+    const admin = mode === 'from-form' ? await requirePostoCadastro() : await requireAlmox('postos', 'edit');
     if (mode === 'to-form') await requireAlmox('formulario', 'edit'); // altera a lista do formulário
     const fields = await getFormFields();
     const idx = fields.findIndex((f) => f.system === 'posto');

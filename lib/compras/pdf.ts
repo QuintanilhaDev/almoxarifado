@@ -137,7 +137,8 @@ export function poPdf(o: PurchaseOrder, cfg: ComprasConfig, by: string): Promise
     ['Fornecedor', `${o.supplier_name}${o.cnpj ? `\nCNPJ ${formatDoc(o.cnpj)}` : ''}`],
     ['Entrega', `${o.delivery.location ?? cfg.delivery_location}\n${o.promised_date ? `Data confirmada: ${dateBR(o.promised_date)}` : o.expected_date ? `Previsão: ${dateBR(o.expected_date)}` : leadText(o.delivery.days, o.delivery.business)}${o.delivery.mode === 'producao' ? ' · sob produção' : ''}`],
     ['Pagamento', `${paymentText(o.payment)}${o.payment.note ? `\n${o.payment.note}` : ''}`],
-    ['Aprovação', o.approval ? `${o.approval.auto ? 'Alçada automática' : o.approval.by} em ${dateBR(o.approval.at)}` : 'Aguardando aprovação'],
+    // alterado depois de aprovado: a aprovação antiga não vale para esta versão
+    ['Aprovação', o.status === 'rascunho' ? 'Rascunho (ainda não enviado para aprovação)' : o.status === 'aguardando_aprovacao' ? (o.approval ? 'Alteração aguardando nova aprovação' : 'Aguardando aprovação') : o.approval ? `${o.approval.auto ? 'Alçada automática' : o.approval.by} em ${dateBR(o.approval.at)}` : '—'],
   ]);
   const rows = o.items.map((i, n) => [
     String(n + 1),

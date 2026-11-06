@@ -442,6 +442,32 @@ export function ReceiveSheet({ initial, onClose, onDone }: { initial?: PurchaseO
   );
 }
 
+/**
+ * valor em reais digitado: guarda o texto enquanto a pessoa digita ("12," → "12,5" → "12,50");
+ * reformatar a cada tecla apagava a vírgula e não deixava digitar centavos
+ */
+function MoneyInput({ label, value, onValue, disabled }: { label: string; value: number; onValue: (v: number) => void; disabled?: boolean }) {
+  const [text, setText] = useState(moneyIn(value));
+  useEffect(() => {
+    // valor mudou por fora (sugestão do pedido, parcela removida): mostra o novo
+    setText((t) => ((parseMoney(t) ?? 0) === value ? t : moneyIn(value)));
+  }, [value]);
+  return (
+    <input
+      className="input pc-num"
+      inputMode="decimal"
+      aria-label={label}
+      value={text}
+      onChange={(e) => {
+        const t = e.target.value.replace(/[^\d,.]/g, '');
+        setText(t);
+        onValue(parseMoney(t) ?? 0);
+      }}
+      disabled={disabled}
+    />
+  );
+}
+
 /** parcelas editáveis com a soma conferida na hora (precisão de centavos) */
 export function InstallmentsEditor({ list, total, onChange, readOnly }: { list: Installment[]; total: number; onChange: (l: Installment[]) => void; readOnly?: boolean }) {
   const gap = installmentsGap(list, total);
@@ -452,7 +478,7 @@ export function InstallmentsEditor({ list, total, onChange, readOnly }: { list: 
         <div key={i} className="pc-inst-row">
           <input className="input" aria-label={`Parcela ${i + 1}`} value={p.n} onChange={(e) => upd(i, { n: e.target.value.slice(0, 8) })} disabled={readOnly} />
           <input className="input" type="date" aria-label={`Vencimento da parcela ${i + 1}`} value={p.due ?? ''} onChange={(e) => upd(i, { due: e.target.value || null })} disabled={readOnly} />
-          <input className="input pc-num" inputMode="decimal" aria-label={`Valor da parcela ${i + 1}`} value={moneyIn(p.value)} onChange={(e) => upd(i, { value: parseMoney(e.target.value) ?? 0 })} disabled={readOnly} />
+          <MoneyInput label={`Valor da parcela ${i + 1}`} value={p.value} onValue={(v) => upd(i, { value: v })} disabled={readOnly} />
           <input className="input" aria-label={`Forma / boleto da parcela ${i + 1}`} placeholder="Boleto, PIX… / nº" value={[p.method, p.ref].filter(Boolean).join(' / ')} onChange={(e) => {
             const [m, ...r] = e.target.value.split('/');
             upd(i, { method: m.trim() || null, ref: r.join('/').trim() || null });

@@ -76,8 +76,8 @@ export async function itensEntregues(c: { id: string; name: string }): Promise<{
     let ultima = '';
     for (const e of ctrl.entregas) {
       if (fold(e.f) !== alvo) continue;
-      const dt = e.d ?? `${e.m}-01`;
-      for (const [peca, tam, q] of e.i) add('planilha', peca, tam, q, dt, e.p);
+      const dt = e.d ?? (e.m ? `${e.m}-01` : '');
+      for (const [peca, tam, q] of e.i) add('planilha', peca, tam, q, dt || null, e.p);
       if (dt > ultima) {
         ultima = dt;
         postoPlanilha = e.p;

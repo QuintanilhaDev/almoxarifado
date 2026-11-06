@@ -1,4 +1,3 @@
-import { db } from '@/lib/supabaseAdmin';
 import { fetchAll } from '@/lib/almoxarifado/stockData';
 import { requireUser } from '@/lib/access';
 import { AccessError, serverError } from '@/lib/http';
@@ -28,11 +27,12 @@ export async function GET(req: Request) {
     // todas, em ordem estável e página por página (o Supabase para em 1000 linhas)
     const data = await fetchAll<Record<string, unknown>>('fiscal_notes', await noteCols(), { column: 'created_at', tiebreak: 'id' }, (q) => q.neq('status', 'estornada'));
     const notes = data.map((r) => toNote(r as unknown as Record<string, unknown>));
-    const poIds = [...new Set(notes.flatMap((n) => noteOrderIds(n)))];
+    const poIds = new Set(notes.flatMap((n) => noteOrderIds(n)));
     const poNum = new Map<string, number>();
-    if (poIds.length) {
-      const { data: pos } = await db().from('purchase_orders').select('id, number').in('id', poIds);
-      for (const p of pos ?? []) poNum.set(String(p.id), Number(p.number));
+    if (poIds.size) {
+      // todos os números, página por página (um .in() com milhares de ids estoura a URL e para em 1000 linhas)
+      const pos = await fetchAll<{ id: string; number: number }>('purchase_orders', 'id, number', { column: 'id' }).catch(() => []);
+      for (const p of pos) if (poIds.has(String(p.id))) poNum.set(String(p.id), Number(p.number));
     }
     const rows = notes
       .filter((n) => !sup || n.supplier_name.toLowerCase().includes(sup))
@@ -50,7 +50,8 @@ export async function GET(req: Request) {
       )
       .filter((r) => (!from || (r.due && r.due >= from)) && (!to || (r.due && r.due <= to)))
       .sort((a, b) => String(a.due ?? '9999').localeCompare(String(b.due ?? '9999')));
-    const period = from || to ? `${from ? from.split('-').reverse().join('/') : 'início'} a ${to ? to.split('-').reverse().join('/') : 'hoje em diante'}` : 'Todos os vencimentos';
+    const br = (d: string) => d.split('-').reverse().join('/');
+    const period = from && to ? `${br(from)} a ${br(to)}` : from ? `A partir de ${br(from)}` : to ? `Até ${br(to)}` : 'Todos os vencimentos';
     if (sp.get('format') === 'pdf') {
       const buf = await duesPdf(rows, { cfg: await loadConfig(), by: user.display_name, period });
       return new Response(new Uint8Array(buf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="vencimentos.pdf"' } });

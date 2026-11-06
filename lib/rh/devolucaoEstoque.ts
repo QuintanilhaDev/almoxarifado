@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from '../supabaseAdmin';
+import { todayBahia } from '../pedidos/types';
 
 /**
  * Estoque de devolução Fard/EPI (transitório): cada peça devolvida por um colaborador entra aqui
@@ -62,7 +63,7 @@ export async function sincronizarLote(
     if (!quer) return null;
     const { error: e1 } = await db()
       .from('return_stock')
-      .insert({ return_id: item.id, collaborator_id: item.collaborator_id, collaborator_name: colabName, item_name: item.item_name, size: item.size, qty: quer, received_at: item.returned_at ?? now.slice(0, 10), created_by: by, history: [{ at: now, by, what: `Entrou no estoque de devolução: ${quer}` }] });
+      .insert({ return_id: item.id, collaborator_id: item.collaborator_id, collaborator_name: colabName, item_name: item.item_name, size: item.size, qty: quer, received_at: item.returned_at ?? todayBahia(), created_by: by, history: [{ at: now, by, what: `Entrou no estoque de devolução: ${quer}` }] });
     if (e1) throw e1;
     return null;
   }
