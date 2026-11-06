@@ -48,40 +48,27 @@
 :root body::before {
   content: '';
   position: fixed;
-  inset: -6vh -6vw;
+  inset: 0;
   z-index: -1;
   pointer-events: none;
   background:
     radial-gradient(60vw 45vh at 22% 6%, var(--aurora-a), transparent 72%),
     radial-gradient(45vw 40vh at 88% 12%, var(--aurora-b), transparent 70%),
     radial-gradient(70vw 50vh at 62% 108%, var(--aurora-c), transparent 72%);
-  animation: aurora-drift 38s ease-in-out infinite alternate;
-}
-@keyframes aurora-drift {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(2vw, 1.5vh, 0) scale(1.04);
-  }
-  100% {
-    transform: translate3d(-2vw, 2.5vh, 0) scale(1.02);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  :root body::before {
-    animation: none;
-  }
 }
 :root .dash {
   background: transparent;
 }
 
 /* ---------- menu lateral e topo (celular): vidro ---------- */
-:root .side,
+:root .side {
+  background: var(--glass);
+  border-color: var(--glass-border);
+}
+/* no celular o conteúdo rola por baixo das barras: aí o desfoque vale a pena */
 :root .mobile-top,
 :root .tabbar {
-  background: var(--glass);
+  background: rgba(var(--bg-rgb), 0.82);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-color: var(--glass-border);
@@ -245,8 +232,6 @@
 }
 :root :is(.ch-head, .ch-composer) {
   background: var(--glass);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border-color: var(--glass-border);
 }
 :root .ch-bubble {

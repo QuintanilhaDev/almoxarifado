@@ -231,8 +231,8 @@ export function MaxOrb({ size, state = 'idle', className }: { size: number; stat
         return;
       }
       frameTick(now);
-      // parada, a gelatina se mexe devagar: 30 quadros por segundo bastam
-      if (stateRef.current === 'idle' && now - drawn < 31) return schedule();
+      // parada, a gelatina se mexe devagar: 20 quadros por segundo bastam
+      if (stateRef.current === 'idle' && now - drawn < 48) return schedule();
       drawn = now;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;

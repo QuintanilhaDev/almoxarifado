@@ -153,6 +153,7 @@ try {
   await rh.waitForSelector('.ch-blank', { timeout: 15000 }).then(() => ok(true, 'conversa apagada sai da tela sozinha')).catch(() => ok(false, 'conversa apagada sai da tela sozinha'));
   // um chamado aberto para o resto do teste (celular)
   r = await api(rh, '/api/chamados', 'POST', { title: 'Outro teste de layout', description: 'Mensagem de teste.' });
+  await rh.waitForTimeout(5500); // a tela confere de novo no máximo a cada 5 s
   await tick(rh);
   await rh.click('.ch-conv:has-text("Outro teste de layout")');
   await rh.waitForSelector('.ch-input');

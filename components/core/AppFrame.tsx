@@ -152,8 +152,9 @@ export function AppFrame({
             style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', transformOrigin: '0% 50%' }}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0, transitionEnd: { transform: 'none' } }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            // a tela nova só aparece depois que a anterior sai: saída quase instantânea
+            exit={{ opacity: 0, transition: { duration: 0.06 } }}
+            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
           >
             {children}
           </motion.div>

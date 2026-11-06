@@ -9,7 +9,6 @@ import { chime } from '@/lib/chime';
 import { maxEmit } from '@/lib/max/bus';
 import { isDev, unseenByOwner, waitingDev, type Ticket, type TicketMessage } from '@/lib/chamados';
 
-type Lista = { tickets: Ticket[] };
 type Me = { username: string; display_name: string } | null;
 export type ChamadoTab = 'chamados' | 'responder';
 
@@ -69,8 +68,10 @@ export function useChamadosResumo(user: Me, go?: (tab: ChamadoTab) => void) {
   const load = useCallback(async () => {
     if (!on) return;
     try {
-      const mine = await api<Lista>('/api/chamados');
-      const all = dev ? await api<Lista>('/api/chamados?todos=1') : null;
+      // uma consulta leve só (última mensagem de cada chamado), no lugar de duas listas completas
+      const res = await api<{ mine: Ticket[]; all: Ticket[] }>('/api/chamados?resumo=1');
+      const mine = { tickets: res.mine };
+      const all = dev ? { tickets: res.all } : null;
       const novas = mine.tickets.filter(unseenByOwner).length;
       const aguardando = all ? all.tickets.filter(waitingDev).length : 0;
       setR((o) => (o.novas === novas && o.aguardando === aguardando ? o : { novas, aguardando }));

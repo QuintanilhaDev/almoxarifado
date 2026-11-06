@@ -36,7 +36,7 @@ export const cleanText = (v: unknown, max: number) => String(v ?? '').replace(/\
 let ultimaLimpeza = 0;
 export async function limparResolvidos(): Promise<void> {
   const prazo = Number(process.env.CHAMADOS_APAGAR_MS) || APAGAR_RESOLVIDO_MS;
-  if (Date.now() - ultimaLimpeza < Math.min(60_000, prazo)) return;
+  if (Date.now() - ultimaLimpeza < Math.min(60_000, prazo / 4)) return;
   ultimaLimpeza = Date.now();
   try {
     const limite = new Date(Date.now() - prazo).toISOString();

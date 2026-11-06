@@ -32,6 +32,10 @@ const ticks = new Set<{ current: (() => void) | undefined }>();
 let shared: RealtimeChannel | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let joinedOnce = false;
+/** canal em tempo real conectado: as telas recebem os avisos na hora e quase não precisam conferir sozinhas */
+let live = false;
+/** com o tempo real funcionando, a conferência de garantia fica bem mais espaçada */
+const LIVE_POLL_MS = 120_000;
 
 function openChannel() {
   if (closeTimer) {
@@ -55,6 +59,7 @@ function openChannel() {
     }),
   );
   ch.subscribe((status) => {
+    live = status === 'SUBSCRIBED';
     if (status !== 'SUBSCRIBED') return;
     // reconectou (internet caiu, aba dormiu…): busca o que mudou enquanto estava fora
     if (joinedOnce) ticks.forEach((t) => t.current?.());
@@ -71,6 +76,7 @@ function maybeClose() {
     browserSupabase()?.removeChannel(shared);
     shared = null;
     joinedOnce = false;
+    live = false;
   }, 4000);
 }
 
@@ -88,11 +94,20 @@ export function useRealtime(handler: Handler, onTick?: () => void, pollMs = 1500
     listeners.add(h);
     ticks.add(t);
     openChannel();
+    let last = Date.now();
+    const run = () => {
+      last = Date.now();
+      t.current?.();
+    };
     const poll = setInterval(() => {
-      if (document.visibilityState === 'visible') t.current?.();
+      if (document.visibilityState !== 'visible') return;
+      // tempo real conectado: só confere de vez em quando (as mudanças já chegam pelo aviso)
+      if (live && Date.now() - last < Math.max(pollMs, LIVE_POLL_MS)) return;
+      run();
     }, pollMs);
     const onVis = () => {
-      if (document.visibilityState === 'visible') t.current?.();
+      // voltou para a aba ou a internet voltou: confere (no máximo uma vez a cada 5 s)
+      if (document.visibilityState === 'visible' && Date.now() - last > 5000) run();
     };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('online', onVis);

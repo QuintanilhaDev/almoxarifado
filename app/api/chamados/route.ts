@@ -17,6 +17,8 @@ export async function GET(req: Request) {
     const user = await requireUser();
     const dev = isDev(user);
     await limparResolvidos();
+    // ?resumo=1: só o necessário para o contador do menu e os avisos (última mensagem de cada chamado aberto)
+    if (new URL(req.url).searchParams.get('resumo') === '1') return resumo(user.id, dev);
     // ?todos=1: a fila do desenvolvedor; sem ele, só os chamados que a pessoa abriu
     const todos = dev && new URL(req.url).searchParams.get('todos') === '1';
     let q = db().from('tickets').select(TICKET_COLS).order('updated_at', { ascending: false }).limit(todos ? 1000 : 300);
@@ -162,4 +164,20 @@ export async function PATCH(req: Request) {
   } catch (e) {
     return serverError(e);
   }
+}
+
+type Linha = Pick<Ticket, 'id' | 'number' | 'title' | 'status' | 'last_from' | 'owner_seen_at' | 'opened_by_id' | 'messages' | 'updated_at'>;
+/** Contadores e a última mensagem de cada chamado recente: bem mais leve que a lista completa. */
+async function resumo(userId: string, dev: boolean) {
+  const cols = 'id, number, title, status, last_from, owner_seen_at, opened_by_id, updated_at, messages';
+  const desde = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  let q = db().from('tickets').select(cols).or(`status.in.(aberto,em_andamento,respondido),updated_at.gte.${desde}`).order('updated_at', { ascending: false }).limit(300);
+  if (!dev) q = q.eq('opened_by_id', userId);
+  const { data, error } = await q;
+  if (error) {
+    if (missingTickets(error)) return NextResponse.json({ mine: [], all: [], setup: true }, { headers: { 'Cache-Control': 'no-store' } });
+    throw error;
+  }
+  const curto = ((data ?? []) as Linha[]).map((t) => ({ ...t, messages: (t.messages ?? []).slice(-2).map((m) => ({ ...m, text: m.text.slice(0, 300), attachments: m.attachments?.length ? [m.attachments[0]] : undefined })) }));
+  return NextResponse.json({ mine: curto.filter((t) => t.opened_by_id === userId), all: dev ? curto : [] }, { headers: { 'Cache-Control': 'no-store' } });
 }
