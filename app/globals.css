@@ -2974,3 +2974,37 @@ html.theme-fade * {
   justify-content: center;
   margin-top: 10px;
 }
+
+/* ---------- aviso de versão nova ---------- */
+.version-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(620px, calc(100vw - 32px));
+  padding: 10px 12px 10px 14px;
+  border-radius: 14px;
+  background: var(--onix-3);
+  border: 1px solid rgba(198, 168, 255, 0.35);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  font-size: 14px;
+  color: var(--white);
+}
+.version-bar > svg {
+  color: var(--lilac);
+  flex-shrink: 0;
+}
+.version-bar span {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 560px) {
+  .version-bar {
+    flex-wrap: wrap;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}

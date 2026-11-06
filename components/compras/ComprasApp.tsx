@@ -18,6 +18,8 @@ import type { MaxHost } from '@/lib/max/types';
 import { PurchaseBoard } from './PurchaseBoard';
 import dynamic from 'next/dynamic';
 import { PanelSkeleton, usePreload } from '../core/lazy';
+import { chamadoMaxTabs, chamadoTabs, useChamadosResumo } from '../core/chamadoTabs';
+import { isDev } from '@/lib/chamados';
 import type { Supplier } from '@/lib/compras/fornecedores';
 import { usePurchases } from './usePurchases';
 import { usePC } from './pcui';
@@ -33,10 +35,13 @@ const loadOrders = () => import('./PedidosCompra');
 const PedidosCompra = dynamic(() => loadOrders().then((m) => m.PedidosCompra), { loading: PanelSkeleton });
 const loadPainel = () => import('./PainelCompras');
 const PainelCompras = dynamic(() => loadPainel().then((m) => m.PainelCompras), { loading: PanelSkeleton });
+const loadChamados = () => import('../core/Chamados');
+const Chamados = dynamic(() => loadChamados().then((m) => m.Chamados), { loading: PanelSkeleton });
+const ChamadosDev = dynamic(() => loadChamados().then((m) => m.ChamadosDev), { loading: PanelSkeleton });
 
 const SLUG = 'compras';
-type Tab = 'painel' | 'solicitacoes' | 'cotacoes' | 'pedidos-compra' | 'fornecedores' | 'equipe' | 'conta' | 'inicio';
-const VALID: Tab[] = ['painel', 'solicitacoes', 'cotacoes', 'pedidos-compra', 'fornecedores', 'equipe', 'conta', 'inicio'];
+type Tab = 'painel' | 'solicitacoes' | 'cotacoes' | 'pedidos-compra' | 'fornecedores' | 'equipe' | 'chamados' | 'responder' | 'conta' | 'inicio';
+const VALID: Tab[] = ['painel', 'solicitacoes', 'cotacoes', 'pedidos-compra', 'fornecedores', 'equipe', 'chamados', 'responder', 'conta', 'inicio'];
 /** sem o Realtime (rede bloqueada), a lista ainda se atualiza sozinha neste intervalo */
 const POLL_MS = 8000;
 
@@ -182,6 +187,7 @@ function Shell() {
     document.title = newCount ? `(${newCount}) Compras · Max Hub` : 'Compras · Max Hub';
   }, [newCount]);
 
+  const chamadosResumo = useChamadosResumo(user, (t) => setTab(t));
   const tabs = useMemo<FrameTab[]>(
     () => [
       ...(seesPC ? [{ id: 'painel', label: 'Painel', short: 'Painel', icon: Gauge, badge: toApprove, badgeTitle: 'Pedidos para aprovar' }] : []),
@@ -196,14 +202,16 @@ function Shell() {
       ...(seesPC ? [{ id: 'pedidos-compra', label: 'Pedidos de compra', short: 'Compras', icon: ShoppingBag }] : []),
       ...(canSup ? [{ id: 'fornecedores', label: 'Fornecedores', short: 'Fornec.', icon: Building2 }] : []),
       ...(manager ? [{ id: 'equipe', label: 'Equipe', short: 'Equipe', icon: UsersRound }] : []),
+      ...chamadoTabs(user, chamadosResumo),
       { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
     ],
-    [canView, canSup, manager, newCount, user, seesPC, toApprove, openQuotes, canApprove],
+    [canView, canSup, manager, newCount, user, seesPC, toApprove, openQuotes, canApprove, chamadosResumo],
   );
   const home: Tab = seesPC ? 'painel' : canSup ? 'fornecedores' : 'inicio';
   const current: Tab = !user
     ? tab
     : (tab === 'equipe' && !manager) ||
+        (tab === 'responder' && !isDev(user)) ||
         ((tab === 'solicitacoes' || tab === 'cotacoes') && !canView) ||
         ((tab === 'painel' || tab === 'pedidos-compra') && !seesPC) ||
         (tab === 'fornecedores' && !canSup) ||
@@ -248,6 +256,7 @@ function Shell() {
         ...(seesPC ? [{ id: 'pedidos-compra', label: 'Pedidos de compra', aliases: ['pedidos de compra', 'pedidos', 'ordens de compra', 'oc', 'pc', 'aprovacoes', 'aprovar pedidos'] }] : []),
         ...(canSup ? [{ id: 'fornecedores', label: 'Fornecedores', aliases: ['fornecedores', 'fornecedor', 'cadastro de fornecedores', 'lista de fornecedores'] }] : []),
         ...(manager ? [{ id: 'equipe', label: 'Equipe', aliases: ['equipe', 'permissoes', 'time', 'pessoas'] }] : []),
+        ...chamadoMaxTabs(user),
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
       tab: current,
@@ -369,6 +378,8 @@ function Shell() {
               />
             )}
             {current === 'equipe' && manager && <TeamManager slug={SLUG} me={user} version={teamVersion} />}
+            {current === 'chamados' && <Chamados sector={SLUG} />}
+            {current === 'responder' && isDev(user) && <ChamadosDev />}
             {current === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
           </div>
         )}

@@ -4,6 +4,7 @@ import { WarpProvider } from '@/components/core/Warp';
 import { TiltField } from '@/components/core/Depth3D';
 import { GeoGuard } from '@/components/core/GeoGuard';
 import { AuditBeacon } from '@/components/core/AuditBeacon';
+import { VersionWatch } from '@/components/core/VersionWatch';
 import { fxScript } from '@/lib/fxScript';
 import { themeScript } from '@/lib/themeScript';
 import './fx3d.css';
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TiltField />
         <GeoGuard />
         <AuditBeacon />
+        <VersionWatch />
       </body>
     </html>
   );

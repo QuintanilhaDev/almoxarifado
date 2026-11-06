@@ -12,4 +12,5 @@ export type RealtimeEvent =
   | 'order:new'
   | 'order:update'
   | 'note:update'
-  | 'collab:update';
+  | 'collab:update'
+  | 'ticket:update';

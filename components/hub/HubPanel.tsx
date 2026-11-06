@@ -14,12 +14,17 @@ import type { MaxHost } from '@/lib/max/types';
 import { SectorsOverview } from './SectorsOverview';
 import dynamic from 'next/dynamic';
 import { PanelSkeleton, usePreload } from '../core/lazy';
+import { chamadoMaxTabs, chamadoTabs, useChamadosResumo } from '../core/chamadoTabs';
+import { isDev } from '@/lib/chamados';
 import { loadAlmox, loadCompras, loadShell } from '../setores/SectorApp';
 
 const loadUsers = () => import('./UsersAdmin');
 const loadLearning = () => import('./MaxLearning');
 const loadGestao = () => import('./Gestao');
 const loadAudit = () => import('./Auditoria');
+const loadChamados = () => import('../core/Chamados');
+const Chamados = dynamic(() => loadChamados().then((m) => m.Chamados), { loading: PanelSkeleton });
+const ChamadosDev = dynamic(() => loadChamados().then((m) => m.ChamadosDev), { loading: PanelSkeleton });
 const Auditoria = dynamic(() => loadAudit().then((m) => m.Auditoria), { loading: PanelSkeleton });
 const UsersAdmin = dynamic(() => loadUsers().then((m) => m.UsersAdmin), { loading: PanelSkeleton });
 const MaxLearning = dynamic(() => loadLearning().then((m) => m.MaxLearning), { loading: PanelSkeleton });
@@ -29,16 +34,16 @@ const PRELOAD = [loadGestao, loadUsers, loadAudit, loadAlmox, loadShell, loadCom
 import { useWarp } from '../core/Warp';
 import './hub.css';
 
-type Tab = 'setores' | 'gestao' | 'usuarios' | 'auditoria' | 'max' | 'conta';
-const VALID: Tab[] = ['setores', 'gestao', 'usuarios', 'auditoria', 'max', 'conta'];
+type Tab = 'setores' | 'gestao' | 'usuarios' | 'auditoria' | 'max' | 'chamados' | 'responder' | 'conta';
+const VALID: Tab[] = ['setores', 'gestao', 'usuarios', 'auditoria', 'max', 'chamados', 'responder', 'conta'];
 const TABS: FrameTab[] = [
   { id: 'setores', label: 'Setores', short: 'Setores', icon: Building },
   { id: 'gestao', label: 'Gestão', short: 'Gestão', icon: BarChart3 },
   { id: 'usuarios', label: 'Usuários', short: 'Usuários', icon: UsersRound },
   { id: 'auditoria', label: 'Auditoria', short: 'Auditoria', icon: ShieldCheck },
   { id: 'max', label: 'Aprendizado da Max', short: 'Max', icon: Brain },
-  { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound },
 ];
+const CONTA: FrameTab = { id: 'conta', label: 'Minha conta', short: 'Conta', icon: UserRound };
 
 /** Painel do master geral: todos os setores e todos os usuários. */
 export function HubPanel() {
@@ -129,6 +134,7 @@ function Shell() {
         { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas', 'cadastro de usuarios', 'acessos'] },
         { id: 'auditoria', label: 'Auditoria', aliases: ['auditoria', 'registros', 'historico de acoes', 'log', 'logs', 'quem fez o que', 'atividades'] },
         { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max', 'o que voce aprendeu'] },
+        ...chamadoMaxTabs(user),
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
       tab,
@@ -150,15 +156,21 @@ function Shell() {
     [user, tab, setTab, logout, warp],
   );
 
+  const chamadosResumo = useChamadosResumo(user, (t) => setTab(t));
+  const tabs = useMemo(() => [...TABS, ...chamadoTabs(user, chamadosResumo), CONTA], [user, chamadosResumo]);
+  const cur: Tab = tab === 'responder' && user && !isDev(user) ? 'setores' : tab;
+
   return (
     <>
-      <AppFrame sub="Painel master" tabs={TABS} tab={tab} onTab={(t) => setTab(t as Tab)} user={user} onLogout={logout} intro={intro} onIntroEnd={endIntro}>
-        {tab === 'setores' && <SectorsOverview me={user} users={users} failed={failed} retry={loadUsers} onSeeTeam={() => setTab('usuarios')} />}
-        {tab === 'gestao' && <Gestao version={gestaoVersion} />}
-        {tab === 'usuarios' && <UsersAdmin me={user} users={users} setUsers={setUsers} failed={failed} reload={loadUsers} />}
-        {tab === 'auditoria' && <Auditoria />}
-        {tab === 'max' && <MaxLearning />}
-        {tab === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
+      <AppFrame sub="Painel master" tabs={tabs} tab={cur} onTab={(t) => setTab(t as Tab)} user={user} onLogout={logout} intro={intro} onIntroEnd={endIntro}>
+        {cur === 'setores' && <SectorsOverview me={user} users={users} failed={failed} retry={loadUsers} onSeeTeam={() => setTab('usuarios')} />}
+        {cur === 'gestao' && <Gestao version={gestaoVersion} />}
+        {cur === 'usuarios' && <UsersAdmin me={user} users={users} setUsers={setUsers} failed={failed} reload={loadUsers} />}
+        {cur === 'auditoria' && <Auditoria />}
+        {cur === 'max' && <MaxLearning />}
+        {cur === 'chamados' && <Chamados sector="hub" />}
+        {cur === 'responder' && isDev(user) && <ChamadosDev />}
+        {cur === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
       </AppFrame>
       <MaxAssistant host={host} />
     </>

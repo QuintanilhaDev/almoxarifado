@@ -56,7 +56,7 @@ if [ ! -f "$destino/.next/BUILD_ID" ]; then
   git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$destino"
   # as variáveis NEXT_PUBLIC_* entram no build, então o .env precisa estar lá antes
   ln -s "$BASE/.env.production" "$destino/.env.production"
-  (cd "$destino" && npm ci --no-audit --no-fund && npm run build)
+  (cd "$destino" && npm ci --no-audit --no-fund && MAXHUB_VERSION="$sha" npm run build)
 fi
 
 ln -sfn "$destino" current

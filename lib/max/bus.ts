@@ -22,6 +22,8 @@ export interface MaxEvents {
   /** Projeto 3: abre um pedido de material / filtra o painel */
   'pedidos:open': { id?: string; number?: number; filter?: string; query?: string };
   'max:announce': { text: string; tone?: 'alert' };
+  /** abre a conversa de um chamado na aba Chamados (ou Responder chamados) */
+  'chamados:open': { id: string };
   'hub:users': { create?: { name?: string; sector?: string; master?: boolean }; sector?: string; query?: string };
 }
 
