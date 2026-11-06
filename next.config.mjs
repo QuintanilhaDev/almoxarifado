@@ -12,6 +12,8 @@ function buildVersion(phase) {
   // a build carrega este arquivo mais de uma vez (workers): a versão fica fixa no processo
   const v = process.env.MAXHUB_BUILD_V || (process.env.VERCEL_GIT_COMMIT_SHA || process.env.MAXHUB_VERSION || '').slice(0, 12) || `b${Date.now().toString(36)}`;
   process.env.MAXHUB_BUILD_V = v;
+  // só o "next build" grava (o "next lint" também carrega este arquivo na fase de build)
+  if (!process.argv.includes('build')) return v;
   try {
     fs.writeFileSync(path.join(process.cwd(), 'public', 'version.json'), JSON.stringify({ version: v }) + '\n');
   } catch {
@@ -22,7 +24,11 @@ function buildVersion(phase) {
 
 /** @type {(phase: string) => import('next').NextConfig} */
 const nextConfig = (phase) => ({
-  env: { NEXT_PUBLIC_BUILD_VERSION: buildVersion(phase) },
+  env: {
+    NEXT_PUBLIC_BUILD_VERSION: buildVersion(phase),
+    // servidor próprio (DATABASE_URL): o tempo real vem do próprio Max Hub; na Vercel, do Supabase
+    NEXT_PUBLIC_REALTIME_MODE: process.env.NEXT_PUBLIC_REALTIME_MODE || (process.env.DATABASE_URL ? 'sse' : 'supabase'),
+  },
   async headers() {
     return [{ source: '/version.json', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }] }];
   },

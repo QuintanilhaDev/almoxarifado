@@ -84,14 +84,22 @@ const STATUS_TTL_MS = 60_000;
 async function currentStatus(sub: string): Promise<{ username: string; is_master: boolean; active: boolean } | null | undefined> {
   const hit = statusCache.get(sub);
   if (hit && Date.now() - hit.at < STATUS_TTL_MS) return hit.v;
+  if (!/^[0-9a-f-]{36}$/i.test(sub)) return undefined;
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  if (!url || !key || !/^[0-9a-f-]{36}$/i.test(sub)) return undefined;
+  // servidor próprio: pergunta ao próprio Max Hub (rota interna), que fala com o Postgres
+  const direct = Boolean(process.env.DATABASE_URL);
+  if (!direct && (!url || !key)) return undefined;
   try {
-    const r = await fetch(`${url}/rest/v1/admins?id=eq.${sub}&select=username,is_master,active`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-      cache: 'no-store',
-    });
+    const r = direct
+      ? await fetch(`${(process.env.MAXHUB_INTERNAL_URL || `http://127.0.0.1:${process.env.PORT || 3000}`).replace(/\/+$/, '')}/api/interno/status?sub=${sub}`, {
+          headers: { 'x-maxhub-interno': await internalToken(sub) },
+          cache: 'no-store',
+        })
+      : await fetch(`${url}/rest/v1/admins?id=eq.${sub}&select=username,is_master,active`, {
+          headers: { apikey: key, Authorization: `Bearer ${key}` },
+          cache: 'no-store',
+        });
     if (!r.ok) return undefined;
     const rows = (await r.json()) as { username?: string; is_master?: boolean; active?: boolean }[];
     const row = rows[0];
@@ -102,6 +110,14 @@ async function currentStatus(sub: string): Promise<{ username: string; is_master
   } catch {
     return undefined;
   }
+}
+
+/** senha das conversas internas do servidor (middleware ↔ rota interna), derivada do SESSION_SECRET */
+export async function internalToken(sub: string): Promise<string> {
+  const raw = process.env.SESSION_SECRET || 'maxhub';
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(raw), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`interno:${sub}`));
+  return btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 export async function verifyGeo(token: string | undefined | null, sub: string): Promise<boolean> {
@@ -124,5 +140,5 @@ export async function verifyGeo(token: string | undefined | null, sub: string): 
 
 /** rotas que funcionam sem a cerca: login/sessão, a própria localização e o formulário público dos supervisores */
 export function geoFree(path: string): boolean {
-  return /^\/api\/(auth\/|geo\b|form\b|requests\/?$|upload-url\b|max\/publico\b|audit\b)/.test(path);
+  return /^\/api\/(auth\/|geo\b|form\b|requests\/?$|upload-url\b|max\/publico\b|audit\b|arquivos\b|tempo-real\b|interno\/)/.test(path);
 }

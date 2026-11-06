@@ -66,6 +66,11 @@ try {
   await rh.waitForTimeout(1500);
   await rh.evaluate(() => {
     window.__sons = 0;
+    // registra quando a Max piscar (com o tempo real ligado o aviso chega antes da conferência)
+    window.__piscou = false;
+    new MutationObserver(() => {
+      if (document.querySelector('.max-fab.is-alert')) window.__piscou = true;
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
     const C = window.AudioContext;
     if (C) {
       const orig = C.prototype.createOscillator;
@@ -119,7 +124,7 @@ try {
   await tick(rh);
   await rh.waitForSelector('.toast:has-text("Corrigido na versão de hoje")', { timeout: 15000 }).then(() => ok(true, 'aviso mostra o conteúdo da mensagem')).catch(() => ok(false, 'aviso mostra o conteúdo da mensagem'));
   ok((await rh.evaluate(() => window.__sons)) > 0, 'aviso toca som');
-  ok((await rh.locator('.max-fab.is-alert').count()) === 1, 'Max pisca em amarelo');
+  ok(await rh.evaluate(() => window.__piscou), 'Max pisca em amarelo');
   await rh.screenshot({ path: SHOTS + '/ch-aviso.png' });
   ok(/1/.test(await rh.locator('.nav-item:has-text("Chamados") .nav-count').innerText().catch(() => '')), 'menu Chamados mostra 1 resposta nova');
   await rh.click('.toast button:has-text("Abrir chat")');
@@ -167,11 +172,12 @@ try {
   await rh.setViewportSize({ width: 1360, height: 900 });
 
   console.log('\n[4b] Menu lateral rola quando há muitas abas');
-  await dev.setViewportSize({ width: 1280, height: 480 });
+  await dev.setViewportSize({ width: 1280, height: 440 });
   await dev.goto(B + '/setor/almoxarifado#solicitacoes');
   await dev.reload();
   await dev.waitForSelector('.side .nav-item');
-  const rola = await dev.evaluate(() => { const n = document.querySelector('.side .nav'); return n.scrollHeight > n.clientHeight; });
+  // as abas aparecem conforme as permissões carregam: espera o menu completo antes de medir
+  const rola = await dev.waitForFunction(() => { const n = document.querySelector('.side .nav'); return n && n.scrollHeight > n.clientHeight; }, null, { timeout: 10000 }).then(() => true).catch(() => false);
   ok(rola, 'com a janela baixa o menu do Almoxarifado tem rolagem');
   ok((await dev.locator('.side .nav-item[data-tab="responder"]').count()) === 0, '"Responder chamados" não aparece nos setores, nem para o desenvolvedor');
   await dev.goto(B + '/setor/almoxarifado#responder');

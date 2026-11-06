@@ -1,5 +1,7 @@
 import 'server-only';
 import { serviceKey, supabaseUrl } from './supabaseAdmin';
+import { DIRECT } from './pg/pool';
+import { publish } from './pg/realtimeHub';
 import { REALTIME_CHANNEL, type RealtimeEvent } from './realtimeEvents';
 
 /**
@@ -15,6 +17,8 @@ export async function broadcast(event: RealtimeEvent, full: Record<string, unkno
   const payload: Record<string, string> = {};
   if (typeof full.by === 'string' && full.by) payload.by = full.by.slice(0, 40);
   if (typeof full.status === 'string' && full.status) payload.status = full.status.slice(0, 30);
+  // servidor próprio: o aviso sai pelo próprio Postgres para as telas conectadas
+  if (DIRECT) return publish({ topic: REALTIME_CHANNEL, event, payload }).catch(() => undefined);
   try {
     const key = serviceKey();
     const headers: Record<string, string> = { 'Content-Type': 'application/json', apikey: key };

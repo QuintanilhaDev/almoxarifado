@@ -22,7 +22,7 @@ mkdir -p releases
 reiniciar() {
   sudo /usr/bin/systemctl restart maxhub
   for _ in $(seq 1 30); do
-    if curl -fsS -o /dev/null http://127.0.0.1:3000/login; then
+    if curl -fsS -o /dev/null http://127.0.0.1:880/; then
       echo "Max Hub no ar: $(readlink current)"
       return 0
     fi

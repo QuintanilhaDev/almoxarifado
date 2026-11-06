@@ -1,6 +1,8 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { serviceKey, supabaseUrl } from './supabaseAdmin';
+import { DIRECT } from './pg/pool';
+import { publish } from './pg/realtimeHub';
 import type { HubUser } from './permissions';
 import { AUDIT_EVENT, type AuditEvent, type AuditKind } from './auditTypes';
 
@@ -71,6 +73,10 @@ export async function audit(input: {
   buffer.push(ev);
   if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
   // ao vivo para quem estiver com a aba Auditoria aberta
+  if (DIRECT) {
+    await publish({ topic: await auditTopic(), event: AUDIT_EVENT, payload: ev as unknown as Record<string, unknown> }).catch(() => undefined);
+    return ev;
+  }
   try {
     const key = serviceKey();
     const hdrs: Record<string, string> = { 'Content-Type': 'application/json', apikey: key };

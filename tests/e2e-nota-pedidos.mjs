@@ -111,7 +111,8 @@ try {
   r = await api(neilton, '/api/compras/pedidos');
   ok(r.body.orders.find((o) => o.id === pA.id)?.status === 'concluido' && r.body.orders.find((o) => o.id === pB.id)?.status === 'concluido', 'os dois pedidos ficaram concluídos');
   await neilton.waitForSelector('.drawer:has-text("NF 8801")', { timeout: 15000 });
-  ok((await neilton.locator('.drawer button:has-text("Ver o PC")').count()) === 2, 'a nota mostra os dois pedidos');
+  // os pedidos da nota chegam logo depois de abrir (e o tempo real pode recarregar a nota): espera, não lê na hora
+  ok(await neilton.waitForFunction(() => [...document.querySelectorAll('.drawer button')].filter((b) => /Ver o PC/.test(b.textContent || '')).length === 2, null, { timeout: 10000 }).then(() => true).catch(() => false), 'a nota mostra os dois pedidos');
   ok((await neilton.locator('.drawer .n-po-tag').count()) >= 2, 'cada item mostra o seu pedido');
   await neilton.screenshot({ path: SHOTS + '/np-nota-dois.png' });
   await neilton.keyboard.press('Escape');

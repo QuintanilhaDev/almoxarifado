@@ -2,7 +2,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, Bot, LogIn, MapPin, MousePointerClick, Pause, PenLine, Play, Search, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { browserSupabase } from '@/lib/realtime';
+import { REALTIME_MODE, browserSupabase, listenTopic } from '@/lib/realtime';
 import { getSector } from '@/lib/sectors';
 import { AUDIT_EVENT, type AuditEvent, type AuditKind } from '@/lib/auditTypes';
 import { fold, num } from '@/lib/almoxarifado/stockFormat';
@@ -74,6 +74,7 @@ export function Auditoria() {
     let topic: string | null = null;
     const sb = browserSupabase();
     let channel: ReturnType<NonNullable<typeof sb>['channel']> | null = null;
+    let stopSse: (() => void) | null = null;
     const load = async () => {
       try {
         const r = await fetch('/api/hub/auditoria', { cache: 'no-store', credentials: 'same-origin' });
@@ -84,12 +85,15 @@ export function Auditoria() {
         setLoaded(true);
         setFailed('');
         // canal ao vivo (o nome vem do servidor e só o master recebe)
-        if (!topic && j.topic && sb) {
+        if (!topic && j.topic && REALTIME_MODE === 'sse') {
+          topic = j.topic;
+          stopSse = listenTopic(j.topic, (ev, payload) => ev === AUDIT_EVENT && merge([payload as unknown as AuditEvent]), (on) => alive && setLive(on ? 'ao vivo' : 'conferindo'));
+        } else if (!topic && j.topic && sb) {
           topic = j.topic;
           channel = sb.channel(topic, { config: { broadcast: { self: false } } });
           channel.on('broadcast', { event: AUDIT_EVENT }, (msg) => merge([msg.payload as AuditEvent]));
           channel.subscribe((status) => alive && setLive(status === 'SUBSCRIBED' ? 'ao vivo' : 'conferindo'));
-        } else if (!sb) setLive('conferindo');
+        } else if (!sb && REALTIME_MODE !== 'sse') setLive('conferindo');
       } catch (e) {
         if (alive) setFailed((e as Error).message);
       }
@@ -103,6 +107,7 @@ export function Auditoria() {
       clearInterval(poll);
       clearInterval(clock);
       if (channel && sb) void sb.removeChannel(channel);
+      stopSse?.();
     };
     // merge usa refs: não precisa recriar
     // eslint-disable-next-line react-hooks/exhaustive-deps

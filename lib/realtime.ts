@@ -1,5 +1,5 @@
 'use client';
-import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, useRef } from 'react';
 import { REALTIME_CHANNEL, type RealtimeEvent } from './realtimeEvents';
 
@@ -29,7 +29,6 @@ const EVENTS: RealtimeEvent[] = ['request:new', 'request:update', 'form:update',
  */
 const listeners = new Set<{ current: Handler }>();
 const ticks = new Set<{ current: (() => void) | undefined }>();
-let shared: RealtimeChannel | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let joinedOnce = false;
 /** canal em tempo real conectado: as telas recebem os avisos na hora e quase não precisam conferir sozinhas */
@@ -37,47 +36,108 @@ let live = false;
 /** com o tempo real funcionando, a conferência de garantia fica bem mais espaçada */
 const LIVE_POLL_MS = 120_000;
 
+/**
+ * Servidor próprio (Postgres direto): os avisos chegam por uma conexão aberta com o próprio
+ * Max Hub (/api/tempo-real), sem o Supabase Realtime. Na Vercel, continua o Supabase.
+ */
+export const REALTIME_MODE: 'sse' | 'supabase' = process.env.NEXT_PUBLIC_REALTIME_MODE === 'sse' ? 'sse' : 'supabase';
+
+type Conn = { close: () => void };
+let shared: Conn | null = null;
+/** outros canais (ex.: auditoria ao vivo do master) que usam a mesma conexão */
+const topicListeners = new Map<string, Set<(event: string, payload: Record<string, unknown>) => void>>();
+const statusListeners = new Set<(on: boolean) => void>();
+const setLive = (on: boolean) => {
+  live = on;
+  statusListeners.forEach((f) => f(on));
+};
+
+function dispatch(ev: RealtimeEvent, payload: Record<string, unknown>) {
+  listeners.forEach((l) => {
+    try {
+      l.current(ev, payload);
+    } catch {
+      /* uma tela com erro não derruba as outras */
+    }
+  });
+}
+function joined() {
+  // reconectou (internet caiu, aba dormiu, servidor reiniciou…): busca o que mudou enquanto estava fora
+  if (joinedOnce) ticks.forEach((t) => t.current?.());
+  joinedOnce = true;
+}
+
 function openChannel() {
   if (closeTimer) {
     clearTimeout(closeTimer);
     closeTimer = null;
   }
   if (shared) return;
+  if (REALTIME_MODE === 'sse') {
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource('/api/tempo-real');
+    es.onopen = () => {
+      setLive(true);
+      joined();
+    };
+    // o navegador reconecta sozinho; enquanto isso, as telas voltam a conferir no ritmo normal
+    es.onerror = () => setLive(false);
+    es.onmessage = (e) => {
+      try {
+        const m = JSON.parse(e.data) as { topic: string; event: string; payload?: Record<string, unknown> };
+        if (m.topic === REALTIME_CHANNEL) {
+          if ((EVENTS as string[]).includes(m.event)) dispatch(m.event as RealtimeEvent, m.payload ?? {});
+        } else topicListeners.get(m.topic)?.forEach((f) => f(m.event, m.payload ?? {}));
+      } catch {
+        /* aviso malformado */
+      }
+    };
+    shared = { close: () => es.close() };
+    return;
+  }
   const sb = browserSupabase();
   if (!sb) return;
   const ch = sb.channel(REALTIME_CHANNEL, { config: { broadcast: { self: false } } });
-  EVENTS.forEach((ev) =>
-    ch.on('broadcast', { event: ev }, (msg) => {
-      const payload = (msg.payload ?? {}) as Record<string, unknown>;
-      listeners.forEach((l) => {
-        try {
-          l.current(ev, payload);
-        } catch {
-          /* uma tela com erro não derruba as outras */
-        }
-      });
-    }),
-  );
+  EVENTS.forEach((ev) => ch.on('broadcast', { event: ev }, (msg) => dispatch(ev, (msg.payload ?? {}) as Record<string, unknown>)));
   ch.subscribe((status) => {
-    live = status === 'SUBSCRIBED';
-    if (status !== 'SUBSCRIBED') return;
-    // reconectou (internet caiu, aba dormiu…): busca o que mudou enquanto estava fora
-    if (joinedOnce) ticks.forEach((t) => t.current?.());
-    joinedOnce = true;
+    setLive(status === 'SUBSCRIBED');
+    if (status === 'SUBSCRIBED') joined();
   });
-  shared = ch;
+  shared = { close: () => void browserSupabase()?.removeChannel(ch) };
 }
 
+function inUse() {
+  return listeners.size > 0 || [...topicListeners.values()].some((s) => s.size > 0);
+}
 function maybeClose() {
-  if (listeners.size || closeTimer) return;
+  if (inUse() || closeTimer) return;
   closeTimer = setTimeout(() => {
     closeTimer = null;
-    if (listeners.size || !shared) return;
-    browserSupabase()?.removeChannel(shared);
+    if (inUse() || !shared) return;
+    shared.close();
     shared = null;
     joinedOnce = false;
-    live = false;
+    setLive(false);
   }, 4000);
+}
+
+/**
+ * Canal extra na mesma conexão (servidor próprio). Ex.: auditoria ao vivo do master.
+ * Devolve a função para sair.
+ */
+export function listenTopic(topic: string, fn: (event: string, payload: Record<string, unknown>) => void, onStatus?: (on: boolean) => void): () => void {
+  if (!topicListeners.has(topic)) topicListeners.set(topic, new Set());
+  topicListeners.get(topic)!.add(fn);
+  if (onStatus) {
+    statusListeners.add(onStatus);
+    onStatus(live);
+  }
+  openChannel();
+  return () => {
+    topicListeners.get(topic)?.delete(fn);
+    if (onStatus) statusListeners.delete(onStatus);
+    maybeClose();
+  };
 }
 
 /**

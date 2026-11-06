@@ -1,5 +1,8 @@
 import 'server-only';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { DIRECT } from './pg/pool';
+import { Query, rpc } from './pg/rest';
+import { diskStorage } from './pg/storage';
 
 let client: SupabaseClient | null = null;
 
@@ -17,8 +20,17 @@ export function serviceKey() {
   return key;
 }
 
-/** Cliente com a chave secreta. Só roda no servidor. */
+/**
+ * Acesso ao banco. Só roda no servidor.
+ * - Com DATABASE_URL (servidor próprio): fala direto com o Postgres e guarda anexos em pasta.
+ * - Sem ela (Vercel): usa o Supabase com a chave secreta.
+ * Os dois aceitam a mesma forma de escrever: db().from('tabela').select()…
+ */
 export function db(): SupabaseClient {
+  if (DIRECT) {
+    if (!client) client = { from: (t: string) => new Query(t), rpc, storage: diskStorage } as unknown as SupabaseClient;
+    return client;
+  }
   if (!client) {
     client = createClient(supabaseUrl(), serviceKey(), {
       auth: { persistSession: false, autoRefreshToken: false },

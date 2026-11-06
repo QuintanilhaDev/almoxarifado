@@ -1,0 +1,10 @@
+# Backup diário às 02:30
+[Unit]
+Description=Backup diário do Max Hub
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

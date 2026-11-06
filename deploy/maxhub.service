@@ -3,7 +3,7 @@
 # Logs: journalctl -u maxhub -f
 [Unit]
 Description=Max Hub (Next.js)
-After=network-online.target
+After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
@@ -12,17 +12,22 @@ User=maxhub
 Group=maxhub
 WorkingDirectory=/opt/maxhub/current
 Environment=NODE_ENV=production
-Environment=PORT=3000
+Environment=PORT=880
 Environment=HOSTNAME=127.0.0.1
 EnvironmentFile=/opt/maxhub/.env.production
-# só escuta no próprio servidor; quem fala com a internet é o Nginx
-ExecStart=/usr/bin/npx next start -H 127.0.0.1 -p 3000
+# só escuta no próprio servidor (127.0.0.1:880); quem fala com a rede é o Apache (443)
+ExecStart=/usr/bin/npx next start -H 127.0.0.1 -p 880
+# a porta 880 é "baixa" (< 1024): esta permissão deixa o usuário maxhub usá-la sem ser root
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 Restart=always
 RestartSec=5
-# endurecimento básico
+# endurecimento básico: o sistema só escreve na pasta de anexos
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/maxhub /opt/maxhub
 
 [Install]
 WantedBy=multi-user.target

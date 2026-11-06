@@ -12,7 +12,21 @@ const NOMEM = process.env.NOMEM === '1';
 const problems = [];
 const ok = (cond, msg) => { if (!cond) { problems.push(msg); console.log('  ✗', msg); } else console.log('  ✓', msg); };
 const llmCalls = async () => (await (await fetch('http://localhost:54322/')).json()).calls;
-const table = async (t) => { const r = await fetch(DB + t + '?select=*'); return r.ok ? r.json() : null; };
+// modo servidor próprio: lê direto do Postgres de teste; senão, do simulador do Supabase
+const table = process.env.TEST_DATABASE_URL
+  ? async (t) => {
+      const pg = (await import('pg')).default;
+      const c = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await c.connect();
+      try {
+        return (await c.query(`select * from public.${t}`)).rows;
+      } catch {
+        return null;
+      } finally {
+        await c.end();
+      }
+    }
+  : async (t) => { const r = await fetch(DB + t + '?select=*'); return r.ok ? r.json() : null; };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const FAKE_SPEECH = `

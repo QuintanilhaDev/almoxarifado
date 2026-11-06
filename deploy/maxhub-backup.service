@@ -1,0 +1,8 @@
+# Cópia de segurança do Max Hub (banco + anexos). Ver deploy/backup.sh
+[Unit]
+Description=Backup do Max Hub
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/maxhub/backup.sh
