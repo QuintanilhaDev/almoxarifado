@@ -5,4 +5,5 @@ node_modules
 *.tsbuildinfo
 next-env.d.ts
 .vercel
-.gitignorepublic/version.json
+.gitignore
+public/version.json
