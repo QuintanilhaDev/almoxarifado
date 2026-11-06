@@ -21,21 +21,26 @@
   background: var(--onix-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  padding: 16px 18px;
+  padding: 14px 16px 16px;
   min-width: 0;
 }
 .stat small {
   display: block;
   color: var(--muted);
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 .stat b {
   display: block;
   font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin-top: 4px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -61,26 +66,27 @@
   width: 190px;
 }
 .toolbar .select {
-  padding: 10px 40px 10px 14px;
-  border-radius: 13px;
+  padding: 8px 36px 8px 12px;
+  border-radius: var(--r-sm);
   font-size: 14.5px;
   background: var(--onix-3);
   border-color: transparent;
 }
 .filter-seg {
   display: inline-flex;
-  background: var(--onix-3);
-  border-radius: 13px;
-  padding: 4px;
+  background: var(--onix-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px;
   gap: 2px;
   flex-wrap: wrap;
 }
 .filter-seg button {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 10px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted);
   display: inline-flex;
   align-items: center;
@@ -93,23 +99,23 @@
 .filter-seg button.is-active {
   background: var(--onix-4);
   color: var(--white);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 .filter-seg em {
   font-style: normal;
-  font-size: 11.5px;
-  font-weight: 700;
-  min-width: 19px;
-  height: 19px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  min-width: 18px;
+  height: 17px;
   padding: 0 5px;
-  border-radius: 99px;
+  border-radius: 4px;
   display: inline-grid;
   place-items: center;
   background: rgba(var(--fg-rgb), 0.08);
 }
 .filter-seg button.is-active em {
-  background: var(--lilac);
-  color: var(--lilac-ink);
+  background: rgba(198, 168, 255, 0.18);
+  color: var(--lilac);
 }
 
 /* ---------- lista de itens ---------- */
@@ -753,8 +759,22 @@ details.imp-cols ul {
 }
 
 .nav-count.warn {
+  background: rgba(242, 200, 121, 0.16);
+  color: var(--amber);
+}
+/* no celular o número fica sobre o ícone: cor cheia para aparecer */
+.tab .nav-count {
+  background: var(--lilac);
+  color: var(--lilac-ink);
+}
+.tab .nav-count.warn {
   background: var(--amber);
   color: #2a1d00;
+}
+@media (max-width: 640px) {
+  .stat b {
+    font-size: 21px;
+  }
 }
 
 /* ---------- categorias ---------- */
@@ -779,14 +799,14 @@ details.imp-cols ul {
   gap: 7px;
 }
 .cat-chip {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 99px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted);
-  background: var(--onix-3);
-  border: 1px solid transparent;
+  background: transparent;
+  border: 1px solid var(--line-strong);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -801,8 +821,8 @@ details.imp-cols ul {
   cursor: default;
 }
 .cat-chip.is-on {
-  background: rgba(190, 170, 255, 0.16);
-  border-color: var(--lilac);
+  background: var(--onix-4);
+  border-color: rgba(var(--fg-rgb), 0.28);
   color: var(--white);
 }
 .cat-chip em {

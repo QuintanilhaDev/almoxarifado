@@ -9,6 +9,8 @@
     "test": "tsx tests/max-nlu.test.ts && tsx tests/vinculo.test.ts && tsx tests/pontos.test.ts && tsx tests/fardamento.test.ts && tsx tests/sheetreader.test.ts && tsx tests/controle.test.ts && tsx --conditions=react-server tests/max-remote.test.ts && tsx --conditions=react-server tests/max-agent.test.ts"
   },
   "dependencies": {
+    "@fontsource-variable/instrument-sans": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@supabase/supabase-js": "^2.117.2",
     "@zxing/library": "^0.21.3",
     "bcryptjs": "^3.0.3",

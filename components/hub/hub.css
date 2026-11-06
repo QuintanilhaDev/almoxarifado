@@ -561,3 +561,12 @@
     display: none;
   }
 }
+
+/* vários cartões lado a lado: o botão principal fica neutro (o lilás é reservado para o que é único na tela) */
+.hub-card .btn-primary {
+  background: var(--white);
+  color: var(--onix);
+}
+.hub-card .btn-primary:hover:not(:disabled) {
+  background: rgba(var(--fg-rgb), 0.86);
+}

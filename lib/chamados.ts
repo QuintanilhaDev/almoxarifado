@@ -57,6 +57,8 @@ export const TICKET_COLS =
   'id, number, sector, opened_by_id, opened_by, opened_by_user, title, kind, priority, status, page, messages, last_from, owner_seen_at, created_at, updated_at, resolved_at';
 
 export const DEV_USERNAME = 'mateus';
+/** chamado resolvido é apagado depois deste tempo */
+export const APAGAR_RESOLVIDO_MS = 10 * 60_000;
 export const isDev = (u: { username: string } | null | undefined) => !!u && u.username.toLowerCase() === DEV_USERNAME;
 
 export const isKind = (v: unknown): v is TicketKind => typeof v === 'string' && v in KINDS;

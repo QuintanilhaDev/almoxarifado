@@ -44,7 +44,7 @@
 .pt-drop-icon {
   width: 60px;
   height: 60px;
-  border-radius: 18px;
+  border-radius: var(--r-lg);
   display: grid;
   place-items: center;
   background: var(--lilac-soft);

@@ -19,8 +19,8 @@ export const COLORS = {
   amber: '#f2c879',
   danger: '#ff8f9e',
 };
-export const FONT = "'Figtree','Segoe UI','Helvetica Neue',Arial,sans-serif";
-export const FONT_DISPLAY = "'Bricolage Grotesque','Segoe UI','Helvetica Neue',Arial,sans-serif";
+export const FONT = "'Instrument Sans Variable','Instrument Sans','Segoe UI','Helvetica Neue',Arial,sans-serif";
+export const FONT_DISPLAY = "'Instrument Sans Variable','Instrument Sans','Segoe UI','Helvetica Neue',Arial,sans-serif";
 
 export const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

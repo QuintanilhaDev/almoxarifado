@@ -3,7 +3,7 @@
   background: #e9e6f2;
   padding: 24px 16px 48px;
   color: #1d1430;
-  font-family: var(--font-body, Figtree, system-ui, sans-serif);
+  font-family: var(--font-body, 'Instrument Sans Variable', system-ui, sans-serif);
 }
 .termo-bar {
   max-width: 820px;

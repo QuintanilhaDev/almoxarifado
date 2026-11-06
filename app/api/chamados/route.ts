@@ -7,7 +7,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { UUID_RE } from '@/lib/almoxarifado/stockData';
 import { getSector } from '@/lib/sectors';
 import { TICKET_COLS, isDev, isKind, isOpen, isPriority, isStatus, type Ticket, type TicketMessage, type TicketStatus } from '@/lib/chamados';
-import { chamadosFail, cleanAttachments, cleanText, missingTickets } from '@/lib/chamadosServer';
+import { chamadosFail, cleanAttachments, cleanText, limparResolvidos, missingTickets } from '@/lib/chamadosServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +16,7 @@ export async function GET(req: Request) {
   try {
     const user = await requireUser();
     const dev = isDev(user);
+    await limparResolvidos();
     // ?todos=1: a fila do desenvolvedor; sem ele, só os chamados que a pessoa abriu
     const todos = dev && new URL(req.url).searchParams.get('todos') === '1';
     let q = db().from('tickets').select(TICKET_COLS).order('updated_at', { ascending: false }).limit(todos ? 1000 : 300);
@@ -148,7 +149,8 @@ export async function PATCH(req: Request) {
     patch.updated_at = now;
     if (status) {
       patch.status = status;
-      patch.resolved_at = status === 'resolvido' || status === 'fechado' ? (t.resolved_at ?? now) : null;
+      // o relógio dos 10 minutos (apagar o resolvido) começa quando ele vira "resolvido"
+      patch.resolved_at = status === 'resolvido' ? (t.status === 'resolvido' ? (t.resolved_at ?? now) : now) : status === 'fechado' ? (t.resolved_at ?? now) : null;
     }
     if (text) patch.last_from = dev ? 'dev' : 'usuario';
     if (owner) patch.owner_seen_at = now;

@@ -513,3 +513,10 @@
     padding-right: 84px;
   }
 }
+.ch-sys.ch-warn {
+  margin-top: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(242, 200, 121, 0.1);
+  color: var(--amber);
+}

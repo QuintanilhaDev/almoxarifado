@@ -9,6 +9,7 @@ import { useRealtime } from '@/lib/realtime';
 import { useMaxBus } from '@/lib/max/bus';
 import { getSector } from '@/lib/sectors';
 import {
+  APAGAR_RESOLVIDO_MS,
   KIND_SHORT,
   PRIORITIES,
   PRIORITY_TONE,
@@ -104,6 +105,10 @@ function ChatChamados({ dev, sector }: { dev: boolean; sector: string | null }) 
   const tickets = useMemo(() => data?.tickets ?? [], [data]);
   const atual = sel && sel !== 'novo' ? tickets.find((t) => t.id === sel) ?? null : null;
   const atualId = atual?.id ?? null;
+  // a conversa aberta foi apagada (resolvido há mais de 10 minutos): volta para a lista
+  useEffect(() => {
+    if (data && sel && sel !== 'novo' && !data.tickets.some((t) => t.id === sel)) setSel(null);
+  }, [data, sel]);
 
   useEffect(() => {
     const vis = () => setChatVisivel(atualId && document.visibilityState === 'visible' ? atualId : null);
@@ -400,6 +405,12 @@ function Conversa({ t, dev, pend, setPend, onSaved, onBack }: { t: Ticket; dev: 
             </div>
           );
         })}
+        {t.status === 'resolvido' && t.resolved_at ? (
+          <div className="ch-sys ch-warn">
+            Chamado resolvido. A conversa será apagada às <b>{hora(new Date(new Date(t.resolved_at).getTime() + APAGAR_RESOLVIDO_MS).toISOString())}</b>
+            {owner ? ' — escreva algo ou clique em Reabrir para mantê-la.' : '.'}
+          </div>
+        ) : null}
         <div ref={fim} />
       </div>
       <Composer placeholder={dev ? `Responder ${t.opened_by.split(' ')[0]}` : aberto ? 'Escreva uma mensagem' : 'Escreva para reabrir o chamado'} onSend={enviar} />

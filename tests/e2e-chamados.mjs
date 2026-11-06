@@ -140,6 +140,23 @@ try {
   ok(r.body.tickets[0].status === 'resolvido', 'quem abriu marca como resolvido');
   r = await api(rh, `/api/chamados?id=${t.id}`, 'PATCH', { text: 'Voltou a acontecer.' });
   ok(r.status === 200 && r.body.ticket.status === 'aberto', 'escrever num chamado resolvido reabre');
+  // resolvido some sozinho (aqui o servidor de teste usa 20 s no lugar de 10 min)
+  r = await api(rh, `/api/chamados?id=${t.id}`, 'PATCH', { status: 'resolvido' });
+  ok(r.status === 200 && r.body.ticket.resolved_at, 'resolvido de novo: o relógio para apagar começa');
+  await rh.waitForSelector('.ch-warn:has-text("será apagada")', { timeout: 10000 }).then(() => ok(true, 'conversa avisa a hora em que será apagada')).catch(() => ok(false, 'conversa avisa a hora em que será apagada'));
+  await rh.waitForTimeout(23000);
+  r = await api(rh, '/api/chamados');
+  ok(r.body.tickets.length === 0, 'chamado resolvido foi apagado depois do prazo');
+  const dlDepois = await rh.evaluate(async (u) => (await fetch(u, { cache: 'no-store' })).status, `/api/chamados/anexo?path=${encodeURIComponent(anexo)}`);
+  ok(dlDepois === 404, 'anexos do chamado apagado também somem');
+  await tick(rh);
+  await rh.waitForSelector('.ch-blank', { timeout: 15000 }).then(() => ok(true, 'conversa apagada sai da tela sozinha')).catch(() => ok(false, 'conversa apagada sai da tela sozinha'));
+  // um chamado aberto para o resto do teste (celular)
+  r = await api(rh, '/api/chamados', 'POST', { title: 'Outro teste de layout', description: 'Mensagem de teste.' });
+  await tick(rh);
+  await rh.click('.ch-conv:has-text("Outro teste de layout")');
+  await rh.waitForSelector('.ch-input');
+
   await rh.setViewportSize({ width: 390, height: 800 });
   await rh.waitForTimeout(500);
   ok(await rh.locator('.ch-side').isHidden(), 'no celular a conversa ocupa a tela toda');
@@ -147,6 +164,19 @@ try {
   await rh.click('.ch-back');
   ok(await rh.locator('.ch-side').isVisible(), 'botão voltar mostra a lista no celular');
   await rh.setViewportSize({ width: 1360, height: 900 });
+
+  console.log('\n[4b] Menu lateral rola quando há muitas abas');
+  await dev.setViewportSize({ width: 1280, height: 600 });
+  await dev.goto(B + '/setor/almoxarifado#solicitacoes');
+  await dev.reload();
+  await dev.waitForSelector('.side .nav-item');
+  const rola = await dev.evaluate(() => { const n = document.querySelector('.side .nav'); return n.scrollHeight > n.clientHeight; });
+  ok(rola, 'com a janela baixa o menu do Almoxarifado tem rolagem');
+  await dev.locator('.side .nav-item[data-tab="chamados"]').scrollIntoViewIfNeeded();
+  await dev.click('.side .nav-item[data-tab="chamados"]');
+  await dev.waitForSelector('.ch-side h1:has-text("Chamados")', { timeout: 15000 }).then(() => ok(true, 'aba Chamados alcançável no Almoxarifado')).catch(() => ok(false, 'aba Chamados alcançável no Almoxarifado'));
+  ok(await dev.locator('.side-foot').isVisible(), 'rodapé com a conta continua visível');
+  await dev.screenshot({ path: SHOTS + '/ch-menu-baixo.png' });
 
   console.log('\n[5] Versão nova: a tela se atualiza sozinha');
   if (versaoOriginal) {

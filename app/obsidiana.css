@@ -1,0 +1,282 @@
+/* =====================================================================
+   Max Hub · visual "obsidiana"
+   Vidro preto com uma aurora prateada ao fundo (referência: Aurora Dashboard, HorizonX).
+   - fundo quase preto com aurora prateada suave e um toque de lilás da marca;
+   - painéis de vidro fosco: translúcidos, borda fina e um fio de luz no topo;
+   - ação principal em prata; o lilás fica para a marca, a Max e os detalhes.
+   As regras usam ":root" na frente para valer sobre o CSS de cada tela.
+   ===================================================================== */
+:root {
+  --glass: rgba(255, 255, 255, 0.035);
+  --glass-2: rgba(255, 255, 255, 0.055);
+  --glass-strong: rgba(18, 18, 21, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.085);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --glass-blur: blur(22px) saturate(1.25);
+  --silver-1: #f4f4f6;
+  --silver-2: #c8c8d0;
+  --silver-ink: #0b0b0d;
+  --aurora-a: rgba(214, 218, 230, 0.16);
+  --aurora-b: rgba(198, 168, 255, 0.12);
+  --aurora-c: rgba(170, 178, 198, 0.1);
+  --shadow-deep: 0 30px 70px -30px rgba(0, 0, 0, 0.85);
+}
+:root[data-theme='light'] {
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-2: rgba(255, 255, 255, 0.7);
+  --glass-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(22, 22, 26, 0.08);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --silver-1: #2a2a30;
+  --silver-2: #0e0e11;
+  --silver-ink: #ffffff;
+  --aurora-a: rgba(170, 176, 196, 0.28);
+  --aurora-b: rgba(116, 70, 220, 0.08);
+  --aurora-c: rgba(200, 204, 214, 0.35);
+  --shadow-deep: 0 30px 60px -30px rgba(40, 40, 60, 0.25);
+}
+
+/* ---------- fundo: obsidiana + aurora ---------- */
+:root,
+:root body {
+  background: var(--onix);
+}
+/* o fundo da página fica no <html>; o <body> fica transparente para a aurora aparecer */
+:root body {
+  background: transparent;
+}
+:root body::before {
+  content: '';
+  position: fixed;
+  inset: -6vh -6vw;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60vw 45vh at 22% 6%, var(--aurora-a), transparent 72%),
+    radial-gradient(45vw 40vh at 88% 12%, var(--aurora-b), transparent 70%),
+    radial-gradient(70vw 50vh at 62% 108%, var(--aurora-c), transparent 72%);
+  animation: aurora-drift 38s ease-in-out infinite alternate;
+}
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(2vw, 1.5vh, 0) scale(1.04);
+  }
+  100% {
+    transform: translate3d(-2vw, 2.5vh, 0) scale(1.02);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root body::before {
+    animation: none;
+  }
+}
+:root .dash {
+  background: transparent;
+}
+
+/* ---------- menu lateral e topo (celular): vidro ---------- */
+:root .side,
+:root .mobile-top,
+:root .tabbar {
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-border);
+}
+:root .nav-item .nav-bg {
+  background: var(--glass-2);
+  box-shadow: var(--glass-hi), 0 0 0 1px var(--glass-border);
+}
+:root .side .nav-item .nav-bg::before {
+  background: linear-gradient(180deg, var(--silver-1), var(--lilac));
+}
+:root .brand-mark {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 6px 18px -8px rgba(198, 168, 255, 0.6);
+}
+:root .me-avatar {
+  background: var(--glass-2);
+  box-shadow: var(--glass-hi), 0 0 0 1px var(--glass-border);
+}
+
+/* ---------- painéis de vidro ---------- */
+:root :is(.stat, .t-wrap, .g-card, .hub-card, .banner, .mini-stats, .kv-card, .ctl-card, .panel, .req-card, .center-card, .mt-card, .posto-card, .detail-hero, .user-row, .p-row, .stock-list, .inbox-list, .o-item) {
+  background: var(--glass);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-hi);
+}
+:root :is(.hub-card, .stat, .g-card):hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+:root[data-theme='light'] :is(.hub-card, .stat, .g-card):hover {
+  border-color: rgba(22, 22, 26, 0.16);
+}
+:root .t-table th {
+  background: rgba(255, 255, 255, 0.02);
+}
+:root .t-table tbody tr.click:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* caixa de entrada (Solicitações): as colunas deixam a aurora aparecer */
+:root .list-pane {
+  background: transparent;
+  border-color: var(--glass-border);
+}
+:root .detail-pane {
+  background: rgba(255, 255, 255, 0.012);
+}
+:root[data-theme='light'] .detail-pane {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* janelas, avisos e menus flutuantes: vidro mais denso, com desfoque */
+:root :is(.modal, .toast, .version-bar) {
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-hi), var(--shadow-deep);
+}
+:root .overlay {
+  background: rgba(4, 4, 6, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+:root[data-theme='light'] .overlay {
+  background: rgba(40, 40, 52, 0.22);
+}
+
+/* ---------- controles ---------- */
+:root :is(.input, .select, .textarea) {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--glass-border);
+}
+:root[data-theme='light'] :is(.input, .select, .textarea) {
+  background: rgba(255, 255, 255, 0.75);
+}
+:root :is(.input, .select, .textarea):focus {
+  border-color: rgba(220, 222, 232, 0.45);
+  box-shadow: 0 0 0 3px rgba(220, 222, 232, 0.08);
+}
+:root[data-theme='light'] :is(.input, .select, .textarea):focus {
+  border-color: rgba(22, 22, 26, 0.35);
+  box-shadow: 0 0 0 3px rgba(22, 22, 26, 0.06);
+}
+:root .select option {
+  background: #141417;
+}
+:root[data-theme='light'] .select option {
+  background: #fff;
+}
+:root :is(.filter-seg, .search .input, .toolbar .select) {
+  background: var(--glass);
+  border-color: var(--glass-border);
+}
+:root .filter-seg button.is-active {
+  background: var(--glass-2);
+  box-shadow: var(--glass-hi), 0 0 0 1px var(--glass-border);
+}
+
+/* ação principal: prata polida */
+:root .btn-primary {
+  background: linear-gradient(180deg, var(--silver-1), var(--silver-2));
+  color: var(--silver-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+:root .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff, #d6d6de);
+}
+:root[data-theme='light'] .btn-primary {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+:root[data-theme='light'] .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #3a3a42, #16161a);
+}
+:root .hub-card .btn-primary {
+  background: linear-gradient(180deg, var(--silver-1), var(--silver-2));
+  color: var(--silver-ink);
+}
+:root .btn-ghost {
+  background: var(--glass);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-hi);
+}
+:root .btn-ghost:hover:not(:disabled) {
+  background: var(--glass-2);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+:root[data-theme='light'] .btn-ghost:hover:not(:disabled) {
+  border-color: rgba(22, 22, 26, 0.18);
+}
+
+/* títulos mais leves e elegantes */
+:root .section-head h1 {
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  background: linear-gradient(180deg, var(--white) 30%, rgba(var(--fg-rgb), 0.62));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root .stat b {
+  font-weight: 400;
+}
+
+/* ---------- login ---------- */
+:root .login-card {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-hi), var(--shadow-deep);
+}
+
+/* ---------- chamados (chat) ---------- */
+:root .ch-side {
+  background: transparent;
+  border-color: var(--glass-border);
+}
+:root .ch-pane {
+  background: rgba(255, 255, 255, 0.015);
+}
+:root[data-theme='light'] .ch-pane {
+  background: rgba(255, 255, 255, 0.35);
+}
+:root :is(.ch-head, .ch-composer) {
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-border);
+}
+:root .ch-bubble {
+  background: var(--glass-2);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-hi);
+}
+:root .ch-bubble.mine {
+  background: linear-gradient(180deg, var(--silver-1), var(--silver-2));
+  color: var(--silver-ink);
+}
+:root .ch-input {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--glass-border);
+}
+:root[data-theme='light'] .ch-input {
+  background: rgba(255, 255, 255, 0.8);
+}
+:root .ch-send {
+  background: linear-gradient(180deg, var(--silver-1), var(--silver-2));
+  color: var(--silver-ink);
+}
+:root .ch-conv.is-active {
+  background: var(--glass-2);
+  box-shadow: var(--glass-hi), 0 0 0 1px var(--glass-border);
+}
+
+/* impressão: sem vidro nem aurora */
+@media print {
+  :root body::before {
+    display: none;
+  }
+}

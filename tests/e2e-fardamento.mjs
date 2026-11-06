@@ -50,7 +50,7 @@ async function session(user, mobile = false) {
   await page.waitForTimeout(1000);
   return page;
 }
-const stats = async (p) => (await p.locator('.fd .stat-grid').innerText()).replace(/\s+/g, ' ');
+const stats = async (p) => (await p.locator('.fd .stat-grid').evaluate((el) => [...el.querySelectorAll('small, b, span, em, p, div')].filter((x) => !x.children.length).map((x) => x.textContent).join(' '))).replace(/\s+/g, ' ');
 
 try {
   console.log('\n[1] Só master acessa');

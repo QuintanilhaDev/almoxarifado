@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from 'next';
+// fontes servidas pelo próprio site (sem depender do Google Fonts)
+import '@fontsource-variable/instrument-sans/index.css';
+import '@fontsource/jetbrains-mono/latin-400.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
 import './globals.css';
+import './obsidiana.css';
 import { WarpProvider } from '@/components/core/Warp';
-import { TiltField } from '@/components/core/Depth3D';
 import { GeoGuard } from '@/components/core/GeoGuard';
 import { AuditBeacon } from '@/components/core/AuditBeacon';
 import { VersionWatch } from '@/components/core/VersionWatch';
@@ -20,7 +24,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0c0c0e',
+  themeColor: '#0b0b0d',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -29,17 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: fxScript }} />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap"
-        />
       </head>
       <body>
         <WarpProvider>{children}</WarpProvider>
-        <TiltField />
         <GeoGuard />
         <AuditBeacon />
         <VersionWatch />

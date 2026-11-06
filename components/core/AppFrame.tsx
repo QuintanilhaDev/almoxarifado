@@ -7,8 +7,6 @@ import { useEffect, useRef, useState } from 'react';
 import { initials } from '@/lib/format';
 import type { HubUser } from '@/lib/permissions';
 import { Brand } from './Brand';
-import { Scene3D } from './Depth3D';
-import { deg } from '@/lib/fx';
 
 export interface FrameTab {
   id: string;
@@ -20,6 +18,8 @@ export interface FrameTab {
   badgeTone?: 'warn';
   badgeTitle?: string;
 }
+
+const GERAL = new Set(['equipe', 'chamados', 'responder', 'conta']);
 
 export const INTRO_FLAG = 'maxhub:intro';
 
@@ -82,9 +82,14 @@ export function AppFrame({
     warp.go('/hub');
   };
 
+  // ferramentas do setor em cima; o que é igual em todos os painéis (equipe, chamados, conta) embaixo
+  const grupos = [
+    { label: 'Ferramentas', tabs: tabs.filter((t) => !GERAL.has(t.id)) },
+    { label: 'Geral', tabs: tabs.filter((t) => GERAL.has(t.id)) },
+  ].filter((g) => g.tabs.length);
+
   return (
     <div className="dash">
-      <Scene3D />
       <aside className="side">
         <Brand sub={sub} />
         {backToHub ? (
@@ -93,17 +98,22 @@ export function AppFrame({
           </a>
         ) : null}
         <nav className="nav" aria-label="Seções">
-          {tabs.map((t) => (
-            <button key={t.id} data-tab={t.id} className={`nav-item${tab === t.id ? ' is-active' : ''}`} onClick={() => onTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
-              {tab === t.id ? <motion.span layoutId="nav-bg" className="nav-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} /> : null}
-              <t.icon size={19} />
-              <span>{t.label}</span>
-              {t.badge ? (
-                <span className={`nav-count${t.badgeTone ? ' ' + t.badgeTone : ''}`} title={t.badgeTitle}>
-                  {t.badge}
-                </span>
-              ) : null}
-            </button>
+          {grupos.map((g) => (
+            <div key={g.label} className="nav-sec" role="group" aria-label={g.label}>
+              {grupos.length > 1 ? <div className="nav-group">{g.label}</div> : null}
+              {g.tabs.map((t) => (
+                <button key={t.id} data-tab={t.id} className={`nav-item${tab === t.id ? ' is-active' : ''}`} onClick={() => onTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
+                  {tab === t.id ? <motion.span layoutId="nav-bg" className="nav-bg" transition={{ type: 'spring', stiffness: 520, damping: 42 }} /> : null}
+                  <t.icon size={17} />
+                  <span>{t.label}</span>
+                  {t.badge ? (
+                    <span className={`nav-count${t.badgeTone ? ' ' + t.badgeTone : ''}`} title={t.badgeTitle}>
+                      {t.badge}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="side-foot">
@@ -140,10 +150,10 @@ export function AppFrame({
             key={tab}
             className="frame-page"
             style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', transformOrigin: '0% 50%' }}
-            initial={{ opacity: 0, y: 12, rotateY: deg(-16), z: deg(-140), transformPerspective: 1600 }}
-            animate={{ opacity: 1, y: 0, rotateY: 0, z: 0, transitionEnd: { transform: 'none' } }}
-            exit={{ opacity: 0, y: -8, rotateY: deg(10), z: deg(-90) }}
-            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0, transitionEnd: { transform: 'none' } }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
             {children}
           </motion.div>
