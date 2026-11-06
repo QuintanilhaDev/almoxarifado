@@ -21,7 +21,6 @@ const loadContratos = () => import('../rh/Contratos');
 const loadPontos = () => import('../pontos/PontosPanel');
 const loadChamados = () => import('../core/Chamados');
 const Chamados = dynamic(() => loadChamados().then((m) => m.Chamados), { loading: PanelSkeleton });
-const ChamadosDev = dynamic(() => loadChamados().then((m) => m.ChamadosDev), { loading: PanelSkeleton });
 const PontosPanel = dynamic(() => loadPontos().then((m) => m.PontosPanel), { loading: PanelSkeleton });
 const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
 const Colaboradores = dynamic(() => loadColab().then((m) => m.Colaboradores), { loading: PanelSkeleton });
@@ -32,7 +31,6 @@ import { chime } from '@/lib/chime';
 import { maxEmit, useMaxBus } from '@/lib/max/bus';
 import { canManageSector, hasLevel } from '@/lib/permissions';
 import { canPontos } from '@/lib/pontos/types';
-import { isDev } from '@/lib/chamados';
 import { useRealtime } from '@/lib/realtime';
 import { getSector, sectorPath } from '@/lib/sectors';
 import { useHashTab, useSession } from '@/lib/useSession';
@@ -41,8 +39,8 @@ import type { OrderScope } from '@/lib/pedidos/access';
 import type { MaxHost } from '@/lib/max/types';
 
 type ToolTab = 'controle' | 'pedidos' | 'colaboradores' | 'contratos' | 'trocas' | 'notas';
-type Tab = ToolTab | 'pontos' | 'inicio' | 'equipe' | 'chamados' | 'responder' | 'conta';
-const VALID: Tab[] = ['controle', 'contratos', 'pedidos', 'colaboradores', 'trocas', 'notas', 'pontos', 'inicio', 'equipe', 'chamados', 'responder', 'conta'];
+type Tab = ToolTab | 'pontos' | 'inicio' | 'equipe' | 'chamados' | 'conta';
+const VALID: Tab[] = ['controle', 'contratos', 'pedidos', 'colaboradores', 'trocas', 'notas', 'pontos', 'inicio', 'equipe', 'chamados', 'conta'];
 
 /** Abas de ferramenta de cada setor (Projeto 3). Cada aba aparece só para quem tem o módulo. */
 const TOOLS: Record<string, { id: ToolTab; label: string; short: string; icon: typeof ClipboardList; module: string; aliases: string[]; also?: string }[]> = {
@@ -165,7 +163,7 @@ function Shell({ slug }: { slug: string }) {
     return pedidos.data.orders.filter((o) => (scope === 'operacao' ? o.stage === 'solicitado' || o.stage === 'validacao' : false)).length;
   }, [pedidos.data, scope]);
 
-  const chamadosResumo = useChamadosResumo(user, (t) => setTab(t));
+  const chamadosResumo = useChamadosResumo(user, (t) => (t === 'responder' ? (window.location.href = '/hub#responder') : setTab(t)));
   const tabs = useMemo<FrameTab[]>(
     () => [
       ...(tools.length ? tools.map((t) => ({ id: t.id, label: t.label, short: t.short, icon: t.icon, badge: t.id === 'pedidos' ? waiting : 0, badgeTitle: 'Esperando a Operação' })) : pontos ? [] : [{ id: 'inicio', label: 'Início', short: 'Início', icon: user && (TOOLS[slug] ?? []).length ? Lock : LayoutDashboard }]),
@@ -176,7 +174,7 @@ function Shell({ slug }: { slug: string }) {
     ],
     [tools, manager, waiting, user, slug, pontos, chamadosResumo],
   );
-  const allowed = (t: Tab) => (t === 'conta' || t === 'chamados' ? true : t === 'responder' ? isDev(user) : t === 'equipe' ? manager : t === 'pontos' ? pontos : t === 'inicio' ? tools.length === 0 && !pontos : tools.some((x) => x.id === t));
+  const allowed = (t: Tab) => (t === 'conta' || t === 'chamados' ? true : t === 'equipe' ? manager : t === 'pontos' ? pontos : t === 'inicio' ? tools.length === 0 && !pontos : tools.some((x) => x.id === t));
   const current: Tab = !user ? tab : allowed(tab) ? tab : first;
 
   const ordersRef = useRef(pedidos.data?.orders ?? null);
@@ -265,7 +263,6 @@ function Shell({ slug }: { slug: string }) {
             {current === 'pontos' && pontos && <PontosPanel />}
             {current === 'equipe' && manager && <TeamManager slug={slug} me={user} version={teamVersion} />}
             {current === 'chamados' && <Chamados sector={slug} />}
-            {current === 'responder' && isDev(user) && <ChamadosDev />}
             {current === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
           </div>
         )}

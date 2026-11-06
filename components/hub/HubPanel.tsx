@@ -134,7 +134,7 @@ function Shell() {
         { id: 'usuarios', label: 'Usuários', aliases: ['usuarios', 'pessoas', 'cadastro de usuarios', 'acessos'] },
         { id: 'auditoria', label: 'Auditoria', aliases: ['auditoria', 'registros', 'historico de acoes', 'log', 'logs', 'quem fez o que', 'atividades'] },
         { id: 'max', label: 'Aprendizado da Max', aliases: ['aprendizado', 'aprendizado da max', 'memoria da max', 'o que voce aprendeu'] },
-        ...chamadoMaxTabs(user),
+        ...chamadoMaxTabs(user, true),
         { id: 'conta', label: 'Minha conta', aliases: ['conta', 'minha conta', 'perfil', 'senha', 'minha senha'] },
       ],
       tab,
@@ -157,7 +157,7 @@ function Shell() {
   );
 
   const chamadosResumo = useChamadosResumo(user, (t) => setTab(t));
-  const tabs = useMemo(() => [...TABS, ...chamadoTabs(user, chamadosResumo), CONTA], [user, chamadosResumo]);
+  const tabs = useMemo(() => [...TABS, ...chamadoTabs(user, chamadosResumo, true), CONTA], [user, chamadosResumo]);
   const cur: Tab = tab === 'responder' && user && !isDev(user) ? 'setores' : tab;
 
   return (

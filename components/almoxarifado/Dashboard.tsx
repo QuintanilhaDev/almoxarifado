@@ -30,7 +30,6 @@ import type { PurchaseOrder } from '@/lib/compras/pc';
 import dynamic from 'next/dynamic';
 import { PanelSkeleton, usePreload } from '../core/lazy';
 import { chamadoMaxTabs, chamadoTabs, useChamadosResumo } from '../core/chamadoTabs';
-import { isDev } from '@/lib/chamados';
 
 // abas que não são a primeira tela: o código chega quando a pessoa abre (ou com a página parada)
 const loadForm = () => import('./FormEditor');
@@ -51,12 +50,11 @@ const ComprasAlmox = dynamic(() => loadPurchases().then((m) => m.ComprasAlmox), 
 const OrdersPanel = dynamic(() => loadOrders().then((m) => m.OrdersPanel), { loading: PanelSkeleton });
 const NotasPanel = dynamic(() => loadNotas().then((m) => m.NotasPanel), { loading: PanelSkeleton });
 const Chamados = dynamic(() => loadChamados().then((m) => m.Chamados), { loading: PanelSkeleton });
-const ChamadosDev = dynamic(() => loadChamados().then((m) => m.ChamadosDev), { loading: PanelSkeleton });
 const PRELOAD = [loadOrders, loadMetricas, loadNotas, loadPostos, loadPurchases, loadForm, loadEmails];
 
 const SLUG = 'almoxarifado';
 type ModuleTab = 'solicitacoes' | 'pedidos' | 'estoque' | 'devolucoes' | 'notas' | 'postos' | 'metricas' | 'formulario' | 'emails' | 'compras';
-export type Tab = ModuleTab | 'equipe' | 'chamados' | 'responder' | 'conta' | 'inicio';
+export type Tab = ModuleTab | 'equipe' | 'chamados' | 'conta' | 'inicio';
 
 const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[]; module?: string })[] = [
   { id: 'solicitacoes', label: 'Solicitações', short: 'Solicit.', icon: InboxIcon, aliases: ['solicitacoes', 'pedidos', 'caixa de entrada', 'requisicoes'] },
@@ -70,7 +68,7 @@ const MODULE_TABS: (FrameTab & { id: ModuleTab; aliases: string[]; module?: stri
   { id: 'emails', label: 'E-mails autorizados', short: 'E-mails', icon: MailCheck, aliases: ['emails', 'e-mails', 'emails autorizados', 'supervisores'] },
   { id: 'compras', label: 'Compras', short: 'Compras', icon: ShoppingCart, aliases: ['compras', 'pedidos de compra', 'solicitacoes de compra', 'aba compras'] },
 ];
-const ALL_TABS: Tab[] = [...MODULE_TABS.map((t) => t.id), 'equipe', 'chamados', 'responder', 'conta', 'inicio'];
+const ALL_TABS: Tab[] = [...MODULE_TABS.map((t) => t.id), 'equipe', 'chamados', 'conta', 'inicio'];
 
 export function Dashboard() {
   return (
@@ -131,7 +129,7 @@ function Shell() {
       const wanted = (cur ?? (window.location.hash.replace('#', '') as Tab)) || firstTab;
       const allowed =
         ALL_TABS.includes(wanted) &&
-        (wanted === 'conta' || wanted === 'chamados' || (wanted === 'responder' ? isDev(user) : wanted === 'equipe' ? perms.manager : wanted === 'inicio' ? moduleTabs.length === 0 : perms.view(wanted)));
+        (wanted === 'conta' || wanted === 'chamados' || (wanted === 'equipe' ? perms.manager : wanted === 'inicio' ? moduleTabs.length === 0 : perms.view(wanted)));
       return allowed ? wanted : firstTab;
     });
   }, [user, perms, moduleTabs.length, firstTab]);
@@ -342,7 +340,7 @@ function Shell() {
     document.title = newCount ? `(${newCount}) Almoxarifado · Max Hub` : 'Almoxarifado · Max Hub';
   }, [newCount]);
 
-  const chamadosResumo = useChamadosResumo(user, (t) => setTab(t));
+  const chamadosResumo = useChamadosResumo(user, (t) => (t === 'responder' ? (window.location.href = '/hub#responder') : setTab(t)));
   const tabs = useMemo<FrameTab[]>(
     () => [
       ...(moduleTabs.length === 0 && user ? [{ id: 'inicio', label: 'Início', short: 'Início', icon: Lock }] : []),
@@ -509,7 +507,6 @@ function Shell() {
             {current === 'emails' && <EmailsManager emails={emails} reload={loadEmails} setEmails={setEmails} />}
             {current === 'equipe' && perms.manager && <TeamManager slug={SLUG} me={user} version={adminsVersion} />}
             {current === 'chamados' && <Chamados sector={SLUG} />}
-            {current === 'responder' && isDev(user) && <ChamadosDev />}
             {current === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
           </div>
         )}

@@ -19,7 +19,6 @@ import { PurchaseBoard } from './PurchaseBoard';
 import dynamic from 'next/dynamic';
 import { PanelSkeleton, usePreload } from '../core/lazy';
 import { chamadoMaxTabs, chamadoTabs, useChamadosResumo } from '../core/chamadoTabs';
-import { isDev } from '@/lib/chamados';
 import type { Supplier } from '@/lib/compras/fornecedores';
 import { usePurchases } from './usePurchases';
 import { usePC } from './pcui';
@@ -37,11 +36,10 @@ const loadPainel = () => import('./PainelCompras');
 const PainelCompras = dynamic(() => loadPainel().then((m) => m.PainelCompras), { loading: PanelSkeleton });
 const loadChamados = () => import('../core/Chamados');
 const Chamados = dynamic(() => loadChamados().then((m) => m.Chamados), { loading: PanelSkeleton });
-const ChamadosDev = dynamic(() => loadChamados().then((m) => m.ChamadosDev), { loading: PanelSkeleton });
 
 const SLUG = 'compras';
-type Tab = 'painel' | 'solicitacoes' | 'cotacoes' | 'pedidos-compra' | 'fornecedores' | 'equipe' | 'chamados' | 'responder' | 'conta' | 'inicio';
-const VALID: Tab[] = ['painel', 'solicitacoes', 'cotacoes', 'pedidos-compra', 'fornecedores', 'equipe', 'chamados', 'responder', 'conta', 'inicio'];
+type Tab = 'painel' | 'solicitacoes' | 'cotacoes' | 'pedidos-compra' | 'fornecedores' | 'equipe' | 'chamados' | 'conta' | 'inicio';
+const VALID: Tab[] = ['painel', 'solicitacoes', 'cotacoes', 'pedidos-compra', 'fornecedores', 'equipe', 'chamados', 'conta', 'inicio'];
 /** sem o Realtime (rede bloqueada), a lista ainda se atualiza sozinha neste intervalo */
 const POLL_MS = 8000;
 
@@ -187,7 +185,7 @@ function Shell() {
     document.title = newCount ? `(${newCount}) Compras · Max Hub` : 'Compras · Max Hub';
   }, [newCount]);
 
-  const chamadosResumo = useChamadosResumo(user, (t) => setTab(t));
+  const chamadosResumo = useChamadosResumo(user, (t) => (t === 'responder' ? (window.location.href = '/hub#responder') : setTab(t)));
   const tabs = useMemo<FrameTab[]>(
     () => [
       ...(seesPC ? [{ id: 'painel', label: 'Painel', short: 'Painel', icon: Gauge, badge: toApprove, badgeTitle: 'Pedidos para aprovar' }] : []),
@@ -211,7 +209,6 @@ function Shell() {
   const current: Tab = !user
     ? tab
     : (tab === 'equipe' && !manager) ||
-        (tab === 'responder' && !isDev(user)) ||
         ((tab === 'solicitacoes' || tab === 'cotacoes') && !canView) ||
         ((tab === 'painel' || tab === 'pedidos-compra') && !seesPC) ||
         (tab === 'fornecedores' && !canSup) ||
@@ -379,7 +376,6 @@ function Shell() {
             )}
             {current === 'equipe' && manager && <TeamManager slug={SLUG} me={user} version={teamVersion} />}
             {current === 'chamados' && <Chamados sector={SLUG} />}
-            {current === 'responder' && isDev(user) && <ChamadosDev />}
             {current === 'conta' && <AccountSettings user={user} setUser={setUser} onLogout={logout} />}
           </div>
         )}

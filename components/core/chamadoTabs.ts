@@ -106,18 +106,21 @@ export function useChamadosResumo(user: Me, go?: (tab: ChamadoTab) => void) {
   return r;
 }
 
-/** Abas "Chamados" (todos) e "Responder chamados" (só o desenvolvedor), iguais em todos os painéis. */
-export function chamadoTabs(user: { username: string } | null, r: { novas: number; aguardando: number }): FrameTab[] {
+/**
+ * Aba "Chamados" (todos os painéis) e "Responder chamados" (só no painel master e só para o desenvolvedor).
+ * `master`: true apenas no painel master.
+ */
+export function chamadoTabs(user: { username: string } | null, r: { novas: number; aguardando: number }, master = false): FrameTab[] {
   return [
     { id: 'chamados', label: 'Chamados', short: 'Chamados', icon: LifeBuoy, badge: r.novas, badgeTitle: 'Respostas novas do desenvolvedor' },
-    ...(isDev(user) ? [{ id: 'responder', label: 'Responder chamados', short: 'Responder', icon: Inbox, badge: r.aguardando, badgeTone: 'warn' as const, badgeTitle: 'Chamados esperando a sua resposta' }] : []),
+    ...(master && isDev(user) ? [{ id: 'responder', label: 'Responder chamados', short: 'Responder', icon: Inbox, badge: r.aguardando, badgeTone: 'warn' as const, badgeTitle: 'Chamados esperando a sua resposta' }] : []),
   ];
 }
 
 /** Abas para a Max ("abrir chamado", "responder chamados"). */
-export function chamadoMaxTabs(user: { username: string } | null) {
+export function chamadoMaxTabs(user: { username: string } | null, master = false) {
   return [
     { id: 'chamados', label: 'Chamados', aliases: ['chamado', 'chamados', 'abrir chamado', 'suporte', 'desenvolvedor', 'reportar erro', 'relatar erro', 'bug', 'sugestao', 'sugerir melhoria'] },
-    ...(isDev(user) ? [{ id: 'responder', label: 'Responder chamados', aliases: ['responder chamados', 'responder chamado', 'fila de chamados', 'chamados abertos'] }] : []),
+    ...(master && isDev(user) ? [{ id: 'responder', label: 'Responder chamados', aliases: ['responder chamados', 'responder chamado', 'fila de chamados', 'chamados abertos'] }] : []),
   ];
 }

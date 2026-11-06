@@ -166,12 +166,17 @@ try {
   await rh.setViewportSize({ width: 1360, height: 900 });
 
   console.log('\n[4b] Menu lateral rola quando há muitas abas');
-  await dev.setViewportSize({ width: 1280, height: 600 });
+  await dev.setViewportSize({ width: 1280, height: 480 });
   await dev.goto(B + '/setor/almoxarifado#solicitacoes');
   await dev.reload();
   await dev.waitForSelector('.side .nav-item');
   const rola = await dev.evaluate(() => { const n = document.querySelector('.side .nav'); return n.scrollHeight > n.clientHeight; });
   ok(rola, 'com a janela baixa o menu do Almoxarifado tem rolagem');
+  ok((await dev.locator('.side .nav-item[data-tab="responder"]').count()) === 0, '"Responder chamados" não aparece nos setores, nem para o desenvolvedor');
+  await dev.goto(B + '/setor/almoxarifado#responder');
+  await dev.reload();
+  await dev.waitForSelector('.side .nav-item');
+  ok((await dev.locator('.ch-side h1:has-text("Responder chamados")').count()) === 0, 'endereço #responder no setor não abre a fila');
   await dev.locator('.side .nav-item[data-tab="chamados"]').scrollIntoViewIfNeeded();
   await dev.click('.side .nav-item[data-tab="chamados"]');
   await dev.waitForSelector('.ch-side h1:has-text("Chamados")', { timeout: 15000 }).then(() => ok(true, 'aba Chamados alcançável no Almoxarifado')).catch(() => ok(false, 'aba Chamados alcançável no Almoxarifado'));
